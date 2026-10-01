@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Status · Mint Motive API</title>
+    <meta name="description" content="Live status of the Mint Motive API, uptime for the last 90 days, and incidents." />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#131a1f" />
+    <link rel="icon" href="/img/icon.svg" />
+    <link rel="stylesheet" href="/css/site.css" />
+    <link rel="stylesheet" href="/fonts/poppins.css?w=400-800" />
+    <link rel="stylesheet" href="/css/api-portal.css" />
+    <link rel="stylesheet" href="/css/api-console.css" />
+    <link rel="stylesheet" href="/css/api-status.css" />
+    <link rel="alternate" type="application/rss+xml" title="Mint Motive API status" href="/api/status.rss" />
+  </head>
+  <body class="ax-body">
+    <a class="ax-skip" href="#main">Skip to content</a>
+    <div class="ax-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <canvas class="ax-net ax-net-soft" data-net aria-hidden="true"></canvas>
+
+    <header class="ax-top">
+      <div class="ax-shell ax-top-row">
+        <a class="ax-logo" href="/" aria-label="Mint Motive API home">
+          <img src="/img/mark.svg" alt="" width="22" height="22" />
+          <span>Mint Motive</span><b>API</b>
+        </a>
+        <nav class="ax-nav" aria-label="Sections">
+          <a href="/">Overview</a>
+          <a href="/docs">Docs</a>
+          <a href="/status" aria-current="page">Status</a>
+          <a href="/console">Console</a>
+        </nav>
+        <div class="ax-swatches" role="group" aria-label="Colours">
+          <button type="button" data-palette="mint" aria-label="Mint" aria-pressed="true"></button>
+          <button type="button" data-palette="volt" aria-label="Volt" aria-pressed="false"></button>
+          <button type="button" data-palette="ion" aria-label="Ion" aria-pressed="false"></button>
+          <button type="button" data-palette="ember" aria-label="Ember" aria-pressed="false"></button>
+          <button type="button" data-palette="synth" aria-label="Synth" aria-pressed="false"></button>
+        </div>
+        
+      </div>
+    </header>
+
+    <main id="main" class="ax-shell cx st">
+      <div class="st-hero" data-hero>
+        <p class="ax-label">Status</p>
+        <h1 data-headline>Checking…</h1>
+        <p class="ax-tile-s" data-updated></p>
+      </div>
+      <div data-active></div>
+      <section class="ax-tile st-card">
+        <div class="cx-tile-head"><h2>The last 90 days</h2><span class="st-key"><i class="operational"></i>Working <i class="degraded"></i>Slow or some errors <i class="partial"></i>Partly down <i class="outage"></i>Down <i class="nodata"></i>No data</span></div>
+        <div data-components></div>
+      </section>
+      <section class="ax-tile st-card">
+        <div class="cx-tile-head"><h2>Past incidents</h2><a class="cx-link" href="/api/status.rss">RSS feed</a></div>
+        <div data-history></div>
+      </section>
+      <section class="ax-tile st-card st-how">
+        <h2>How this page works</h2>
+        <p class="ax-tile-s">Every five minutes the API checks itself: it builds a real model, reads its database and looks at the webhook queue. Real calls count too. Server errors that callers get mark a day down, but a caller's own mistakes, like a wrong setting or a missing key, don't. When something goes wrong, we post here and keep updating until it's fixed. Add an <code>incident.updated</code> webhook in your console to hear about it on your own server, or follow the RSS feed.</p>
+      </section>
+    </main>
+
+    <footer class="ax-foot">
+      <div class="ax-shell ax-foot-row">
+        <span>© {{year}} Mint Motive</span>
+        <nav aria-label="Elsewhere"><a href="/status">Status</a><a href="/docs">Docs</a><a href="{{vertex}}">VERTEX</a><a href="{{vertex}}/licences">Licences</a><a href="{{vertex}}/privacy">Privacy</a><a href="{{vertex}}/contact">Contact</a></nav>
+      </div>
+    </footer>
+    <script type="module" src="/js/pages/api-portal.js"></script>
+    <script type="module" src="/js/pages/api-status.js"></script>
+  </body>
+</html>

@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Docs · Mint Motive API</title>
+    <meta name="description" content="The Mint Motive API documentation: quick start, authentication, every endpoint with examples, every model kind and setting, errors, limits, request ids and serial numbers." />
+    <meta name="theme-color" content="#131a1f" />
+    <link rel="icon" href="/img/icon.svg" />
+    <link rel="stylesheet" href="/css/site.css" />
+    <link rel="stylesheet" href="/fonts/poppins.css?w=400-800" />
+    <link rel="stylesheet" href="/css/api-portal.css" />
+    <link rel="stylesheet" href="/css/api-console.css" />
+    <link rel="stylesheet" href="/css/api-docs.css" />
+  </head>
+  <body class="ax-body">
+    <a class="ax-skip" href="#main">Skip to content</a>
+    <div class="ax-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <canvas class="ax-net ax-net-soft" data-net aria-hidden="true"></canvas>
+
+    <header class="ax-top">
+      <div class="ax-shell ax-top-row">
+        <a class="ax-logo" href="/" aria-label="Mint Motive API home">
+          <img src="/img/mark.svg" alt="" width="22" height="22" />
+          <span>Mint Motive</span><b>API</b>
+        </a>
+        <nav class="ax-nav" aria-label="Sections">
+          <a href="/">Overview</a>
+          <a href="/docs" aria-current="page">Docs</a>
+          <a href="/status">Status</a>
+          <a href="/console">Console</a>
+        </nav>
+        <div class="ax-swatches" role="group" aria-label="Colours">
+          <button type="button" data-palette="mint" aria-label="Mint" aria-pressed="true"></button>
+          <button type="button" data-palette="volt" aria-label="Volt" aria-pressed="false"></button>
+          <button type="button" data-palette="ion" aria-label="Ion" aria-pressed="false"></button>
+          <button type="button" data-palette="ember" aria-label="Ember" aria-pressed="false"></button>
+          <button type="button" data-palette="synth" aria-label="Synth" aria-pressed="false"></button>
+        </div>
+        <a class="ax-btn ax-btn-primary ax-btn-sm" href="/console">Get a key <span aria-hidden="true">→</span></a>
+      </div>
+    </header>
+
+    <div class="ax-shell dx">
+      <aside class="dx-side" aria-label="Contents">
+        <nav class="dx-toc" data-toc>
+          <p>Start</p>
+          <a href="#intro">Introduction</a>
+          <a href="#quickstart">Quick start</a>
+          <a href="#auth">Authentication</a>
+          <a href="#requests">Requests and responses</a>
+          <p>Engine API</p>
+          <a href="#engine-info">GET /engine/v1</a>
+          <a href="#engine-kinds">GET /engine/v1/kinds</a>
+          <a href="#engine-parts">POST /engine/v1/parts</a>
+          <a href="#engine-generate">POST /engine/v1/generate</a>
+          <a href="#settings">Kinds and settings</a>
+          <p>Tracer API</p>
+          <a href="#tracer">How tracing works</a>
+          <a href="#trace-info">GET /trace/v1</a>
+          <a href="#trace-jobs">POST /trace/v1/jobs</a>
+          <a href="#trace-job">GET /trace/v1/jobs/:id</a>
+          <a href="#trace-bin">GET /trace/v1/jobs/:id/bin</a>
+          <a href="#photos">Taking good photos</a>
+          <p>Reference</p>
+          <a href="#errors">Errors</a>
+          <a href="#limits">Limits, plans and quotas</a>
+          <a href="#locking">Locking a key to your servers</a>
+          <a href="#webhooks">Webhooks</a>
+          <a href="#traceability">Request ids and serials</a>
+          <a href="#versions">Versions and changes</a>
+          <a href="#licence">Licence and fair use</a>
+          <a href="#support">Support</a>
+        </nav>
+      </aside>
+
+      <main id="main" class="dx-main">
+        <section id="intro" class="dx-sec">
+          <p class="ax-label">Docs</p>
+          <h1>The Mint Motive API</h1>
+          <p class="dx-lede">Two APIs on one engine. The <b>Engine API</b> turns settings into print-ready models: Gridfinity bins, baseplates, holders, label clips, Skådis parts and Deck Foundry parts, as STL, 3MF or OBJ. The <b>Tracer API</b> turns a photo of tools on a sheet of paper into outlines in millimetres, or a finished bin with a pocket for every tool.</p>
+          <div class="dx-cards">
+            <div class="ax-tile"><p class="ax-tile-k">Base URL</p><p class="ax-mono dx-strong">https://api.mintmotivesolutions.com.au</p></div>
+            <div class="ax-tile"><p class="ax-tile-k">Format</p><p class="dx-strong">JSON in, files or JSON out</p></div>
+            <div class="ax-tile"><p class="ax-tile-k">Engine</p><p class="ax-mono dx-strong" data-ver>—</p><p class="ax-tile-s"><i class="ax-dot" data-dot2 aria-hidden="true"></i> <span data-state2>Checking…</span></p></div>
+          </div>
+          <p class="dx-note">Every path below is relative to the base URL. The same API also answers under <code>/api</code>, so <code>/engine/v1/generate</code> is also <code>/api/engine/v1/generate</code>.</p>
+        </section>
+
+        <section id="quickstart" class="dx-sec">
+          <h2>Quick start</h2>
+          <ol class="dx-steps">
+            <li><b>Make an account</b> on VERTEX (free), and sign in.</li>
+            <li><b>Make a key</b> in the <a href="/console">console</a>. It starts with <code>vx_</code> and is shown once: keep it somewhere safe, like an environment variable.</li>
+            <li><b>Make your first model.</b> This makes a 3 × 2 bin, six units tall, with three compartments:</li>
+          </ol>
+          <div class="ax-tile dx-code">
+            <div class="ax-tabs" role="tablist" aria-label="Language">
+              <button type="button" role="tab" data-qs="curl" aria-selected="true">curl</button>
+              <button type="button" role="tab" data-qs="js" aria-selected="false">JavaScript</button>
+              <button type="button" role="tab" data-qs="py" aria-selected="false">Python</button>
+              <button type="button" class="ax-copy" data-copycode>Copy</button>
+            </div>
+            <pre class="ax-code"><code data-quick></code></pre>
+          </div>
+          <p>The answer is the file itself. Its headers say which serial number it carries, which engine made it, which parts it holds, and the request id of the call.</p>
+        </section>
+
+        <section id="auth" class="dx-sec">
+          <h2>Authentication</h2>
+          <p>Send your key on every call, in the <code>Authorization</code> header:</p>
+          <pre class="ax-code dx-pre" data-lang="curl"><code>Authorization: Bearer vx_YOUR_KEY</code></pre>
+          <table class="dx-table">
+            <thead><tr><th>Key</th><th>For</th><th>Where it comes from</th></tr></thead>
+            <tbody>
+              <tr><td><code>vx_…</code></td><td>Engine API</td><td>You make it in the console, up to five live keys per account.</td></tr>
+              <tr><td><code>tk_…</code></td><td>Tracer API</td><td>Issued by us to partners, with a monthly photo allowance. Test keys work before launch.</td></tr>
+            </tbody>
+          </table>
+          <ul class="dx-list">
+            <li><b>Keep keys secret.</b> Use them from a server, never in a web page or an app someone can unpack.</li>
+            <li><b>One key per use</b> (a shop, a bot, a script), so you can see each one's calls and revoke one without stopping the rest.</li>
+            <li><b>Revoke</b> a key in the console and it stops working at once. Its past calls stay in your log, under its name.</li>
+            <li><b>Lock</b> a key to your server's addresses and a leaked copy is useless anywhere else. See <a href="#locking">Locking a key</a>.</li>
+            <li>We only ever store a fingerprint of your key, plus its first few characters (like <code>vx_ab12…</code>) so you can tell keys apart.</li>
+          </ul>
+        </section>
+
+        <section id="requests" class="dx-sec">
+          <h2>Requests and responses</h2>
+          <p>Send JSON with <code>Content-Type: application/json</code>, except a tracer photo, which can be the raw image. Successful calls answer with a file or with JSON. Every answer carries these headers:</p>
+          <table class="dx-table">
+            <thead><tr><th>Header</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>X-Request-Id</code></td><td>This call's id, like <code>req_8KQe2f…</code>. On every answer, errors too. Quote it when you ask for help.</td></tr>
+              <tr><td><code>X-Vertex-Serial</code></td><td>The serial number stamped into the file, like <code>VX-2610-8K2F-QP7D</code>. On every file.</td></tr>
+              <tr><td><code>X-Vertex-Engine</code></td><td>The engine version that made the file.</td></tr>
+              <tr><td><code>X-Vertex-Parts</code></td><td>The parts in the file, comma separated.</td></tr>
+            </tbody>
+          </table>
+          <p>An error is JSON with one plain sentence that says what went wrong and how to fix it:</p>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{ "error": "gridX is at most 10." }</code></pre>
+        </section>
+
+        <section id="engine-info" class="dx-sec dx-ep">
+          <h2><b class="dx-m get">GET</b> /engine/v1</h2>
+          <p>What the engine is right now: its version, what it can make, the formats, the limits, and whether it's switched on. No key needed.</p>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{
+  "engine": "1.33.0",
+  "version": 1,
+  "enabled": false,
+  "kinds": ["bin", "baseplate", "holder", "labels", "skadis", "morph"],
+  "formats": ["stl", "3mf", "obj"],
+  "limits": { "perMinute": 30, "perDay": 1000, "keys": 5 }
+}</code></pre>
+        </section>
+
+        <section id="engine-kinds" class="dx-sec dx-ep">
+          <h2><b class="dx-m get">GET</b> /engine/v1/kinds</h2>
+          <p>Every kind and the default of every setting. No key needed. The settings are the same ones the generator pages use: set a model up on the site and the address bar spells out the names and values. The full list is under <a href="#settings">Kinds and settings</a>.</p>
+        </section>
+
+        <section id="engine-parts" class="dx-sec dx-ep">
+          <h2><b class="dx-m post">POST</b> /engine/v1/parts</h2>
+          <p>A dry run. It lists the parts a model is made of, with sizes in millimetres and triangle counts, and makes no file. It's handy for checking settings, or for asking for one part as STL.</p>
+          <table class="dx-table">
+            <thead><tr><th>Field</th><th>Type</th><th></th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>kind</code></td><td>string</td><td><span class="dx-req">required</span></td><td>One of the kinds.</td></tr>
+              <tr><td><code>params</code></td><td>object</td><td></td><td>Settings. Anything you leave out takes its default.</td></tr>
+            </tbody>
+          </table>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{
+  "kind": "bin",
+  "engine": "1.33.0",
+  "parts": [
+    { "name": "bin", "triangles": 2688, "size": [125.5, 83.5, 46.6] }
+  ]
+}</code></pre>
+        </section>
+
+        <section id="engine-generate" class="dx-sec dx-ep">
+          <h2><b class="dx-m post">POST</b> /engine/v1/generate</h2>
+          <p>Makes the model and answers with the file.</p>
+          <table class="dx-table">
+            <thead><tr><th>Field</th><th>Type</th><th></th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>kind</code></td><td>string</td><td><span class="dx-req">required</span></td><td><code>bin</code>, <code>baseplate</code>, <code>holder</code>, <code>labels</code>, <code>skadis</code> or <code>morph</code>.</td></tr>
+              <tr><td><code>params</code></td><td>object</td><td></td><td>Settings. Anything you leave out takes its default.</td></tr>
+              <tr><td><code>format</code></td><td>string</td><td></td><td><code>3mf</code> (default, every part, keeps colours), <code>stl</code> (one part) or <code>obj</code> (every part).</td></tr>
+              <tr><td><code>part</code></td><td>string</td><td></td><td>For STL from a model with several parts: which one. <code>/parts</code> lists their names.</td></tr>
+              <tr><td><code>name</code></td><td>string</td><td></td><td>The file's name, without the extension.</td></tr>
+            </tbody>
+          </table>
+          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="curl">curl -X POST https://api.mintmotivesolutions.com.au/engine/v1/generate \
+  -H "Authorization: Bearer $MINT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "kind": "baseplate", "format": "3mf", "params": { "gridX": 6, "gridY": 4, "bed": 256 } }' \
+  -o baseplate.3mf -D headers.txt</code></pre></div>
+          <p>A baseplate bigger than your bed comes back split into tiles that fit, with the clips that join them, all in one 3MF.</p>
+        </section>
+
+        <section id="settings" class="dx-sec">
+          <h2>Kinds and settings</h2>
+          <p>Straight from the engine, so this list is always current. Pick a kind:</p>
+          <div class="dx-kindtabs" data-kindtabs></div>
+          <div class="ax-tile dx-kind" data-kindtable><p class="cx-empty">Loading the engine's settings…</p></div>
+        </section>
+
+        <section id="tracer" class="dx-sec">
+          <h2>How tracing works <span class="dx-badge">By invitation</span></h2>
+          <p>Lay tools on a sheet of paper and photograph them from above. The paper is the ruler: we find its corners, straighten the photo, and measure every tool in millimetres.</p>
+          <div class="dx-flow">
+            <div class="ax-tile"><b>1</b><p><code>POST /trace/v1/jobs</code><br />Send the photo. You get a job id at once.</p></div>
+            <div class="ax-tile"><b>2</b><p><code>GET /trace/v1/jobs/:id</code><br />Check every second or two until it's done (usually a few seconds).</p></div>
+            <div class="ax-tile"><b>3</b><p>Use the outlines, or <code>GET …/bin</code> for a ready bin with a pocket per tool.</p></div>
+          </div>
+          <p>Photos are traced and thrown away; jobs are kept for 15 minutes. A photo that fails costs nothing from your allowance.</p>
+        </section>
+
+        <section id="trace-info" class="dx-sec dx-ep">
+          <h2><b class="dx-m get">GET</b> /trace/v1</h2>
+          <p>Your key's name, whether it's a test key, and this month's allowance and use.</p>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{
+  "name": "VERTEX tracer API",
+  "version": 1,
+  "papers": ["a4", "letter", "a5", "a3"],
+  "key": { "name": "Acme Tools", "test": false, "quota": 500, "usedThisMonth": 42 },
+  "limits": { "perMinute": 6, "atOnce": 2, "maxPhotoMb": 20 }
+}</code></pre>
+        </section>
+
+        <section id="trace-jobs" class="dx-sec dx-ep">
+          <h2><b class="dx-m post">POST</b> /trace/v1/jobs</h2>
+          <p>Send the photo as the request body (JPEG, PNG or HEIC, up to 20 MB), or as JSON <code>{ "image": "&lt;base64&gt;", "paper": "a4" }</code>. Say the paper size with <code>?paper=</code>: <code>a4</code> (default), <code>letter</code>, <code>a5</code> or <code>a3</code>.</p>
+          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="curl">curl -X POST "https://api.mintmotivesolutions.com.au/trace/v1/jobs?paper=a4" \
+  -H "Authorization: Bearer $TRACE_KEY" \
+  -H "Content-Type: image/jpeg" \
+  --data-binary @tools.jpg</code></pre></div>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{ "id": "Qm9zc2Vz8a", "status": "running", "check": "/api/trace/v1/jobs/Qm9zc2Vz8a" }</code></pre>
+        </section>
+
+        <section id="trace-job" class="dx-sec dx-ep">
+          <h2><b class="dx-m get">GET</b> /trace/v1/jobs/:id</h2>
+          <p>While it runs: <code>{ "status": "running", "seconds": 2 }</code>. If it fails: <code>{ "status": "failed", "error": "…" }</code> with what to change. When it's done:</p>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{
+  "id": "Qm9zc2Vz8a",
+  "status": "done",
+  "paper": { "name": "A4", "widthMm": 210, "heightMm": 297 },
+  "tools": [
+    {
+      "name": "pliers",
+      "lengthMm": 215.6,
+      "widthMm": 58.2,
+      "areaMm2": 6120.4,
+      "outline": [[12.4, 30.1], [14.0, 29.6], "…"]
+    }
+  ],
+  "bin": "/api/trace/v1/jobs/Qm9zc2Vz8a/bin"
+}</code></pre>
+          <p>Outlines are in millimetres on the straightened sheet, laid out as the tools lay on the paper. <code>name</code> is what the tool looks like, or just <code>tool</code>.</p>
+        </section>
+
+        <section id="trace-bin" class="dx-sec dx-ep">
+          <h2><b class="dx-m get">GET</b> /trace/v1/jobs/:id/bin</h2>
+          <p>A Gridfinity bin with a pocket for every tool: the smallest bin they fit in, up to 8 × 8. It carries a serial like any file.</p>
+          <table class="dx-table">
+            <thead><tr><th>Query</th><th>Default</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>format</code></td><td><code>stl</code></td><td><code>stl</code> or <code>3mf</code>.</td></tr>
+              <tr><td><code>clearance</code></td><td>1</td><td>Millimetres added round each tool (0–5).</td></tr>
+              <tr><td><code>depth</code></td><td>20</td><td>Pocket depth in millimetres (5–60).</td></tr>
+              <tr><td><code>finger</code></td><td>22</td><td>Finger hole diameter (0 for none, up to 35).</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="photos" class="dx-sec">
+          <h2>Taking good photos</h2>
+          <ul class="dx-list">
+            <li>Straight from above, with the <b>whole sheet</b> in view and a little table round it.</li>
+            <li>A <b>darker surface</b> than the paper, so its edges stand out.</li>
+            <li>Even light: daylight or two lamps. Avoid a single hard light that throws long shadows.</li>
+            <li>Tools <b>flat and apart</b>, not touching each other or the edge of the sheet.</li>
+            <li>Shiny steel: tilt the light a little to kill glare.</li>
+          </ul>
+        </section>
+
+        <section id="errors" class="dx-sec">
+          <h2>Errors</h2>
+          <table class="dx-table">
+            <thead><tr><th>Status</th><th>Means</th><th>What to do</th></tr></thead>
+            <tbody>
+              <tr><td><span class="cx-pill warn">400</span></td><td>A setting the generator won't take. The message names it.</td><td>Fix that setting. <code>/kinds</code> shows the defaults.</td></tr>
+              <tr><td><span class="cx-pill warn">401</span></td><td>No key, a mistyped key, or a revoked key.</td><td>Check the header and the key in the console.</td></tr>
+              <tr><td><span class="cx-pill warn">403</span></td><td>The key is locked to other addresses, a tracer key was revoked, or calls from your address are blocked.</td><td>Call from an allowed address, or update the key's lock. Write to us if you think a block is wrong.</td></tr>
+              <tr><td><span class="cx-pill warn">404</span></td><td>No such job (jobs last 15 minutes), or a wrong path.</td><td>Start a new job.</td></tr>
+              <tr><td><span class="cx-pill warn">409</span></td><td>The job hasn't finished tracing.</td><td>Wait, then ask for the bin again.</td></tr>
+              <tr><td><span class="cx-pill warn">413</span></td><td>Too many settings, or a photo over 20 MB.</td><td>Send less, or a smaller photo.</td></tr>
+              <tr><td><span class="cx-pill warn">423</span></td><td>That generator is paused for maintenance.</td><td>Try again later.</td></tr>
+              <tr><td><span class="cx-pill warn">429</span></td><td>Over a limit (per minute, per day, at once, or the month's photos).</td><td>Wait and retry, slowing down. The message says which limit.</td></tr>
+              <tr><td><span class="cx-pill bad">503</span></td><td>The API isn't switched on yet.</td><td>Watch the status on the overview page.</td></tr>
+            </tbody>
+          </table>
+          <p>Retry 429 and 5xx answers with a growing wait (1 s, 2 s, 4 s…). Don't retry 4xx answers unchanged: they'll fail the same way.</p>
+        </section>
+
+        <section id="limits" class="dx-sec">
+          <h2>Limits, plans and quotas</h2>
+          <p>Your account's plan sets the engine API's limits. The day's allowance belongs to your account and is shared by all your keys: more keys never means more calls. The per-minute limit is per key, so one busy script can't use it all up. The plans and prices are on the <a href="/#pricing">overview</a>, and you can change plan in the <a href="/console">console</a> at any time.</p>
+          <table class="dx-table">
+            <thead><tr><th></th><th>Engine API</th><th>Tracer API</th></tr></thead>
+            <tbody>
+              <tr><td>Per minute</td><td>Per key, by plan (30 on the free plan)</td><td>6 photos per key</td></tr>
+              <tr><td>Per day</td><td>Per account, shared by all its keys, by plan (1,000 on the free plan)</td><td>—</td></tr>
+              <tr><td>Past the day's allowance</td><td>Free plan: <code>429</code> until tomorrow. Paid plans: keeps working, priced per 1,000 calls and billed daily, up to your monthly limit</td><td>—</td></tr>
+              <tr><td>At once</td><td>—</td><td>2 photos per key</td></tr>
+              <tr><td>Per month</td><td>—</td><td>Your allowance (500 to start)</td></tr>
+              <tr><td>Keys</td><td>By plan (5 on the free plan)</td><td>Issued by us</td></tr>
+              <tr><td>Sizes</td><td colspan="2">The same limits as the site's generators (grid size, height, parts).</td></tr>
+            </tbody>
+          </table>
+          <p>Every file comes back with <code>X-Mint-Plan</code> (your plan's id). If the call counted as extra use past the day's allowance, it also has <code>X-Mint-Extra-Use: 1</code>. Set a monthly limit for extra use in the console. Once it's reached, calls get a <code>429</code> saying so until the 1st.</p>
+          <p>Need more? <a href="{{vertex}}/contact">Tell us</a> what you're building.</p>
+        </section>
+
+        <section id="locking" class="dx-sec">
+          <h2>Locking a key to your servers</h2>
+          <p>In the console, press <b>Lock</b> on a key and list the addresses it may be used from: single IPs (IPv4 or IPv6), or IPv4 ranges like <code>203.0.113.0/24</code>, up to 20. From anywhere else the key answers <code>403</code>, even with the right key. Leave the list empty to let the key work from anywhere again.</p>
+          <p>Lock keys that run on servers with fixed addresses. Don't lock a key used from a laptop or a home connection whose address changes.</p>
+        </section>
+
+        <section id="webhooks" class="dx-sec">
+          <h2>Webhooks</h2>
+          <p>Add an <code>https://</code> address in the console and we'll POST to it when something happens to your API account. You get a signing secret (<code>whsec_…</code>) once, when you add it.</p>
+          <table class="dx-table">
+            <thead><tr><th>Event</th><th>Sent when</th></tr></thead>
+            <tbody>
+              <tr><td><code>usage.80</code></td><td>Your account has used 80% of its calls for the day. Once a day.</td></tr>
+              <tr><td><code>usage.limit</code></td><td>Your account hit its daily limit and calls are getting <code>429</code>s. Once a day.</td></tr>
+              <tr><td><code>key.created</code></td><td>A key was made on your account.</td></tr>
+              <tr><td><code>key.revoked</code></td><td>A key was revoked, by you or by us (with our reason).</td></tr>
+              <tr><td><code>incident.updated</code></td><td>An incident on the <a href="/status">status page</a> was opened, updated or resolved.</td></tr>
+              <tr><td><code>webhook.test</code></td><td>You pressed <b>Send a test</b>.</td></tr>
+            </tbody>
+          </table>
+          <p>Each delivery is JSON, with three headers:</p>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{
+  "id": "evt_8sKq2mZ0aB1c",
+  "type": "usage.80",
+  "created": 1790000000,
+  "data": { "key": { "id": 12, "name": "Shop orders", "hint": "vx_ab12…" }, "used": 800, "limit": 1000, "window": "24h" }
+}</code></pre>
+          <table class="dx-table">
+            <thead><tr><th>Header</th><th>Holds</th></tr></thead>
+            <tbody>
+              <tr><td><code>Mint-Signature</code></td><td><code>t=&lt;unix seconds&gt;,v1=&lt;hex HMAC-SHA256&gt;</code> of <code>&lt;t&gt;.&lt;raw body&gt;</code>, keyed with your secret.</td></tr>
+              <tr><td><code>Mint-Event</code></td><td>The event type.</td></tr>
+              <tr><td><code>Mint-Delivery</code></td><td>The event id. The same id comes again on a retry, so you can skip repeats.</td></tr>
+            </tbody>
+          </table>
+          <p><b>Check every signature</b> before trusting a delivery, and refuse ones more than five minutes old:</p>
+          <pre class="ax-code dx-pre" data-lang="js"><code>import crypto from "node:crypto";
+
+// rawBody: the request body exactly as it arrived, before JSON.parse.
+function verify(rawBody, header, secret) {
+  const parts = Object.fromEntries(header.split(",").map((p) => p.split("=")));
+  const expected = crypto.createHmac("sha256", secret).update(`${parts.t}.${rawBody}`).digest("hex");
+  const got = Buffer.from(parts.v1 || ""), want = Buffer.from(expected);
+  const fresh = Math.abs(Date.now() / 1000 - Number(parts.t)) &lt; 300;
+  return fresh &amp;&amp; got.length === want.length &amp;&amp; crypto.timingSafeEqual(got, want);
+}</code></pre>
+          <pre class="ax-code dx-pre" data-lang="py"><code>import hmac, hashlib, time
+
+def verify(raw_body: bytes, header: str, secret: str) -&gt; bool:
+    parts = dict(p.split("=", 1) for p in header.split(","))
+    expected = hmac.new(secret.encode(), f"{parts['t']}.".encode() + raw_body, hashlib.sha256).hexdigest()
+    return abs(time.time() - int(parts["t"])) &lt; 300 and hmac.compare_digest(expected, parts.get("v1", ""))</code></pre>
+          <ul class="dx-list">
+            <li><b>Answer 2xx quickly</b> (within 8 seconds), then do the work. Anything else counts as a failure.</li>
+            <li><b>Retries:</b> after 1 minute, 5 minutes, 30 minutes, 2 hours and 6 hours, then the delivery is marked failed. Every try is listed under <b>Deliveries</b> in the console, with the answer we got.</li>
+            <li>We don't follow redirects, and addresses must be public: private and local networks are refused.</li>
+            <li>Up to five webhooks per account.</li>
+          </ul>
+        </section>
+
+        <section id="traceability" class="dx-sec">
+          <h2>Request ids and serials</h2>
+          <p>Everything you make can be traced, by you and by us:</p>
+          <ul class="dx-list">
+            <li><b>Every call</b> gets a request id (<code>X-Request-Id</code>), errors included.</li>
+            <li><b>Every file</b> carries a serial number (<code>X-Vertex-Serial</code>), stamped into the file. It records when and how the file was made, and nothing about you.</li>
+            <li><b>Your console</b> lists every call your keys made: when, the endpoint, what you asked for, the result, how long it took, the serial and the request id. Search it by request id, serial or path.</li>
+            <li>We watch for trouble around the clock: sudden spikes, keys that keep failing, key guessing and scraping. If something looks wrong with your key we may get in touch, or block an address while we look.</li>
+            <li>Delete your VERTEX account and the account, IP address, client and settings on your calls are wiped from the log; only anonymous counts stay.</li>
+            <li>We keep the call log for <b>two years</b>, to answer support questions, spot abuse and keep the service healthy. It holds the key used, the account, the IP address and the client's user agent, never the key itself.</li>
+          </ul>
+        </section>
+
+        <section id="versions" class="dx-sec">
+          <h2>Versions and changes</h2>
+          <p>The API is versioned in its path (<code>/v1</code>). Within v1 we only add things: new kinds, new settings, new fields. Nothing you rely on is removed or renamed without a new version and notice.</p>
+          <p>The <b>engine</b> has its own version, sent with every file. When a generator's shapes change, the engine version moves on, and old files can always be matched to the engine that made them. Recent engine changes:</p>
+          <div class="dx-history" data-history><p class="cx-empty">Loading…</p></div>
+        </section>
+
+        <section id="licence" class="dx-sec">
+          <h2>Licence and fair use</h2>
+          <ul class="dx-list">
+            <li>Models you generate are <b>CC BY-NC-SA 4.0</b>: free to print and remix with credit, not for sale. To sell what you make, <a href="{{vertex}}/commercial">apply for a commercial licence</a>.</li>
+            <li>Generate what someone asked for, when they asked. Please don't loop the API to build a catalogue.</li>
+            <li>Don't share keys, or use one key for many unrelated customers.</li>
+            <li>We may slow or revoke a key that's hurting the service, and we'll tell you why.</li>
+          </ul>
+        </section>
+
+        <section id="support" class="dx-sec">
+          <h2>Support</h2>
+          <p>Stuck? <a href="{{vertex}}/contact">Write to us</a>, or ask in the Discord. Include the <b>request id</b> (or the file's serial), and we can see exactly what happened.</p>
+          <p>Is something down? The <a href="/status">status page</a> shows every part of the API, 90 days of history and any incident we are working on. Follow it by RSS, or with an <code>incident.updated</code> webhook.</p>
+        </section>
+      </main>
+    </div>
+
+    <footer class="ax-foot">
+      <div class="ax-shell ax-foot-row">
+        <span>© {{year}} Mint Motive</span>
+        <nav aria-label="Elsewhere"><a href="/status">Status</a><a href="/">Overview</a><a href="/console">Console</a><a href="{{vertex}}">VERTEX</a><a href="{{vertex}}/licences">Licences</a><a href="{{vertex}}/privacy">Privacy</a><a href="{{vertex}}/contact">Contact</a></nav>
+      </div>
+    </footer>
+    <script type="module" src="/js/pages/api-portal.js"></script>
+    <script type="module" src="/js/pages/api-docs.js"></script>
+  </body>
+</html>

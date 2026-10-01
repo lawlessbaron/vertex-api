@@ -1,0 +1,39 @@
+/* The API site's staff backend (api-admin.js), on top of the console styles. */
+.ad-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: 14px; border-radius: 14px; border: 1px solid var(--line); background: #ffffff05; }
+.ad-tabs a { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border-radius: 10px; color: var(--mute); font: 500 13.5px/1 var(--font-ui); text-decoration: none; }
+.ad-tabs a:hover { color: var(--ink); }
+.ad-tabs a[aria-current=true] { background: var(--tile-2); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2) inset; }
+.ad-tabs b { min-width: 18px; padding: 2px 6px; border-radius: 99px; background: var(--c-kw); color: #10151a; font: 700 11px/1.2 var(--font-mono); text-align: center; }
+.ad-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+.ad-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.ad-card { margin-bottom: 14px; }
+.ad-open { border-color: color-mix(in srgb, var(--c-prop) 45%, var(--line)); }
+.ad-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.ad-cols > .ad-card { margin-bottom: 0; }
+.ad-note { margin: -6px 0 14px; max-width: 80ch; }
+.ad-wrap { white-space: normal !important; min-width: 220px; }
+.ad-wide { flex: 1 1 320px; }
+.ad-trace { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; }
+.ad-trace .ax-tile { padding: 18px 20px; }
+.ad-trace h3, .ad-h3 { margin: 0 0 12px; font: 500 11px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.ad-h3 { margin-top: 18px; }
+.ad-kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; margin: 0; font-size: 13.5px; }
+.ad-kv dt { color: var(--mute); }
+.ad-kv dd { margin: 0; overflow-wrap: anywhere; }
+.ad-pre { padding: 12px 14px; border-radius: 10px; background: #0e1418; font-size: 12.5px; max-height: 320px; overflow: auto; }
+.ad-lat .cx-quota i { width: 140px; }
+.ad-blockform { margin-bottom: 14px; }
+@media (max-width: 1100px) { .ad-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .ad-cols { grid-template-columns: 1fr; } .ad-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ad-incform { display: grid; gap: 10px; margin-top: 10px; }
+.ad-incform label { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--mute); }
+.ad-text { min-height: 70px; padding: 10px 12px; font: 400 14px/1.45 var(--font-ui); resize: vertical; }
+.ad-inc { padding: 14px 0; border-top: 1px solid var(--line); }
+.ad-inc:first-of-type { border-top: 0; }
+.ad-inc ul { margin: 10px 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; }
+.ad-cols .ax-tile { padding: 14px 16px; }
+.ad-plans td { vertical-align: top; }
+.ad-pin { min-height: 34px; padding: 0 8px; width: 100%; min-width: 70px; font-size: 13.5px; }
+.ad-plans td:nth-child(10) .ad-pin { min-width: 200px; }
+.ad-perks { min-width: 240px; padding: 6px 8px; font: 400 13px/1.4 var(--font-ui); resize: vertical; }
+.ad-gap { margin-top: 14px; }

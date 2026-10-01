@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Mint Motive API: print-ready models from one call</title>
+    <meta name="description" content="Generate Gridfinity bins, baseplates, holders, Skådis and Deck Foundry parts from your own code, and turn a photo of tools into a ready bin. One key, one call, a print-ready file back." />
+    <meta name="theme-color" content="#131a1f" />
+    <meta property="og:title" content="Mint Motive API" />
+    <meta property="og:description" content="Print-ready models from one call." />
+    <meta property="og:image" content="/img/og-vertex.png" />
+    <link rel="icon" href="/img/icon.svg" />
+    <link rel="stylesheet" href="/css/site.css" />
+    <link rel="stylesheet" href="/fonts/poppins.css?w=400-800" />
+    <link rel="stylesheet" href="/css/api-portal.css" />
+  </head>
+  <body class="ax-body">
+    <a class="ax-skip" href="#main">Skip to content</a>
+    <div class="ax-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <canvas class="ax-net" data-net aria-hidden="true"></canvas>
+
+    <header class="ax-top">
+      <div class="ax-shell ax-top-row">
+        <a class="ax-logo" href="/" aria-label="Mint Motive API home">
+          <img src="/img/mark.svg" alt="" width="22" height="22" />
+          <span>Mint Motive</span><b>API</b>
+        </a>
+        <nav class="ax-nav" aria-label="Sections">
+          <a href="#features">Features</a>
+          <a href="#playground">Playground</a>
+          <a href="/docs">Docs</a>
+          <a href="#pricing">Pricing</a>
+          <a href="/status">Status</a>
+          <a href="/console">Console</a>
+        </nav>
+        <div class="ax-swatches" role="group" aria-label="Colours">
+          <button type="button" data-palette="mint" aria-label="Mint" aria-pressed="true"></button>
+          <button type="button" data-palette="volt" aria-label="Volt" aria-pressed="false"></button>
+          <button type="button" data-palette="ion" aria-label="Ion" aria-pressed="false"></button>
+          <button type="button" data-palette="ember" aria-label="Ember" aria-pressed="false"></button>
+          <button type="button" data-palette="synth" aria-label="Synth" aria-pressed="false"></button>
+        </div>
+        <a class="ax-btn ax-btn-primary ax-btn-sm" href="/console">Get a key <span aria-hidden="true">→</span></a>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- Hero: the headline left; a console that types real calls right, with the model each one makes -->
+      <section class="ax-hero" data-hero>
+        <div class="ax-hero-bg" aria-hidden="true"></div>
+        <div class="ax-shell ax-hero-grid">
+          <div class="ax-hero-copy">
+            <p class="ax-pill"><i class="ax-dot" data-dot aria-hidden="true"></i><span data-state>Checking the engine…</span></p>
+            <h1>Print-ready models, <span class="ax-grad">from one call.</span></h1>
+            <p class="ax-lede">The same engine that runs the VERTEX generators, behind a plain HTTP API. Send settings, get back an STL, 3MF or OBJ that's ready to slice. Every file carries a serial number.</p>
+            <div class="ax-actions">
+              <a class="ax-btn ax-btn-primary" href="#playground">Try it, no key needed</a>
+              <a class="ax-btn ax-btn-ghost" href="/docs">Read the docs</a>
+            </div>
+            <dl class="ax-stats">
+              <div><dt>Model kinds</dt><dd data-count="6">6</dd></div>
+              <div><dt>Formats</dt><dd>STL · 3MF · OBJ</dd></div>
+              <div><dt>Free tier</dt><dd><span data-count="1000">1,000</span> / day</dd></div>
+            </dl>
+          </div>
+
+          <div class="ax-hero-right">
+            <div class="ax-console ax-glow" data-console>
+              <div class="ax-console-bar">
+                <i></i><i></i><i></i>
+                <span>terminal</span>
+                <b class="ax-live" aria-hidden="true">LIVE</b>
+              </div>
+              <pre class="ax-code ax-type" aria-hidden="true"><code data-type></code><span class="ax-caret"></span></pre>
+            </div>
+            <figure class="ax-float">
+              <canvas data-hero-view aria-label="The model this call makes, in 3D"></canvas>
+              <figcaption class="ax-mono" data-hero-tag>building…</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bento -->
+      <section class="ax-section" id="features" aria-labelledby="ax-feat">
+        <div class="ax-shell">
+          <p class="ax-label">Features</p>
+          <h2 class="ax-h2" id="ax-feat">Everything the generators do. <span class="ax-mute">From your code.</span></h2>
+          <div class="ax-bento">
+            <article class="ax-tile ax-t-kinds ax-reveal">
+              <p class="ax-tile-k">Model kinds</p>
+              <h3>Six generators. One endpoint.</h3>
+              <ul class="ax-kinds" data-kinds>
+                <li data-kind="bin"><i>▦</i>Bins</li>
+                <li data-kind="baseplate"><i>▤</i>Baseplates</li>
+                <li data-kind="holder"><i>◎</i>Holders</li>
+                <li data-kind="labels"><i>▭</i>Label clips</li>
+                <li data-kind="skadis"><i>⌗</i>Skådis</li>
+                <li data-kind="morph"><i>◆</i>Deck Foundry</li>
+              </ul>
+            </article>
+
+            <article class="ax-tile ax-t-speed ax-reveal">
+              <p class="ax-tile-k">Build time</p>
+              <p class="ax-big"><span data-ms>—</span><small>ms</small></p>
+              <p class="ax-tile-s">Measured just now, in your browser, on the same engine.</p>
+              <svg class="ax-spark" viewBox="0 0 120 32" preserveAspectRatio="none" aria-hidden="true"><polyline data-spark points="" /></svg>
+            </article>
+
+            <article class="ax-tile ax-t-status ax-reveal">
+              <p class="ax-tile-k">Engine</p>
+              <p class="ax-big ax-mono" data-ver>—</p>
+              <p class="ax-tile-s"><i class="ax-dot" data-dot2 aria-hidden="true"></i> <span data-state2>Checking…</span></p>
+            </article>
+
+            <article class="ax-tile ax-t-tracer ax-reveal">
+              <p class="ax-tile-k">Tracer API · by invitation</p>
+              <h3>A photo of tools in. <span class="ax-mute">A bin out.</span></h3>
+              <div class="ax-sheet" aria-hidden="true">
+                <svg viewBox="0 0 297 210">
+                  <rect class="ax-paper" x="8" y="8" width="281" height="194" rx="3" />
+                  <path class="ax-trace ax-t1" pathLength="1" d="M40 70 L170 62 Q182 61 186 52 L196 34 Q200 27 208 30 L228 38 Q236 42 232 50 L222 66 Q218 74 226 78 L250 86 Q258 90 252 98 L240 112 Q234 118 226 114 L200 100 Q190 96 180 100 L44 108 Q34 108 34 98 L34 80 Q34 71 40 70 Z" />
+                  <path class="ax-trace ax-t2" pathLength="1" d="M48 150 L210 140 Q222 139 226 148 L230 160 Q232 170 222 172 L52 176 Q42 176 42 166 L42 158 Q42 151 48 150 Z" />
+                  <g class="ax-dims"><text x="128" y="54">215.6 mm</text><text x="118" y="196">188.0 mm</text></g>
+                </svg>
+              </div>
+              <p class="ax-tile-s">Outlines in millimetres, or a finished Gridfinity bin with a pocket for every tool.</p>
+            </article>
+
+            <article class="ax-tile ax-t-code ax-reveal">
+              <div class="ax-tabs" role="tablist" aria-label="Language">
+                <button type="button" role="tab" data-lang="curl" aria-selected="true">curl</button>
+                <button type="button" role="tab" data-lang="js" aria-selected="false">JavaScript</button>
+                <button type="button" role="tab" data-lang="py" aria-selected="false">Python</button>
+              </div>
+              <pre class="ax-code"><code data-snippet></code></pre>
+            </article>
+
+            <article class="ax-tile ax-t-formats ax-reveal">
+              <p class="ax-tile-k">Formats</p>
+              <ul class="ax-formats">
+                <li><b>3MF</b><span>Every part, with colours</span></li>
+                <li><b>STL</b><span data-stl>One part at a time</span></li>
+                <li><b>OBJ</b><span>Every part</span></li>
+              </ul>
+            </article>
+
+            <article class="ax-tile ax-t-limits ax-reveal">
+              <p class="ax-tile-k">Free tier</p>
+              <div class="ax-gauge" aria-hidden="true">
+                <svg viewBox="0 0 120 120"><circle class="ax-g-bg" cx="60" cy="60" r="50" /><circle class="ax-g-fg" cx="60" cy="60" r="50" pathLength="1" /></svg>
+                <p><b data-count="1000">1,000</b><small>a day</small></p>
+              </div>
+              <p class="ax-tile-s">30 a minute per key, up to 5 keys.</p>
+            </article>
+
+            <article class="ax-tile ax-t-serial ax-reveal">
+              <p class="ax-tile-k">Traceable</p>
+              <h3>Every file carries a serial.</h3>
+              <ul class="ax-serials ax-mono" data-serials aria-hidden="true"></ul>
+            </article>
+
+            <article class="ax-tile ax-t-learn ax-reveal">
+              <div class="ax-learn-copy">
+                <p class="ax-tile-k">It learns</p>
+                <h3>Every correction makes the next trace better.</h3>
+                <p class="ax-tile-s">When a maker nudges an outline, the tracer keeps the lesson. Shadows, shiny steel, tools that touch: each fix trains it, so the next photo comes out closer.</p>
+              </div>
+              <div class="ax-learn-chart" aria-hidden="true">
+                <svg viewBox="0 0 400 140" preserveAspectRatio="none">
+                  <defs><linearGradient id="ax-lg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity=".35" /><stop offset="1" stop-color="currentColor" stop-opacity="0" /></linearGradient></defs>
+                  <g class="ax-learn-grid"><line x1="0" y1="35" x2="400" y2="35" /><line x1="0" y1="70" x2="400" y2="70" /><line x1="0" y1="105" x2="400" y2="105" /></g>
+                  <path class="ax-learn-fill" d="M0 18 C 40 30, 60 70, 110 86 S 200 108, 260 116 S 350 122, 400 124 L400 140 L0 140 Z" />
+                  <path class="ax-learn-line" pathLength="1" d="M0 18 C 40 30, 60 70, 110 86 S 200 108, 260 116 S 350 122, 400 124" />
+                  <circle class="ax-learn-dot" r="4" cx="400" cy="124" />
+                </svg>
+                <div class="ax-learn-axis ax-mono"><span>First photo</span><span>Error</span><span>After corrections</span></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Playground -->
+      <section class="ax-section" id="playground" aria-labelledby="ax-play">
+        <div class="ax-shell">
+          <p class="ax-label">Playground</p>
+          <h2 class="ax-h2" id="ax-play">Change a setting. <span class="ax-mute">Watch the model.</span></h2>
+          <div class="ax-play">
+            <form class="ax-tile ax-controls" data-form>
+              <label>Kind
+                <select name="kind">
+                  <option value="bin">Gridfinity bin</option>
+                  <option value="baseplate">Gridfinity baseplate</option>
+                  <option value="holder">Gridfinity holder</option>
+                  <option value="skadis">Skådis part</option>
+                </select>
+              </label>
+              <div class="ax-fields" data-fields></div>
+              <label>Format
+                <select name="format">
+                  <option value="3mf">3MF (every part)</option>
+                  <option value="stl">STL (one part)</option>
+                  <option value="obj">OBJ</option>
+                </select>
+              </label>
+              <p class="ax-parts ax-mono" data-parts aria-live="polite"></p>
+            </form>
+            <div class="ax-tile ax-stage ax-glow">
+              <canvas data-view aria-label="3D preview of the model"></canvas>
+            </div>
+            <div class="ax-tile ax-codebox">
+              <div class="ax-tabs" role="tablist" aria-label="Language">
+                <button type="button" role="tab" data-ptab="curl" aria-selected="true">curl</button>
+                <button type="button" role="tab" data-ptab="js" aria-selected="false">JavaScript</button>
+                <button type="button" role="tab" data-ptab="py" aria-selected="false">Python</button>
+                <button type="button" class="ax-copy" data-copy>Copy</button>
+              </div>
+              <pre class="ax-code"><code data-code></code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Reference -->
+      <section class="ax-section" id="reference" aria-labelledby="ax-ref">
+        <div class="ax-shell">
+          <p class="ax-label">Reference</p>
+          <h2 class="ax-h2" id="ax-ref">Endpoints</h2>
+          <p class="ax-sub">Base URL <code>https://api.mintmotivesolutions.com.au</code>. Send your key on every call as <code>Authorization: Bearer …</code>. Errors are JSON with a plain <code>error</code> message.</p>
+          <div class="ax-tile ax-table-wrap ax-reveal">
+            <table class="ax-table">
+              <thead><tr><th>Method</th><th>Path</th><th>What it does</th><th>Key</th></tr></thead>
+              <tbody>
+                <tr class="ax-group"><td colspan="4">Engine API</td></tr>
+                <tr><td><b class="get">GET</b></td><td><code>/engine/v1</code></td><td>Engine version, kinds, formats, limits, and whether it's switched on</td><td>—</td></tr>
+                <tr><td><b class="get">GET</b></td><td><code>/engine/v1/kinds</code></td><td>Every kind and every setting's default</td><td>—</td></tr>
+                <tr><td><b class="post">POST</b></td><td><code>/engine/v1/parts</code></td><td>Dry run: the parts a model is made of, with sizes and triangle counts</td><td><code>vx_</code></td></tr>
+                <tr><td><b class="post">POST</b></td><td><code>/engine/v1/generate</code></td><td>The file itself, with <code>X-Vertex-Serial</code>, <code>-Engine</code> and <code>-Parts</code> headers</td><td><code>vx_</code></td></tr>
+                <tr class="ax-group"><td colspan="4">Tracer API</td></tr>
+                <tr><td><b class="get">GET</b></td><td><code>/trace/v1</code></td><td>What the API is, and this key's photo allowance</td><td><code>tk_</code></td></tr>
+                <tr><td><b class="post">POST</b></td><td><code>/trace/v1/jobs?paper=a4</code></td><td>Start a job: the photo is the body (JPEG, PNG or HEIC). Answers <code>202</code> with an id</td><td><code>tk_</code></td></tr>
+                <tr><td><b class="get">GET</b></td><td><code>/trace/v1/jobs/:id</code></td><td>Status, then each tool's name, length, width, area and outline in mm</td><td><code>tk_</code></td></tr>
+                <tr><td><b class="get">GET</b></td><td><code>/trace/v1/jobs/:id/bin</code></td><td>A ready bin with a pocket per tool (<code>format</code>, <code>clearance</code>, <code>depth</code>, <code>finger</code>)</td><td><code>tk_</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="ax-errs">
+            <div class="ax-tile ax-reveal"><code>400</code><span>A setting the generator won't take; the message names it</span></div>
+            <div class="ax-tile ax-reveal"><code>401</code><span>No key, or a key that's been revoked</span></div>
+            <div class="ax-tile ax-reveal"><code>413</code><span>Too many settings, or a photo over 20 MB</span></div>
+            <div class="ax-tile ax-reveal"><code>423</code><span>That generator is paused for maintenance</span></div>
+            <div class="ax-tile ax-reveal"><code>429</code><span>Over the per-minute or daily limit</span></div>
+            <div class="ax-tile ax-reveal"><code>503</code><span>The API isn't switched on yet</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pricing -->
+      <section class="ax-section" id="pricing" aria-labelledby="ax-price">
+        <div class="ax-shell">
+          <p class="ax-label">Pricing</p>
+          <h2 class="ax-h2" id="ax-price">Start free. <span class="ax-mute">Grow when you need to.</span></h2>
+          <div class="ax-plans" data-plans>
+            <article class="ax-tile ax-plan ax-plan-hot ax-reveal">
+              <h3>Maker</h3>
+              <p class="ax-price">Free</p>
+              <ul class="ax-ticks">
+                <li>Engine API, every kind and format</li>
+                <li>30 models a minute, 1,000 a day</li>
+                <li>Up to 5 keys per account</li>
+              </ul>
+              <a class="ax-btn ax-btn-primary" href="/console">Get a free key</a>
+            </article>
+          </div>
+          <p class="ax-plans-note">Prices in Australian dollars. Paid plans keep working past the day's allowance, priced per 1,000 calls and billed once a day, up to a monthly limit you set. Everything you make is CC BY-NC-SA 4.0 unless you hold a commercial licence.</p>
+          <div class="ax-plans ax-plans-also">
+            <article class="ax-tile ax-plan ax-reveal">
+              <h3>Commercial licence</h3>
+              <p class="ax-price">Licence</p>
+              <ul class="ax-ticks">
+                <li>Sell what you generate</li>
+                <li>Works with any plan</li>
+                <li>A signed agreement, approved by us</li>
+              </ul>
+              <a class="ax-btn ax-btn-ghost" href="{{vertex}}/commercial">Apply for a licence</a>
+            </article>
+            <article class="ax-tile ax-plan ax-reveal">
+              <h3>Tracer partner</h3>
+              <p class="ax-price">Per photo</p>
+              <ul class="ax-ticks">
+                <li>Tracer API with a monthly allowance</li>
+                <li>Test keys to build against before launch</li>
+                <li>Partner agreement before the first live key</li>
+              </ul>
+              <a class="ax-btn ax-btn-ghost" href="{{vertex}}/contact">Talk to us</a>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="ax-foot">
+      <div class="ax-shell ax-foot-row">
+        <span>© {{year}} Mint Motive</span>
+        <nav aria-label="Elsewhere"><a href="/status">Status</a>
+          <a href="{{vertex}}">VERTEX</a>
+          <a href="{{vertex}}/licences">Licences</a>
+          <a href="{{vertex}}/privacy">Privacy</a>
+          <a href="{{vertex}}/contact">Contact</a>
+        </nav>
+      </div>
+    </footer>
+    <script type="module" src="/js/pages/api-portal.js"></script>
+  </body>
+</html>

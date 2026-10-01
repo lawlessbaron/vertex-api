@@ -1,0 +1,14 @@
+{
+  "name": "vertex-api",
+  "version": "1.0.0",
+  "description": "The Mint Motive API: the VERTEX engine and tracer as an API, with its portal, docs, console, status page and admin.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test",
+    "sync-engine": "node scripts/sync-engine.mjs"
+  }
+}

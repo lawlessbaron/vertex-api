@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sign in · Mint Motive API</title>
+    <meta name="description" content="Sign in to the Mint Motive API console." />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#131a1f" />
+    <link rel="icon" href="/img/icon.svg" />
+    <link rel="stylesheet" href="/css/site.css" />
+    <link rel="stylesheet" href="/fonts/poppins.css?w=400-800" />
+    <link rel="stylesheet" href="/css/api-portal.css" />
+    <link rel="stylesheet" href="/css/api-console.css" />
+  </head>
+  <body class="ax-body">
+    <a class="ax-skip" href="#main">Skip to content</a>
+    <div class="ax-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <canvas class="ax-net ax-net-soft" data-net aria-hidden="true"></canvas>
+
+    <header class="ax-top">
+      <div class="ax-shell ax-top-row">
+        <a class="ax-logo" href="/" aria-label="Mint Motive API home">
+          <img src="/img/mark.svg" alt="" width="22" height="22" />
+          <span>Mint Motive</span><b>API</b>
+        </a>
+        <nav class="ax-nav" aria-label="Sections">
+          <a href="/">Overview</a>
+          <a href="/docs">Docs</a>
+          <a href="/status">Status</a>
+          <a href="/console">Console</a>
+        </nav>
+        <div class="ax-swatches" role="group" aria-label="Colours">
+          <button type="button" data-palette="mint" aria-label="Mint" aria-pressed="true"></button>
+          <button type="button" data-palette="volt" aria-label="Volt" aria-pressed="false"></button>
+          <button type="button" data-palette="ion" aria-label="Ion" aria-pressed="false"></button>
+          <button type="button" data-palette="ember" aria-label="Ember" aria-pressed="false"></button>
+          <button type="button" data-palette="synth" aria-label="Synth" aria-pressed="false"></button>
+        </div>
+        
+      </div>
+    </header>
+
+    <main id="main" class="ax-shell cx cx-auth">
+      <section class="ax-tile si">
+        <p class="ax-label">Mint Motive API</p>
+        <h1>Sign in</h1>
+        <p class="ax-tile-s">Use your VERTEX account: the same email, password, Google or Discord sign-in and two-factor code. VERTEX checks who you are and sends you back here; this site never sees your password.</p>
+        <a class="ax-btn ax-btn-primary si-go" href="/auth/vertex" data-go>Continue with VERTEX <span aria-hidden="true">→</span></a>
+        <p class="si-err" data-err role="alert" hidden></p>
+        <p class="ax-tile-s si-alt">No account yet? <a href="{{vertex}}/signup">Make one on VERTEX</a>, then come back and sign in. Forgot your password? <a href="{{vertex}}/reset">Reset it on VERTEX</a>.</p>
+      </section>
+    </main>
+
+    <footer class="ax-foot">
+      <div class="ax-shell ax-foot-row">
+        <span>© {{year}} Mint Motive</span>
+        <nav aria-label="Elsewhere"><a href="/status">Status</a><a href="/docs">Docs</a><a href="{{vertex}}">VERTEX</a><a href="{{vertex}}/licences">Licences</a><a href="{{vertex}}/privacy">Privacy</a><a href="{{vertex}}/contact">Contact</a></nav>
+      </div>
+    </footer>
+    <script type="module" src="/js/pages/api-portal.js"></script>
+    <script type="module" src="/js/pages/api-signin.js"></script>
+  </body>
+</html>

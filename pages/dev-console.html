@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Console · Mint Motive API</title>
+    <meta name="description" content="Your Mint Motive API keys, usage and every call your keys have made." />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#131a1f" />
+    <link rel="icon" href="/img/icon.svg" />
+    <link rel="stylesheet" href="/css/site.css" />
+    <link rel="stylesheet" href="/fonts/poppins.css?w=400-800" />
+    <link rel="stylesheet" href="/css/api-portal.css" />
+    <link rel="stylesheet" href="/css/api-console.css" />
+  </head>
+  <body class="ax-body">
+    <a class="ax-skip" href="#main">Skip to content</a>
+    <div class="ax-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <canvas class="ax-net ax-net-soft" data-net aria-hidden="true"></canvas>
+
+    <header class="ax-top">
+      <div class="ax-shell ax-top-row">
+        <a class="ax-logo" href="/" aria-label="Mint Motive API home">
+          <img src="/img/mark.svg" alt="" width="22" height="22" />
+          <span>Mint Motive</span><b>API</b>
+        </a>
+        <nav class="ax-nav" aria-label="Sections">
+          <a href="/">Overview</a>
+          <a href="/docs">Docs</a>
+          <a href="/status">Status</a>
+          <a href="/console" aria-current="page">Console</a>
+        </nav>
+        <div class="ax-swatches" role="group" aria-label="Colours">
+          <button type="button" data-palette="mint" aria-label="Mint" aria-pressed="true"></button>
+          <button type="button" data-palette="volt" aria-label="Volt" aria-pressed="false"></button>
+          <button type="button" data-palette="ion" aria-label="Ion" aria-pressed="false"></button>
+          <button type="button" data-palette="ember" aria-label="Ember" aria-pressed="false"></button>
+          <button type="button" data-palette="synth" aria-label="Synth" aria-pressed="false"></button>
+        </div>
+        <span class="cx-who ax-mono" data-who></span>
+      </div>
+    </header>
+
+    <main id="main" class="ax-shell cx">
+      <div class="cx-head">
+        <div>
+          <p class="ax-label">Console</p>
+          <h1>Your API, <span class="ax-grad">at a glance.</span></h1>
+        </div>
+        <p class="ax-pill"><i class="ax-dot" data-dot aria-hidden="true"></i><span data-state>Checking the engine…</span></p>
+      </div>
+
+      <section class="ax-tile cx-signin" data-signin hidden>
+        <h2>Sign in to open your console</h2>
+        <p class="ax-tile-s">Your keys, your usage and every call your keys have made live here. Keys belong to your VERTEX account; signing in here keeps the API site separate.</p>
+        <a class="ax-btn ax-btn-primary" href="/signin?next=/console">Sign in</a>
+        <a class="ax-btn ax-btn-ghost" href="{{vertex}}/signup">Make an account on VERTEX</a>
+      </section>
+
+      <div data-app hidden>
+        <p class="cx-viewing" data-viewing hidden></p>
+        <div class="cx-range" role="group" aria-label="Period">
+          <button type="button" data-days="7">7 days</button>
+          <button type="button" data-days="30" aria-pressed="true">30 days</button>
+          <button type="button" data-days="90">90 days</button>
+        </div>
+        <div class="cx-stats" data-stats></div>
+
+        <section class="ax-tile cx-plan" data-plan></section>
+
+        <div class="cx-grid">
+          <section class="ax-tile cx-chart">
+            <div class="cx-tile-head"><h2>Calls per day</h2><span class="cx-legend"><i class="ok"></i>Worked <i class="err"></i>Errors</span></div>
+            <div data-chart></div>
+          </section>
+          <section class="ax-tile cx-break">
+            <h2>What you made</h2>
+            <div data-kinds></div>
+            <h3>Formats</h3>
+            <div data-formats></div>
+          </section>
+        </div>
+
+        <section class="ax-tile cx-keys">
+          <div class="cx-tile-head">
+            <h2>Keys</h2>
+            <form class="cx-newkey" data-newkey>
+              <input name="name" maxlength="60" placeholder="What it's for, e.g. Shop orders" aria-label="Key name" required />
+              <button class="ax-btn ax-btn-primary ax-btn-sm">Make a key</button>
+            </form>
+          </div>
+          <div class="cx-fresh" data-fresh hidden></div>
+          <div class="cx-table-wrap"><table class="cx-table" data-keys></table></div>
+          <p class="ax-tile-s" data-keynote>Each key: 30 calls a minute and 1,000 a day. <b>Lock</b> a key to your server’s addresses and it won’t work from anywhere else. Revoked keys stay listed so your old calls still show which key made them.</p>
+        </section>
+
+        <section class="ax-tile cx-hooks">
+          <div class="cx-tile-head"><h2>Webhooks</h2><a class="cx-link" href="/docs#webhooks">How to check the signature</a></div>
+          <form class="cx-hookform" data-newhook>
+            <input class="cx-input" name="url" type="url" placeholder="https://your-server.example/mint-hooks" aria-label="Webhook address" required />
+            <button class="ax-btn ax-btn-primary ax-btn-sm">Add webhook</button>
+            <div class="cx-events" data-events></div>
+          </form>
+          <div class="cx-fresh" data-hookfresh hidden></div>
+          <div class="cx-table-wrap"><table class="cx-table" data-hooks></table></div>
+          <p class="ax-tile-s">We POST signed JSON when a key nears or hits its daily limit, or a key is made or revoked. Anything but a 2xx is tried again for about 9 hours.</p>
+        </section>
+
+        <section class="ax-tile cx-log">
+          <div class="cx-tile-head">
+            <h2>Every call</h2>
+            <form class="cx-filters" data-filters>
+              <select name="key" aria-label="Key"><option value="">All keys</option></select>
+              <select name="status" aria-label="Result"><option value="">Any result</option><option value="ok">Worked</option><option value="error">Errors</option></select>
+              <input name="q" placeholder="Request id, serial or path" aria-label="Search" />
+              <button class="ax-btn ax-btn-sm">Find</button>
+            </form>
+          </div>
+          <div class="cx-table-wrap"><table class="cx-table cx-calls" data-calls></table></div>
+          <button type="button" class="ax-btn ax-btn-ghost ax-btn-sm cx-more" data-more hidden>Show older calls</button>
+        </section>
+      </div>
+    </main>
+
+    <footer class="ax-foot">
+      <div class="ax-shell ax-foot-row">
+        <span>© {{year}} Mint Motive</span>
+        <nav aria-label="Elsewhere"><a href="/status">Status</a><a href="/docs">Docs</a><a href="{{vertex}}">VERTEX</a><a href="{{vertex}}/licences">Licences</a><a href="{{vertex}}/privacy">Privacy</a><a href="{{vertex}}/contact">Contact</a></nav>
+      </div>
+    </footer>
+    <script type="module" src="/js/pages/api-portal.js"></script>
+    <script type="module" src="/js/pages/dev-console.js"></script>
+  </body>
+</html>
