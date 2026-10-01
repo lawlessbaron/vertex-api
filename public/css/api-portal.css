@@ -179,8 +179,8 @@
 .ax-gauge svg { width: 120px; height: 120px; transform: rotate(-90deg); }
 .ax-gauge circle { fill: none; stroke-width: 9; stroke-linecap: round; }
 .ax-g-bg { stroke: var(--line-2); }
-.ax-g-fg { stroke: url(#none); stroke: var(--mint); stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.8s cubic-bezier(.2,.7,.2,1); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--mint) 60%, transparent)); }
-.is-in .ax-g-fg { stroke-dashoffset: .08; }
+.ax-g-fg { stroke: url(#none); stroke: var(--mint); stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset 1.8s cubic-bezier(.2,.7,.2,1); }
+.is-in .ax-g-fg { stroke-dashoffset: 0; }
 .ax-gauge p { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; margin: 0; }
 .ax-gauge b { font: 700 24px/1 var(--font-ui); }
 .ax-gauge small { font-size: 11.5px; color: var(--mute); }

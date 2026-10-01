@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 · 1 October 2026
+
+- Fixed: the homepage's 3D previews stopped with an error when a model had more than one part (a split baseplate, for example).
+- The Free tier tile reads clearer: 1,000 calls a day for your whole account, and the figures follow the plan as it's set.
+
 ## 1.1.1 · 1 October 2026
 
 - **Faster from overseas.** Pages ask for every script they need at once instead of a level at a time, and come back from your browser's cache on later visits (refreshed quietly in the background). With US-to-Australia lag, a repeat visit went from about 1.3 s to 0.3 s.

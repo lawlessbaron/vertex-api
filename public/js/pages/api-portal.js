@@ -92,9 +92,9 @@ function layout(list) {
   let x = 0;
   const [a, b] = colours();
   return list.slice(0, 12).map((p, i) => {
-    const m = p.mesh, b = m.bounds();
-    m.translate(x - b.min[0], -(b.min[1] + b.max[1]) / 2, -b.min[2]);
-    x += b.size[0] + 8;
+    const m = p.mesh, box = m.bounds();
+    m.translate(x - box.min[0], -(box.min[1] + box.max[1]) / 2, -box.min[2]);
+    x += box.size[0] + 8;
     return { mesh: m, color: i === 0 ? a : b };
   });
 }
@@ -427,6 +427,13 @@ console_();
   try {
     const r = await (await fetch('/api/engine/v1/plans', { headers: { Accept: 'application/json' } })).json();
     if (!r.plans?.length) return;
+    // The free tile follows the free plan as it's set in admin.
+    const free = r.plans.find((p) => !p.monthly && !p.invite);
+    if (free) {
+      const day = document.querySelector('[data-free-day]'), line = document.querySelector('[data-free-line]');
+      if (day) { day.dataset.count = free.perDay; day.textContent = Number(free.perDay).toLocaleString('en-AU'); }
+      if (line) line.textContent = `For your whole account. ${free.perMinute} a minute per key, up to ${free.keys} keys.`;
+    }
     const e = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     const n = (x) => Number(x).toLocaleString('en-AU');
     box.innerHTML = r.plans.map((p, i) => `
