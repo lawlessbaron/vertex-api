@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 · 1 October 2026
+
+- **Faster from overseas.** Pages ask for every script they need at once instead of a level at a time, and come back from your browser's cache on later visits (refreshed quietly in the background). With US-to-Australia lag, a repeat visit went from about 1.3 s to 0.3 s.
+- Staff see an Admin link in the header when signed in.
+
 ## 1.1.0 · 1 October 2026
 
 - **Education plan.** Schools, colleges and universities can apply with their details and proof (a signed letter on letterhead, or a notarised or certified statement). Every application is reviewed by hand; approved public schools get the plan at close to cost. Documents are deleted 30 days after the decision.

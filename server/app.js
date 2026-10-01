@@ -163,7 +163,43 @@ export function createApp(config) {
       pageCache.set(name, html);
     }
     html = html.replaceAll('{{year}}', String(new Date().getFullYear())).replaceAll('{{vertex}}', config.vertexUrl);
-    return html.replace('</head>', `${headMeta(name, html)}\n  </head>`);
+    html = html.replace(/<html\b([^>]*)>/, `<html$1 data-release="${attr(config.version)}">`);
+    html = html.replace('</head>', `${headMeta(name, html)}\n${preloads(html)}\n  </head>`);
+    return name === 'api-admin' ? html : html.replace('</body>', '  <script type="module" src="/js/site.js"></script>\n  </body>');
+  }
+  // Every module a page's scripts import, all asked for at once: without this
+  // the browser finds them a level at a time (page → models.js → geometry →
+  // primitives), one round trip per level, which is what makes the site slow
+  // from far away.
+  const graphCache = new Map();
+  function jsFile(urlPath) {
+    const pub = join(PUBLIC, urlPath);
+    if (existsSync(pub)) return pub;
+    const eng = join(ENGINE_DIR, urlPath.slice(3));
+    return urlPath.startsWith('/js/') && existsSync(eng) ? eng : null;
+  }
+  function moduleGraph(entry, seen = new Set()) {
+    if (seen.has(entry)) return seen;
+    const file = jsFile(entry);
+    if (!file) return seen;
+    seen.add(entry);
+    const src = readFileSync(file, 'utf8');
+    for (const m of src.matchAll(/^\s*(?:import|export)\s[^'"`;]*?from\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]/gm)) {
+      const spec = m[1] || m[2];
+      if (!/^(\.{1,2}\/|\/)/.test(spec)) continue;
+      moduleGraph(new URL(spec, `http://x${entry}`).pathname, seen);
+    }
+    return seen;
+  }
+  function preloads(html) {
+    const entries = [...html.matchAll(/<script type="module" src="(\/js\/[^"]+)"/g)].map((m) => m[1]);
+    const key = entries.join('|');
+    if (!graphCache.has(key) || process.env.NODE_ENV !== 'production') {
+      const all = new Set();
+      for (const e of entries) for (const f of moduleGraph(e)) all.add(f);
+      graphCache.set(key, [...all].map((f) => `    <link rel="modulepreload" href="${attr(f)}" />`).join('\n'));
+    }
+    return graphCache.get(key);
   }
   // Share previews, search details and icons, from each page's own <title> and description.
   const PATH_OF = Object.fromEntries(Object.entries(PAGES).map(([path, page]) => [page, path]));
@@ -214,7 +250,7 @@ export function createApp(config) {
       const etag = `"${info.size.toString(16)}-${info.mtimeMs.toString(16)}"`;
       if (req.headers['if-none-match'] === etag) return send(res, 304, null, { ETag: etag }), true;
       const code = /\.(js|css)$/.test(file);
-      send(res, 200, req.method === 'HEAD' ? null : await readFile(file), { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream', ETag: etag, 'Cache-Control': code ? 'no-cache' : 'public, max-age=604800' });
+      send(res, 200, req.method === 'HEAD' ? null : await readFile(file), { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream', ETag: etag, 'Cache-Control': code ? 'max-age=0, stale-while-revalidate=604800' : 'public, max-age=604800' });
       return true;
     } catch { return false; }
   }
