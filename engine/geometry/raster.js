@@ -29,27 +29,38 @@ export class Grid {
   }
 }
 
-// Even-odd scanline fill of a polygon given in world coordinates.
+// Even-odd scanline fill of a polygon given in world coordinates. Each edge
+// adds its crossing to only the rows it spans (not every edge tested on every
+// row), so a detailed outline costs what its crossings cost.
 export function fillPolygon(grid, poly, value = 1) {
   const { width, height, x0, y0, res, data } = grid;
-  const pts = poly.map(([x, y]) => [(x - x0) / res - 0.5, (y - y0) / res - 0.5]);
+  const n = poly.length;
+  if (n < 3) return;
+  const px = new Float64Array(n), py = new Float64Array(n);
   let minY = Infinity, maxY = -Infinity;
-  for (const [, y] of pts) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  for (let i = 0; i < n; i++) { px[i] = (poly[i][0] - x0) / res - 0.5; py[i] = (poly[i][1] - y0) / res - 0.5; if (py[i] < minY) minY = py[i]; if (py[i] > maxY) maxY = py[i]; }
   const jStart = Math.max(0, Math.ceil(minY));
   const jEnd = Math.min(height - 1, Math.floor(maxY));
-  const xs = [];
-  for (let j = jStart; j <= jEnd; j++) {
-    xs.length = 0;
-    for (let a = 0, b = pts.length - 1; a < pts.length; b = a++) {
-      const [ax, ay] = pts[a];
-      const [bx, by] = pts[b];
-      if ((ay > j) !== (by > j)) xs.push(ax + ((j - ay) * (bx - ax)) / (by - ay));
-    }
+  if (jEnd < jStart) return;
+  const rows = Array.from({ length: jEnd - jStart + 1 }, () => []);
+  for (let a = 0, b = n - 1; a < n; b = a++) {
+    const ax = px[a], ay = py[a], bx = px[b], by = py[b];
+    if (ay === by) continue;
+    // Rows j with min(ay, by) <= j < max(ay, by): the same rule as (ay > j) !== (by > j).
+    const lo = Math.min(ay, by), hi = Math.max(ay, by);
+    const j0 = Math.max(jStart, Math.ceil(lo)), j1 = Math.min(jEnd, Math.ceil(hi) - 1);
+    const k = (bx - ax) / (by - ay);
+    for (let j = j0; j <= j1; j++) rows[j - jStart].push(ax + (j - ay) * k);
+  }
+  for (let r = 0; r < rows.length; r++) {
+    const xs = rows[r];
+    if (xs.length < 2) continue;
     xs.sort((p, q) => p - q);
+    const row = (r + jStart) * width;
     for (let k = 0; k + 1 < xs.length; k += 2) {
       const i0 = Math.max(0, Math.ceil(xs[k]));
       const i1 = Math.min(width - 1, Math.floor(xs[k + 1]));
-      for (let i = i0; i <= i1; i++) data[j * width + i] = value;
+      for (let i = i0; i <= i1; i++) data[row + i] = value;
     }
   }
 }
@@ -68,17 +79,28 @@ export function fillCircle(grid, cx, cy, r, value = 1) {
 export function fillHoles(grid) {
   const { width: w, height: h, data } = grid;
   const seen = new Uint8Array(w * h);
+  // A span fill: each run of background along a row is taken whole, then the
+  // rows above and below are looked at once along it.
   const stack = [];
-  const seed = (i) => { if (!seen[i] && data[i] < 0.5) { seen[i] = 1; stack.push(i); } };
-  for (let i = 0; i < w; i++) { seed(i); seed((h - 1) * w + i); }
-  for (let j = 0; j < h; j++) { seed(j * w); seed(j * w + w - 1); }
+  const open = (i) => !seen[i] && data[i] < 0.5;
+  const push = (i) => { stack.push(i); };
+  for (let i = 0; i < w; i++) { if (open(i)) push(i); if (open((h - 1) * w + i)) push((h - 1) * w + i); }
+  for (let j = 0; j < h; j++) { if (open(j * w)) push(j * w); if (open(j * w + w - 1)) push(j * w + w - 1); }
   while (stack.length) {
     const p = stack.pop();
-    const x = p % w, y = (p / w) | 0;
-    if (x > 0) seed(p - 1);
-    if (x < w - 1) seed(p + 1);
-    if (y > 0) seed(p - w);
-    if (y < h - 1) seed(p + w);
+    if (!open(p)) continue;
+    const row = p - (p % w);
+    let a = p, b = p;
+    while (a > row && open(a - 1)) a--;
+    while (b < row + w - 1 && open(b + 1)) b++;
+    for (let i = a; i <= b; i++) seen[i] = 1;
+    for (const d of [-w, w]) {
+      if (row + d < 0 || row + d >= w * h) continue;
+      let inRun = false;
+      for (let i = a + d; i <= b + d; i++) {
+        if (open(i)) { if (!inRun) { push(i); inRun = true; } } else inRun = false;
+      }
+    }
   }
   for (let i = 0; i < w * h; i++) if (!seen[i]) data[i] = 1;
   return grid;
@@ -115,21 +137,25 @@ export function components(grid) {
 export function distanceToForeground(grid) {
   const { width: w, height: h, data } = grid;
   const INF = 1e20;
-  const f = new Float64Array(Math.max(w, h));
-  const d = new Float64Array(Math.max(w, h));
-  const v = new Int32Array(Math.max(w, h));
-  const z = new Float64Array(Math.max(w, h) + 1);
+  const m = Math.max(w, h);
+  const f = new Float64Array(m), d = new Float64Array(m), z = new Float64Array(m + 1);
+  const v = new Int32Array(m);
   const out = new Float64Array(w * h);
   for (let i = 0; i < w * h; i++) out[i] = data[i] >= 0.5 ? 0 : INF;
-  const pass = (n, get, set) => {
-    for (let q = 0; q < n; q++) f[q] = get(q);
+  // One 1-D pass over n values of out, starting at `at`, `step` apart (a column
+  // or a row), written in place. Plain loops: no callbacks per pixel.
+  const pass = (at, step, n) => {
+    let any = false;
+    for (let q = 0, i = at; q < n; q++, i += step) { f[q] = out[i]; if (f[q] < INF) any = true; }
+    if (!any) return; // nothing to measure from on this line: it stays INF
     let k = 0;
     v[0] = 0; z[0] = -INF; z[1] = INF;
     for (let q = 1; q < n; q++) {
+      const fq = f[q] + q * q;
       let s;
       do {
         const p = v[k];
-        s = (f[q] + q * q - (f[p] + p * p)) / (2 * q - 2 * p);
+        s = (fq - (f[p] + p * p)) / (2 * q - 2 * p);
       } while (s <= z[k] && --k >= 0);
       k++;
       v[k] = q; z[k] = s; z[k + 1] = INF;
@@ -137,27 +163,43 @@ export function distanceToForeground(grid) {
     k = 0;
     for (let q = 0; q < n; q++) {
       while (z[k + 1] < q) k++;
-      d[q] = (q - v[k]) ** 2 + f[v[k]];
+      const dq = q - v[k];
+      d[q] = dq * dq + f[v[k]];
     }
-    for (let q = 0; q < n; q++) set(q, d[q]);
+    for (let q = 0, i = at; q < n; q++, i += step) out[i] = d[q];
   };
-  for (let x = 0; x < w; x++) pass(h, (q) => out[q * w + x], (q, val) => { out[q * w + x] = val; });
-  for (let y = 0; y < h; y++) pass(w, (q) => out[y * w + q], (q, val) => { out[y * w + q] = val; });
+  for (let x = 0; x < w; x++) pass(x, w, h);
+  for (let y = 0; y < h; y++) pass(y * w, 1, w);
   for (let i = 0; i < w * h; i++) out[i] = Math.sqrt(out[i]);
   return out;
 }
 
-// Grow (r > 0) or shrink (r < 0) a binary mask by r pixels.
+// Grow (r > 0) or shrink (r < 0) a binary mask by r pixels. Only the box round
+// the mask (plus r and a pixel) is measured: nothing further away can change,
+// so the answer is the same as measuring the whole grid, and a few small tools
+// on a big sheet cost what their own area costs.
 export function offsetMask(grid, r) {
   const out = grid.clone();
-  if (r > 0) {
-    const dist = distanceToForeground(grid);
-    for (let i = 0; i < dist.length; i++) out.data[i] = dist[i] <= r ? 1 : 0;
-  } else if (r < 0) {
-    const inv = grid.clone();
-    for (let i = 0; i < inv.data.length; i++) inv.data[i] = grid.data[i] >= 0.5 ? 0 : 1;
-    const dist = distanceToForeground(inv);
-    for (let i = 0; i < dist.length; i++) out.data[i] = dist[i] > -r ? 1 : 0;
+  if (!r) return out;
+  const { width: W, height: H, data } = grid;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0, i = y * W; x < W; x++, i++) if (data[i] >= 0.5) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) { out.data.fill(0); return out; } // empty mask stays empty either way
+  const pad = Math.ceil(Math.abs(r)) + 1;
+  const bx0 = Math.max(0, x0 - pad), by0 = Math.max(0, y0 - pad), bx1 = Math.min(W - 1, x1 + pad), by1 = Math.min(H - 1, y1 + pad);
+  const w = bx1 - bx0 + 1, h = by1 - by0 + 1;
+  const sub = new Grid(w, h, 0, 0, 1);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const on = data[(y + by0) * W + x + bx0] >= 0.5;
+    sub.data[y * w + x] = r > 0 ? (on ? 1 : 0) : (on ? 0 : 1);
+  }
+  // Shrinking measures from the background; outside the box everything is background
+  // already, so a box with no background inside it (the mask fills it) needs no change.
+  const dist = distanceToForeground(sub);
+  out.data.fill(0);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dv = dist[y * w + x];
+    out.data[(y + by0) * W + x + bx0] = r > 0 ? (dv <= r ? 1 : 0) : (dv > -r ? 1 : 0);
   }
   return out;
 }
@@ -168,19 +210,25 @@ export function boxBlur(grid, radius = 1) {
   const tmp = new Float32Array(w * h);
   const out = grid.clone();
   const n = radius * 2 + 1;
+  // Across: clamp only near the ends (the same values, added in the same order).
   for (let y = 0; y < h; y++) {
+    const row = y * w;
     for (let x = 0; x < w; x++) {
       let s = 0;
-      for (let k = -radius; k <= radius; k++) s += src[y * w + Math.min(w - 1, Math.max(0, x + k))];
-      tmp[y * w + x] = s / n;
+      if (x >= radius && x < w - radius) for (let i = row + x - radius, e = i + n; i < e; i++) s += src[i];
+      else for (let k = -radius; k <= radius; k++) s += src[row + Math.min(w - 1, Math.max(0, x + k))];
+      tmp[row + x] = s / n;
     }
   }
+  // Down: a row at a time, so memory is read in order.
+  const acc = new Float64Array(w), od = out.data;
   for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      let s = 0;
-      for (let k = -radius; k <= radius; k++) s += tmp[Math.min(h - 1, Math.max(0, y + k)) * w + x];
-      out.data[y * w + x] = s / n;
+    acc.fill(0);
+    for (let k = -radius; k <= radius; k++) {
+      const r0 = Math.min(h - 1, Math.max(0, y + k)) * w;
+      for (let x = 0; x < w; x++) acc[x] += tmp[r0 + x];
     }
+    for (let x = 0, o = y * w; x < w; x++) od[o + x] = acc[x] / n;
   }
   return out;
 }
@@ -188,65 +236,63 @@ export function boxBlur(grid, radius = 1) {
 // Marching squares. Returns closed loops in world coordinates, each wound
 // counter-clockwise around regions above `level` (holes come out clockwise).
 // Pixels outside the grid count as below the level, so every loop closes.
-export function traceContours(grid, level = 0.5) {
+// (ox, oy): where this grid's first pixel sits in a bigger one it was cut from;
+// points then come out exactly as tracing the bigger grid would give them.
+export function traceContours(grid, level = 0.5, ox = 0, oy = 0) {
   const { width: w, height: h, data } = grid;
   const val = (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? -Infinity : data[j * w + i] - level);
-  // Edge ids: horizontal edge between (i,j)-(i+1,j) and vertical (i,j)-(i,j+1).
+  // Inside flags with a border of outside all round, so a cell's corners are
+  // four plain reads. Cell (i, j) for i, j from -1 has its corner at p = (j + 1) * W + i + 1.
   const W = w + 2;
-  const hId = (i, j) => ((j + 1) * W + (i + 1)) * 2;
-  const vId = (i, j) => ((j + 1) * W + (i + 1)) * 2 + 1;
-  const point = new Map();
-  const edgePoint = (id, i, j, horizontal) => {
-    if (point.has(id)) return;
+  const ins = new Uint8Array(W * (h + 2));
+  for (let j = 0; j < h; j++) for (let i = 0, r = j * w, o = (j + 1) * W + 1; i < w; i++) if (data[r + i] - level > 0) ins[o + i] = 1;
+  // Edge ids: 2p is the horizontal edge from corner p to p + 1, 2p + 1 the vertical
+  // one from p to p + W. next[b] = a: the walk goes a → b keeping the inside on the left.
+  const next = new Int32Array(2 * W * (h + 2)).fill(-1);
+  const order = [];
+  const seg = (a, b) => { if (next[b] < 0) order.push(b); next[b] = a; };
+  for (let j = -1; j < h; j++) {
+    for (let i = -1, p = (j + 1) * W; i < w; i++, p++) {
+      const code = ins[p] | (ins[p + 1] << 1) | (ins[p + W + 1] << 2) | (ins[p + W] << 3);
+      if (code === 0 || code === 15) continue;
+      const B = 2 * p, T = 2 * (p + W), L = 2 * p + 1, R = 2 * (p + 1) + 1;
+      // y grows upward; walk with inside on the left.
+      switch (code) {
+        case 1: seg(L, B); break;
+        case 2: seg(B, R); break;
+        case 3: seg(L, R); break;
+        case 4: seg(R, T); break;
+        case 5: seg(L, T); seg(R, B); break; // saddle: keep diagonal corners apart
+        case 6: seg(B, T); break;
+        case 7: seg(L, T); break;
+        case 8: seg(T, L); break;
+        case 9: seg(T, B); break;
+        case 10: seg(T, R); seg(B, L); break;
+        case 11: seg(T, R); break;
+        case 12: seg(R, L); break;
+        case 13: seg(R, B); break;
+        case 14: seg(B, L); break;
+      }
+    }
+  }
+  // Where the level crosses edge e, in grid units.
+  const point = (e) => {
+    const q = e >> 1, horizontal = (e & 1) === 0, i = (q % W) - 1, j = Math.floor(q / W) - 1;
     const a = val(i, j);
     const b = horizontal ? val(i + 1, j) : val(i, j + 1);
     const t = a === -Infinity ? 1 - 1e-3 : b === -Infinity ? 1e-3 : a / (a - b);
     const tc = Math.min(1 - 1e-3, Math.max(1e-3, t));
-    point.set(id, horizontal ? [i + tc, j] : [i, j + tc]);
+    return horizontal ? [i + ox + tc, j + oy] : [i + ox, j + oy + tc];
   };
-  const next = new Map();
-  // Segment from edge a to edge b keeps the inside (value > 0) on the left.
-  const seg = (a, b) => next.set(b, a);
-  for (let j = -1; j < h; j++) {
-    for (let i = -1; i < w; i++) {
-      const v00 = val(i, j) > 0, v10 = val(i + 1, j) > 0, v11 = val(i + 1, j + 1) > 0, v01 = val(i, j + 1) > 0;
-      const code = (v00 ? 1 : 0) | (v10 ? 2 : 0) | (v11 ? 4 : 0) | (v01 ? 8 : 0);
-      if (code === 0 || code === 15) continue;
-      const B = hId(i, j), T = hId(i, j + 1), L = vId(i, j), R = vId(i + 1, j);
-      const need = { B: [B, i, j, true], T: [T, i, j + 1, true], L: [L, i, j, false], R: [R, i + 1, j, false] };
-      const S = (x, y) => {
-        edgePoint(...need[x]);
-        edgePoint(...need[y]);
-        seg(need[x][0], need[y][0]);
-      };
-      // y grows upward; walk with inside on the left.
-      switch (code) {
-        case 1: S('L', 'B'); break;
-        case 2: S('B', 'R'); break;
-        case 3: S('L', 'R'); break;
-        case 4: S('R', 'T'); break;
-        case 5: S('L', 'T'); S('R', 'B'); break; // saddle: keep diagonal corners apart
-        case 6: S('B', 'T'); break;
-        case 7: S('L', 'T'); break;
-        case 8: S('T', 'L'); break;
-        case 9: S('T', 'B'); break;
-        case 10: S('T', 'R'); S('B', 'L'); break;
-        case 11: S('T', 'R'); break;
-        case 12: S('R', 'L'); break;
-        case 13: S('R', 'B'); break;
-        case 14: S('B', 'L'); break;
-      }
-    }
-  }
   const loops = [];
-  for (const start of [...next.keys()]) {
-    if (!next.has(start)) continue;
+  for (const start of order) {
+    if (next[start] < 0) continue;
     const loop = [];
     let e = start;
-    while (next.has(e)) {
-      const n = next.get(e);
-      next.delete(e);
-      loop.push(grid.toWorld(point.get(e)));
+    while (next[e] >= 0) {
+      const n = next[e];
+      next[e] = -1;
+      loop.push(grid.toWorld(point(e)));
       e = n;
     }
     if (loop.length >= 3) loops.push(loop);

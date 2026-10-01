@@ -1,12 +1,6 @@
-// The developer console: your keys, your usage, and every call your keys made,
-// each with its request id, result, timing and serial.
-const $ = (s, el = document) => el.querySelector(s);
-const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const num = (n) => Number(n || 0).toLocaleString();
-const kb = (b) => (b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : b > 1e3 ? `${Math.round(b / 1024)} KB` : `${b || 0} B`);
-const when = (t) => (t ? new Date(t).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—');
-const ago = (t) => { if (!t) return 'never'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+// The developer console: your keys, your usage, your plan, your webhooks, and
+// every call your keys made, each with its request id, result, timing and serial.
+import { $, $$, esc, num, compact, bytes, bytesText, when, whenFull, ago, pct, icon, avatar, kpi, lineChart, donut, hbars, ask, toast, commandPalette, shell } from '/js/app-ui.js';
 
 async function call(path, { method = 'GET', body } = {}) {
   const res = await fetch(path, { method, credentials: 'same-origin', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -14,138 +8,121 @@ async function call(path, { method = 'GET', body } = {}) {
   if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status });
   return data;
 }
+const act = async (fn, ok) => { try { const r = await fn(); if (ok) toast(ok); return r; } catch (e) { toast(e.message, { bad: true }); return null; } };
 
-let days = 30, data = null, calls = [], next = null, filters = {};
-const perDay = () => data?.plan?.plan?.perDay || 1000;
-const usedToday = () => (data?.keys || []).reduce((n, k) => n + (k.usedToday || 0), 0);
-const money = (cents, cur = 'AUD') => `$${(cents / 100).toFixed(2)}${cur && cur !== 'AUD' ? ` ${cur}` : ''}`;
-
-// Your plan: what you're on, this month's use, extra use and its cap, and the other plans.
-function plan(p, list) {
-  const el = $('[data-plan]');
-  if (!p) { el.hidden = true; return; }
-  const cur = p.plan, sub = p.sub, ro = data.viewingAs;
-  const paying = sub?.live && sub.provider === 'stripe';
-  const extra = cur.overagePer1000 > 0;
-  el.innerHTML = `
-    <div class="cx-tile-head"><h2>Your plan: ${esc(cur.name)}</h2>${paying && !ro ? '<button type="button" class="ax-btn ax-btn-ghost ax-btn-sm" data-manage>Billing and invoices</button>' : ''}</div>
-    <div class="cx-plan-row">
-      <div><p class="ax-tile-k">Today</p><p class="cx-big">${num(usedToday())}<small> / ${num(cur.perDay)}</small></p><p class="ax-tile-s">shared by your keys · ${num(cur.perMinute)} a minute per key · ${num(cur.keys)} keys</p></div>
-      <div><p class="ax-tile-k">This month</p><p class="cx-big">${num(p.month.calls)}</p><p class="ax-tile-s">files and part lists</p></div>
-      <div><p class="ax-tile-k">Extra use</p><p class="cx-big">${extra ? money(p.month.overCents) : '—'}</p><p class="ax-tile-s">${extra ? `${num(p.month.overCalls)} calls past the day's allowance, at ${money(cur.overagePer1000 * 100)} per 1,000` : 'Stops at the day’s allowance'}</p></div>
-      <div><p class="ax-tile-k">${sub?.cancelAtPeriodEnd ? 'Ends' : paying ? 'Renews' : sub?.provider === 'manual' ? 'Given by us' : 'Price'}</p><p class="cx-big">${sub?.periodEnd ? new Date(sub.periodEnd).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : cur.monthly ? `$${cur.monthly}` : 'Free'}</p><p class="ax-tile-s">${cur.monthly ? `$${cur.monthly} a month` : 'No card needed'}</p></div>
-    </div>
-    ${extra && !ro ? `<form class="cx-cap" data-cap><label>Stop extra use at <span>$</span><input name="dollars" type="number" min="0" step="1" value="${p.ownCap != null ? Math.round(p.ownCap / 100) : ''}" placeholder="${Math.round(p.cap / 100)}" aria-label="Monthly limit for extra use, dollars" /> a month</label><button class="ax-btn ax-btn-sm">Save</button><span class="ax-tile-s">Past it, calls stop until the 1st. Empty: the plan's $${Math.round((cur.overageCap || 0))}.</span></form>` : ''}
-    <div class="cx-plans">${list.map((x) => `
-      <article class="cx-planopt${x.id === cur.id ? ' is-on' : ''}">
-        <h3>${esc(x.name)} <span>${x.monthly ? `$${x.monthly}/mo` : 'Free'}</span></h3>
-        <p class="ax-tile-s">${esc(x.blurb)}</p>
-        <ul>${[`${num(x.perDay)} calls a day`, `${num(x.perMinute)} a minute`, `${num(x.keys)} keys`, ...x.perks].map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
-        ${ro ? '' : x.id === cur.id ? '<span class="cx-pill ok">Your plan</span>' : x.id === 'free' ? (paying ? '<button type="button" class="cx-link" data-planpick="free">Go back to free at the end of the month</button>' : '') : x.invite && !(p.invited || []).includes(x.id) ? `<a class="ax-btn ax-btn-ghost ax-btn-sm" href="/education">Apply</a>` : `<button type="button" class="ax-btn ax-btn-primary ax-btn-sm" data-planpick="${esc(x.id)}" ${p.checkout ? '' : 'disabled'}>${p.checkout ? (paying ? `Switch to ${esc(x.name)}` : `Choose ${esc(x.name)}`) : 'Opening soon'}</button>`}
-      </article>`).join('')}</div>`;
-  el.hidden = false;
-}
 // Staff looking at a developer's console (read only): ?as=<account id>.
 const as = new URLSearchParams(location.search).get('as');
 const asQ = as ? `&as=${encodeURIComponent(as)}` : '';
+let days = 30, data = null, calls = [], next = null, filters = {}, tab = 'overview';
+const ro = () => Boolean(data?.viewingAs);
+const pane = () => $('[data-pane]');
+const BASE = 'https://api.mintmotive.com.au';
+const money = (cents) => `$${(cents / 100).toFixed(2)}`;
+const card = (title, inner, { note = '', right = '', cls = '' } = {}) => `<section class="card ${cls}"><div class="card-h"><h2>${title}</h2>${note ? `<span class="note">${note}</span>` : ''}${right ? `<div class="right">${right}</div>` : ''}</div>${inner}</section>`;
+const table = (head, body, empty = 'Nothing yet.') => (body ? `<div class="tw"><table class="t"><thead><tr>${head.map((h) => (typeof h === 'string' ? `<th>${h}</th>` : `<th class="${h.c || ''}">${h.t}</th>`)).join('')}</tr></thead><tbody>${body}</tbody></table></div>` : `<div class="empty">${icon('inbox')}${empty}</div>`);
+const status = (s) => `<span class="pill ${s >= 500 ? 'bad' : s >= 400 ? 'warn' : 'ok'}">${s}</span>`;
+const iconBtn = (name, label, attrs, cls = '') => `<button type="button" class="icon-btn ${cls}" title="${esc(label)}" aria-label="${esc(label)}" ${attrs}>${icon(name)}</button>`;
+const usedToday = () => (data?.keys || []).reduce((n, k) => n + (k.usedToday || 0), 0);
+const TITLES = {
+  overview: ['Overview', 'Your API, at a glance.'],
+  keys: ['Keys', 'Make, name, lock and revoke your keys.'],
+  calls: ['Calls', 'Every call your keys made, kept two years.'],
+  webhooks: ['Webhooks', 'We tell your server when something happens.'],
+  plan: ['Plan and billing', 'Your limits, this month’s use, and other plans.'],
+};
 
-function stats(s) {
-  const t = s.totals, rate = t.calls ? Math.round((t.errors / t.calls) * 1000) / 10 : 0;
-  $('[data-stats]').innerHTML = [
-    ['Calls', num(t.calls), `last ${s.days} days`],
-    ['Files made', num(t.files), 'each with a serial'],
-    ['Errors', `${rate}%`, `${num(t.errors)} calls`],
-    ['Typical time', `${num(t.p50)} ms`, `95% under ${num(t.p95)} ms`],
-    ['Sent', kb(t.bytes), 'files and answers'],
-  ].map(([k, v, s2]) => `<div class="ax-tile cx-stat"><p class="ax-tile-k">${k}</p><p class="cx-big">${v}</p><p class="ax-tile-s">${s2}</p></div>`).join('');
+function daySeries(byDay, n) {
+  const map = Object.fromEntries(byDay.map((d) => [d.day, d]));
+  return Array.from({ length: n }, (_, i) => new Date(Date.now() - (n - 1 - i) * 86400e3).toISOString().slice(0, 10)).map((d) => ({ day: d, calls: map[d]?.calls || 0, errors: map[d]?.errors || 0 }));
+}
+function meter(used, total) {
+  const p = Math.min(100, total ? (used / total) * 100 : 0);
+  return `<div class="hbar ${p > 90 ? 'bad' : p > 70 ? 'warn' : ''}" style="grid-template-columns:1fr"><i style="height:10px"><b style="width:${p.toFixed(1)}%"></b></i></div>`;
 }
 
-function chart(s) {
-  const map = Object.fromEntries(s.byDay.map((d) => [d.day, d]));
-  const daysList = Array.from({ length: s.days }, (_, i) => new Date(Date.now() - (s.days - 1 - i) * 86400e3).toISOString().slice(0, 10));
-  const rows = daysList.map((d) => ({ day: d, calls: map[d]?.calls || 0, errors: map[d]?.errors || 0 }));
-  const max = Math.max(1, ...rows.map((r) => r.calls));
-  const W = 600, H = 170, bw = W / rows.length;
-  const bars = rows.map((r, i) => {
-    const h = (r.calls / max) * (H - 20), he = (r.errors / max) * (H - 20), x = i * bw + bw * 0.15, w = Math.max(1, bw * 0.7);
-    return `<g><title>${r.day}: ${r.calls} calls, ${r.errors} errors</title><rect class="ok" x="${x}" y="${H - h}" width="${w}" height="${h}" rx="2" /><rect class="err" x="${x}" y="${H - he}" width="${w}" height="${he}" rx="2" /></g>`;
-  }).join('');
-  $('[data-chart]').innerHTML = s.totals.calls
-    ? `<svg class="cx-bars" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Calls per day">${bars}</svg><div class="cx-axis ax-mono"><span>${rows[0].day}</span><span>${rows[rows.length - 1].day}</span></div>`
-    : '<p class="cx-empty">No calls yet. Make a key below, then try the quick start in the docs.</p>';
+// ---------- overview ----------
+function overview() {
+  const s = data.summary, t = s.totals, cur = data.plan?.plan;
+  const series = daySeries(s.byDay, s.days);
+  const [bv, bu] = bytes(t.bytes);
+  const liveKeys = data.keys.filter((k) => !k.revoked);
+  const hint = liveKeys[0]?.hint || 'vx_…';
+  pane().innerHTML = `
+    ${cur ? card(`Today on <b>${esc(cur.name)}</b>`, `
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font:700 30px/1 var(--font-ui);letter-spacing:-.02em">${num(usedToday())}</span><span class="mute">of ${num(cur.perDay)} calls today, shared by your keys</span><span class="mute" style="margin-left:auto;font-size:12.5px">Resets at midnight UTC · ${num(cur.perMinute)} a minute per key</span></div>
+      ${meter(usedToday(), cur.perDay)}`, { right: ro() ? '' : '<a class="btn sm ghost" href="#plan">Plan and billing</a>' }) : ''}
+    <div class="kpis">
+      ${kpi({ k: 'Calls', v: compact(t.calls), x: `last ${s.days} days`, spark: series.map((r) => r.calls) })}
+      ${kpi({ k: 'Files made', v: compact(t.files), x: 'each with a serial', spark: series.map((r) => r.calls - r.errors) })}
+      ${kpi({ k: 'Errors', v: pct(t.errors, t.calls), unit: '%', x: `${num(t.errors)} calls`, spark: series.map((r) => r.errors), bad: pct(t.errors, t.calls) > 5 })}
+      ${kpi({ k: 'Typical time', v: num(t.p50), unit: 'ms', x: `95% under ${num(t.p95)} ms` })}
+      ${kpi({ k: 'Downloaded', v: bv, unit: bu, x: 'files and answers' })}
+    </div>
+    <div class="grid g-main">
+      ${card('Calls per day', '<div data-chart></div>', { right: '<span class="legend"><span><i></i>Calls</span><span><i class="err"></i>Errors</span></span>' })}
+      ${card('Results', donut(s.byStatus ? s.byStatus.map((r) => ({ name: String(r.name), n: r.n })) : [{ name: 'worked', n: t.calls - t.errors }, { name: 'errors', n: t.errors }], { centre: t.calls ? `${Math.round(100 - pct(t.errors, t.calls))}%` : '—', sub: 'worked' }))}
+    </div>
+    <div class="grid g3">
+      ${card('What you made', hbars(s.byKind))}
+      ${card('Formats', donut(s.byFormat, { sub: 'files' }))}
+      ${card('Quick start', `<p class="lede">Your first model in one call. Put your key where it says <span class="hint">$MINT_KEY</span>.</p><pre class="code">curl -X POST ${BASE}/engine/v1/generate \\
+  -H "Authorization: Bearer $MINT_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"kind":"bin","params":{"gridX":2,"gridY":2}}' \\
+  -o bin.3mf</pre><div class="toolbar" style="margin-top:12px"><a class="btn sm" href="/docs">${icon('book')}Docs</a><a class="btn sm" href="/#playground">${icon('play')}Playground</a>${liveKeys.length ? `<span class="mute" style="font-size:12.5px">Your key starts <span class="hint">${esc(hint)}</span></span>` : '<a class="btn sm primary" href="#keys">Make a key</a>'}</div>`)}
+    </div>`;
+  lineChart($('[data-chart]'), series);
 }
 
-function breakdown(el, rows) {
-  const max = Math.max(1, ...rows.map((r) => r.n));
-  el.innerHTML = rows.length ? rows.map((r) => `<div class="cx-hbar"><span>${esc(r.name)}</span><i><b></b></i><em>${num(r.n)}</em></div>`).join('') : '<p class="cx-empty">Nothing yet.</p>';
-  // Widths set by script: style attributes are blocked by the page's security rules.
-  $$('.cx-hbar b', el).forEach((b, i) => { b.style.width = `${(rows[i].n / max) * 100}%`; });
+// ---------- keys ----------
+function keysTab() {
+  const live = data.keys.filter((k) => !k.revoked), cur = data.plan?.plan;
+  pane().innerHTML = (ro() ? '' : card('Make a key', `
+      <form class="toolbar" data-newkey><input name="name" maxlength="60" placeholder="What it's for, e.g. Shop orders" aria-label="Key name" required style="flex:1 1 260px" /><button class="btn primary">${icon('plus')}Make a key</button></form>
+      <div data-fresh></div>
+      <p class="lede" style="margin:12px 0 0">${cur ? `On ${esc(cur.name)}: up to ${num(cur.keys)} keys, ${num(cur.perDay)} calls a day for your whole account, and ${num(cur.perMinute)} a minute per key.` : ''} <b>Lock</b> a key to your server's addresses and it won't work from anywhere else.</p>`))
+    + card('Your keys', table(['Key', 'Made', 'Last used', { t: 'Calls', c: 'n' }, 'Today', ''], data.keys.map((k) => `
+      <tr class="${k.revoked ? 'off' : ''}">
+        <td><b data-name="${k.id}">${esc(k.name)}</b> <span class="hint">${esc(k.hint || 'vx_…')}</span>${k.revoked ? ' <span class="pill bad">revoked</span>' : ''}<div style="margin-top:5px">${k.allowIps ? `<span class="pill info" title="${esc(k.allowIps)}">locked to ${k.allowIps.split(',').length} address${k.allowIps.split(',').length > 1 ? 'es' : ''}</span>` : '<span class="pill plain">any address</span>'}</div></td>
+        <td>${ago(k.createdAt)}</td><td>${ago(k.lastUsedAt)}</td><td class="n">${num(k.calls)}</td>
+        <td style="min-width:140px">${k.revoked ? '—' : `<div class="hbar" style="grid-template-columns:1fr auto"><i><b style="width:${Math.min(100, (k.usedToday / Math.max(1, cur?.perDay || 1000)) * 100).toFixed(1)}%"></b></i><em>${num(k.usedToday)}</em></div>`}</td>
+        <td class="n">${k.revoked || ro() ? '' : `<span class="acts">${iconBtn('list', 'Calls', `data-fkey="${k.id}"`)}${iconBtn('lock', 'Lock to addresses', `data-lock="${k.id}" data-allow="${esc(k.allowIps || '')}"`)}${iconBtn('cog', 'Rename', `data-rename="${k.id}"`)}${iconBtn('x', 'Revoke', `data-revoke="${k.id}"`, 'bad')}</span>`}</td>
+      </tr>`).join(''), 'No keys yet. Make one above.'), { cls: 'flush', note: `${live.length} live · revoked keys stay listed so old calls still show which key made them` });
 }
 
-function keys(list) {
-  $('[data-keys]').innerHTML = `<thead><tr><th>Name</th><th>Key</th><th>Made</th><th>Last used</th><th>Calls</th><th>Today</th><th></th></tr></thead><tbody>${list.map((k) => `
-    <tr class="${k.revoked ? 'is-revoked' : ''}">
-      <td><b data-name="${k.id}">${esc(k.name)}</b>${k.revoked ? ' <span class="cx-pill bad">revoked</span>' : ''}</td>
-      <td class="ax-mono">${esc(k.hint || 'vx_…')}<br><span class="cx-lock ${k.allowIps ? 'on' : ''}" title="${esc(k.allowIps || 'Works from anywhere')}">${k.allowIps ? `Locked to ${k.allowIps.split(',').length} address${k.allowIps.split(',').length > 1 ? 'es' : ''}` : 'Any address'}</span></td>
-      <td>${ago(k.createdAt)}</td><td>${ago(k.lastUsedAt)}</td><td>${num(k.calls)}</td>
-      <td>${k.revoked ? '—' : `<span class="cx-quota"><i><b data-q="${Math.min(100, (k.usedToday / perDay()) * 100)}"></b></i>${num(k.usedToday)}</span>`}</td>
-      <td class="cx-actions">${k.revoked ? '' : `<button type="button" class="cx-link" data-lock="${k.id}" data-allow="${esc(k.allowIps || '')}">Lock</button><button type="button" class="cx-link" data-rename="${k.id}">Rename</button><button type="button" class="cx-link bad" data-revoke="${k.id}">Revoke</button>`}</td>
-    </tr>`).join('') || '<tr><td colspan="7" class="cx-empty">No keys yet.</td></tr>'}</tbody>`;
-  $$('[data-q]').forEach((b) => { b.style.width = `${b.dataset.q}%`; });
-  const sel = $('[data-filters] [name=key]');
-  sel.innerHTML = `<option value="">All keys</option>${list.map((k) => `<option value="${k.id}">${esc(k.name)}${k.revoked ? ' (revoked)' : ''}</option>`).join('')}`;
+// ---------- calls ----------
+function callsTab() {
+  pane().innerHTML = card('Every call', `
+    <form class="toolbar" data-filters>
+      <label class="search-in">${icon('trace')}<input name="q" placeholder="Request id, serial or path" aria-label="Search" value="${esc(filters.q || '')}" /></label>
+      <select name="key" aria-label="Key"><option value="">All keys</option>${data.keys.map((k) => `<option value="${k.id}" ${String(filters.key) === String(k.id) ? 'selected' : ''}>${esc(k.name)}${k.revoked ? ' (revoked)' : ''}</option>`).join('')}</select>
+      <select name="status" aria-label="Result"><option value="">Any result</option><option value="ok">Worked</option><option value="error">Errors</option></select>
+      <button class="btn primary sm">Find</button>
+    </form>
+    <div class="tw" style="margin-top:14px"><table class="t" data-calls></table></div>
+    <div style="padding:14px 0 0;text-align:center"><button type="button" class="btn sm" data-more hidden>Older calls</button></div>`);
+  if (filters.status) $('[data-filters] [name=status]').value = filters.status;
+  loadCalls();
 }
-
-function hooks(list, events) {
-  const ev = $('[data-events]');
-  if (!ev.dataset.done) {
-    ev.innerHTML = Object.entries(events).map(([k, v]) => `<label><input type="checkbox" name="events" value="${esc(k)}" checked /> <span class="ax-mono">${esc(k)}</span> <span>${esc(v)}</span></label>`).join('');
-    ev.dataset.done = '1';
-  }
-  $('[data-hooks]').innerHTML = `<thead><tr><th>Address</th><th>Events</th><th>Delivered</th><th>Failed</th><th>Last delivered</th><th></th></tr></thead><tbody>${list.map((h) => `
-    <tr class="${h.disabled ? 'is-revoked' : ''}">
-      <td class="ax-mono">${esc(h.url)}${h.disabled ? ' <span class="cx-pill bad">removed</span>' : ''}</td>
-      <td class="ax-mono">${h.events.map(esc).join('<br>')}</td>
-      <td>${num(h.delivered)}</td><td>${h.failed ? `<span class="cx-pill bad">${num(h.failed)}</span>` : '0'}</td><td>${ago(h.lastDeliveredAt)}</td>
-      <td class="cx-actions"><button type="button" class="cx-link" data-deliv="${h.id}">Deliveries</button>${h.disabled ? '' : `<button type="button" class="cx-link" data-hookact data-hooktest="${h.id}">Send a test</button><button type="button" class="cx-link bad" data-hookact data-hookdel="${h.id}">Remove</button>`}</td>
-    </tr>
-    <tr class="cx-detail" data-delivfor="${h.id}" hidden><td colspan="6"></td></tr>`).join('') || '<tr><td colspan="6" class="cx-empty">No webhooks yet.</td></tr>'}</tbody>`;
-}
-async function deliveries(id) {
-  const row = $(`[data-delivfor="${id}"]`);
-  if (!row.hidden) { row.hidden = true; return; }
-  const r = await call(`/api/developer/webhooks/${id}/deliveries?x=1${asQ}`);
-  row.hidden = false;
-  row.firstElementChild.innerHTML = r.deliveries.length ? `<table class="cx-table cx-deliv"><thead><tr><th>When</th><th>Event</th><th>Result</th><th>Tries</th><th>Answer</th><th>Next try</th><th>Delivery id</th></tr></thead><tbody>${r.deliveries.map((d) => `
-    <tr><td>${when(d.createdAt)}</td><td class="ax-mono">${esc(d.event)}</td><td><span class="cx-pill ${d.status === 'delivered' ? 'ok' : d.status === 'failed' ? 'bad' : 'warn'}">${esc(d.status)}</span></td><td>${d.attempts}</td><td>${esc(d.code ? `HTTP ${d.code}` : '')} ${d.error ? `<span class="cx-err">${esc(d.error)}</span>` : ''}</td><td>${d.nextAt ? when(d.nextAt) : '—'}</td><td class="ax-mono cx-rid">${esc(d.eventId)}</td></tr>`).join('')}</tbody></table>` : '<p class="cx-empty">Nothing sent yet.</p>';
-}
-
-const statusPill = (s) => `<span class="cx-pill ${s >= 500 ? 'bad' : s >= 400 ? 'warn' : 'ok'}">${s}</span>`;
-function callRows(append = false) {
-  const html = calls.map((r) => `
-    <tr class="cx-row" data-row="${r.id}" tabindex="0">
-      <td>${when(r.at)}</td>
-      <td class="ax-mono"><b class="cx-m ${r.method === 'POST' ? 'post' : 'get'}">${esc(r.method)}</b> ${esc(r.path.replace('/api', ''))}</td>
+function callRows() {
+  $('[data-calls]').innerHTML = `<thead><tr><th>When</th><th>Call</th><th>Made</th><th>Result</th><th class="n">Time</th><th>Serial</th><th>Request id</th></tr></thead><tbody>${calls.map((r) => `
+    <tr class="row" data-row="${r.id}" tabindex="0">
+      <td style="white-space:nowrap">${when(r.at)}</td>
+      <td class="mono" style="font-size:12.5px"><b>${esc(r.method)}</b> ${esc(r.path.replace('/api', ''))}</td>
       <td>${esc([r.kind, r.format].filter(Boolean).join(' · ') || '—')}</td>
-      <td>${statusPill(r.status)}</td>
-      <td>${num(r.ms)} ms</td>
-      <td class="ax-mono">${esc(r.serial || '—')}</td>
-      <td class="ax-mono cx-rid">${esc(r.requestId)}</td>
+      <td>${status(r.status)}</td><td class="n">${num(r.ms)} ms</td>
+      <td class="mono" style="font-size:12px">${esc(r.serial || '—')}</td><td class="mono mute" style="font-size:12px">${esc(r.requestId)}</td>
     </tr>
-    <tr class="cx-detail" data-detail="${r.id}" hidden><td colspan="7">
-      <dl>
-        <div><dt>Request id</dt><dd class="ax-mono">${esc(r.requestId)} <button type="button" class="cx-link" data-copy="${esc(r.requestId)}">Copy</button></dd></div>
-        <div><dt>Key</dt><dd>${esc(r.key?.name || '—')} <span class="ax-mono">${esc(r.key?.hint || '')}</span></dd></div>
-        <div><dt>Size</dt><dd>${kb(r.bytes)}</dd></div>
-        ${r.serial ? `<div><dt>Serial</dt><dd class="ax-mono">${esc(r.serial)} <button type="button" class="cx-link" data-copy="${esc(r.serial)}">Copy</button></dd></div>` : ''}
-        ${r.error ? `<div class="wide"><dt>Error you got</dt><dd class="cx-err">${esc(r.error)}</dd></div>` : ''}
-        ${r.params ? `<div class="wide"><dt>Settings sent</dt><dd><pre class="ax-code">${esc(JSON.stringify(r.params, null, 2))}</pre></dd></div>` : ''}
-      </dl>
-    </td></tr>`).join('');
-  $('[data-calls]').innerHTML = `<thead><tr><th>When</th><th>Call</th><th>What</th><th>Result</th><th>Time</th><th>Serial</th><th>Request id</th></tr></thead><tbody>${html || '<tr><td colspan="7" class="cx-empty">No calls match.</td></tr>'}</tbody>`;
+    <tr class="det" data-detail="${r.id}" hidden><td colspan="7"><div class="grid g2" style="gap:14px"><dl class="kv">
+      <dt>Request id</dt><dd class="mono">${esc(r.requestId)} ${iconBtn('copy', 'Copy', `data-copy="${esc(r.requestId)}"`)}</dd>
+      <dt>When</dt><dd>${whenFull(r.at)}</dd>
+      <dt>Key</dt><dd>${esc(r.key?.name || '—')} <span class="hint">${esc(r.key?.hint || '')}</span></dd>
+      <dt>Size</dt><dd>${bytesText(r.bytes)}</dd>
+      ${r.serial ? `<dt>Serial</dt><dd class="mono">${esc(r.serial)} ${iconBtn('copy', 'Copy', `data-copy="${esc(r.serial)}"`)}</dd>` : ''}
+      ${r.error ? `<dt>Error you got</dt><dd style="color:#ffb3c0">${esc(r.error)}</dd>` : ''}
+    </dl>${r.params ? `<pre class="code">${esc(JSON.stringify(r.params, null, 2))}</pre>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="7"><div class="empty">No calls match.</div></td></tr>'}</tbody>`;
   $('[data-more]').hidden = !next;
 }
-
 async function loadCalls(more = false) {
   const q = new URLSearchParams({ ...filters, ...(more && next ? { before: next } : {}) });
   for (const [k, v] of [...q]) if (!v) q.delete(k);
@@ -155,110 +132,177 @@ async function loadCalls(more = false) {
   callRows();
 }
 
-async function load() {
+// ---------- webhooks ----------
+function webhooksTab() {
+  pane().innerHTML = (ro() ? '' : card('Add a webhook', `
+      <form class="grid" style="gap:12px" data-newhook>
+        <div class="toolbar"><input name="url" type="url" placeholder="https://your-server.example/mint-hooks" aria-label="Webhook address" required style="flex:1 1 320px" /><button class="btn primary">${icon('plus')}Add webhook</button></div>
+        <div class="toolbar">${Object.entries(data.events).map(([k, v]) => `<label class="switch" title="${esc(v)}"><input type="checkbox" name="events" value="${esc(k)}" checked /> <span class="mono" style="font-size:12.5px">${esc(k)}</span></label>`).join('')}</div>
+      </form>
+      <div data-hookfresh></div>
+      <p class="lede" style="margin:12px 0 0">We POST signed JSON when a key nears or hits its daily limit, or a key is made or revoked. Anything but a 2xx is tried again for about 9 hours. <a href="/docs#webhooks">How to check the signature</a></p>`))
+    + card('Your webhooks', table(['Address', 'Events', { t: 'Delivered', c: 'n' }, { t: 'Failed', c: 'n' }, 'Last delivered', ''], data.webhooks.map((h) => `
+      <tr class="${h.disabled ? 'off' : ''}"><td class="mono" style="font-size:12.5px">${esc(h.url)}${h.disabled ? ' <span class="pill bad">removed</span>' : ''}</td>
+      <td>${h.events.map((e) => `<span class="pill plain">${esc(e)}</span>`).join(' ')}</td><td class="n">${num(h.delivered)}</td><td class="n">${h.failed ? `<span class="pill bad">${num(h.failed)}</span>` : '0'}</td><td>${ago(h.lastDeliveredAt)}</td>
+      <td class="n"><span class="acts">${iconBtn('list', 'Deliveries', `data-deliv="${h.id}"`)}${h.disabled || ro() ? '' : `${iconBtn('play', 'Send a test', `data-hooktest="${h.id}"`)}${iconBtn('x', 'Remove', `data-hookdel="${h.id}"`, 'bad')}`}</span></td></tr>
+      <tr class="det" data-delivfor="${h.id}" hidden><td colspan="6"></td></tr>`).join(''), 'No webhooks yet.'), { cls: 'flush' });
+}
+async function deliveries(id) {
+  const row = $(`[data-delivfor="${id}"]`);
+  if (!row.hidden) { row.hidden = true; return; }
+  const r = await call(`/api/developer/webhooks/${id}/deliveries?x=1${asQ}`);
+  row.hidden = false;
+  row.firstElementChild.innerHTML = r.deliveries.length ? `<table class="t"><thead><tr><th>When</th><th>Event</th><th>Result</th><th class="n">Tries</th><th>Answer</th><th>Next try</th></tr></thead><tbody>${r.deliveries.map((d) => `
+    <tr><td>${when(d.createdAt)}</td><td class="mono" style="font-size:12.5px">${esc(d.event)}</td><td><span class="pill ${d.status === 'delivered' ? 'ok' : d.status === 'failed' ? 'bad' : 'warn'}">${esc(d.status)}</span></td><td class="n">${d.attempts}</td><td>${esc(d.code ? `HTTP ${d.code}` : '')} ${d.error ? `<span style="color:#ffb3c0">${esc(d.error)}</span>` : ''}</td><td>${d.nextAt ? when(d.nextAt) : '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nothing sent yet.</div>';
+}
+
+// ---------- plan ----------
+function planTab() {
+  const p = data.plan, list = data.plans || [];
+  if (!p) { pane().innerHTML = card('Plan', '<div class="empty">Plans aren’t open yet.</div>'); return; }
+  const cur = p.plan, sub = p.sub;
+  const paying = sub?.live && sub.provider === 'stripe', extra = cur.overagePer1000 > 0;
+  pane().innerHTML = `
+    <div class="kpis">
+      ${kpi({ k: 'Your plan', v: esc(cur.name), x: cur.monthly ? `$${cur.monthly} a month` : 'Free, no card needed' })}
+      ${kpi({ k: 'Today', v: num(usedToday()), unit: ` / ${compact(cur.perDay)}`, x: 'calls, shared by your keys' })}
+      ${kpi({ k: 'This month', v: compact(p.month.calls), x: 'files and part lists' })}
+      ${kpi({ k: 'Extra use', v: extra ? money(p.month.overCents) : '—', x: extra ? `${num(p.month.overCalls)} calls past the allowance` : 'Stops at the day’s allowance' })}
+      ${kpi({ k: sub?.cancelAtPeriodEnd ? 'Ends' : paying ? 'Renews' : sub?.provider === 'manual' ? 'Given by us until' : 'Billing', v: sub?.periodEnd ? new Date(sub.periodEnd).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—', x: paying ? 'by card' : '' })}
+    </div>
+    ${extra && !ro() ? card('Cap your extra use', `<form class="toolbar" data-cap><span>Stop extra use at $</span><input name="dollars" type="number" min="0" step="1" value="${p.ownCap != null ? Math.round(p.ownCap / 100) : ''}" placeholder="${Math.round(p.cap / 100)}" aria-label="Monthly limit for extra use, dollars" style="width:110px" /><span>a month</span><button class="btn sm primary">Save</button></form><p class="lede" style="margin:10px 0 0">Past it, calls stop until the 1st. Empty: the plan's $${Math.round(cur.overageCap || 0)}.</p>`, { right: paying ? '<button type="button" class="btn sm" data-manage>Billing and invoices</button>' : '' }) : paying && !ro() ? card('Billing', '<p class="lede" style="margin:0">Invoices, your card and receipts are in the billing portal.</p>', { right: '<button type="button" class="btn sm" data-manage>Billing and invoices</button>' }) : ''}
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">${list.map((x) => `
+      <article class="card" style="${x.id === cur.id ? 'border-color:var(--mint);box-shadow:0 0 0 1px var(--mint) inset' : ''}">
+        <div class="card-h"><h2>${esc(x.name)}</h2>${x.id === cur.id ? '<span class="pill ok">your plan</span>' : x.invite ? '<span class="pill info">apply</span>' : ''}</div>
+        <p style="margin:0 0 6px;font:700 28px/1 var(--font-ui);letter-spacing:-.02em">${x.monthly ? `$${x.monthly}<small class="mute" style="font-size:14px;font-weight:500"> /month</small>` : 'Free'}</p>
+        <p class="lede" style="margin:8px 0 12px">${esc(x.blurb)}</p>
+        <ul style="margin:0 0 16px;padding:0;list-style:none;display:grid;gap:7px;font-size:13.5px">${[`${num(x.perDay)} calls a day`, `${num(x.perMinute)} a minute per key`, `${num(x.keys)} keys`, ...x.perks].map((t) => `<li style="display:flex;gap:8px"><span style="color:var(--mint);width:16px;flex:none">${icon('check')}</span>${esc(t)}</li>`).join('')}</ul>
+        ${ro() ? '' : x.id === cur.id ? '' : x.id === 'free' ? (paying ? '<button type="button" class="btn sm ghost" data-planpick="free">Back to free at month end</button>' : '') : x.invite && !(p.invited || []).includes(x.id) ? '<a class="btn sm" href="/education">Apply</a>' : `<button type="button" class="btn sm primary" data-planpick="${esc(x.id)}" ${p.checkout ? '' : 'disabled'}>${p.checkout ? (paying ? `Switch to ${esc(x.name)}` : `Choose ${esc(x.name)}`) : 'Opening soon'}</button>`}
+      </article>`).join('')}</div>`;
+}
+
+// ---------- routing ----------
+const TABS = { overview, keys: keysTab, calls: callsTab, webhooks: webhooksTab, plan: planTab };
+function show(name = tab) {
+  tab = TABS[name] ? name : 'overview';
+  $$('[data-tabs] a').forEach((a) => a.setAttribute('aria-current', String(a.getAttribute('href') === `#${tab}`)));
+  const [t, sub] = TITLES[tab];
+  $('[data-title]').textContent = t; $('[data-sub]').textContent = sub;
+  $('[data-periods]').hidden = tab !== 'overview';
+  $('[data-newkeybtn]').hidden = ro() || tab === 'keys';
+  document.title = `${t} · Console · Mint Motive API`;
+  try { TABS[tab](); } catch (e) { pane().innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; }
+}
+async function load(keepTab = true) {
   try { data = await call(`/api/developer/console?days=${days}${asQ}`); } catch (e) {
-    if (e.status === 401) { $('[data-signin]').hidden = false; return; }
-    $('[data-signin]').hidden = false; $('[data-signin] h2').textContent = e.message; return;
+    document.body.classList.add('gated');
+    $('[data-signin]').hidden = false;
+    if (e.status !== 401) $('[data-signin] h1').textContent = e.message;
+    return false;
   }
-  $('[data-app]').hidden = false;
-  $('[data-who]').textContent = `@${data.me.handle}`;
+  $('[data-me]').innerHTML = `${avatar(data.me.handle)}<div class="who"><b>@${esc(data.me.handle)}</b><span>${esc(data.plan?.plan?.name || 'Maker')} plan</span></div>`;
+  const kc = $('[data-keycount]'), live = data.keys.filter((k) => !k.revoked).length;
+  kc.hidden = !live; kc.textContent = live;
   if (data.viewingAs) {
-    $('[data-app]').dataset.readonly = '';
     const v = $('[data-viewing]');
     v.hidden = false;
-    v.innerHTML = `Viewing <b>@${esc(data.me.handle)}</b>’s console as they see it. Read only, and written to the audit log. <a href="/admin">Back to admin</a>`;
+    v.innerHTML = `<div class="card alert" style="display:flex;align-items:center;gap:12px">${icon('eye')}<span>Viewing <b>@${esc(data.me.handle)}</b>’s console as they see it. Read only, and written to the audit log.</span><a class="btn sm" href="/admin" style="margin-left:auto">Back to admin</a></div>`;
   }
-  hooks(data.webhooks, data.events);
-  plan(data.plan, data.plans || []);
-  const kn = $('[data-keynote]');
-  if (kn && data.plan) kn.innerHTML = kn.innerHTML.replace(/Each key: [^.]+\./, `On ${esc(data.plan.plan.name)}: ${num(data.plan.plan.perDay)} calls a day for your whole account, shared by all your keys, and ${num(data.plan.plan.perMinute)} a minute per key.`);
-  const ps = new URLSearchParams(location.search).get('plan');
-  if (ps === 'welcome') { $('[data-plan]').insertAdjacentHTML('afterbegin', '<p class="cx-fresh"><b>Thanks!</b> Your new plan is on. It can take a minute to show here.</p>'); history.replaceState(null, '', location.pathname); }
-  stats(data.summary);
-  chart(data.summary);
-  breakdown($('[data-kinds]'), data.summary.byKind);
-  breakdown($('[data-formats]'), data.summary.byFormat);
-  keys(data.keys);
-  await loadCalls();
+  if (new URLSearchParams(location.search).get('plan') === 'welcome') { toast('Thanks! Your new plan is on. It can take a minute to show.'); history.replaceState(null, '', location.pathname + location.hash); }
+  if (keepTab) show();
+  return true;
 }
 
 document.addEventListener('click', async (e) => {
-  const t = e.target;
-  const d = t.closest('[data-days]');
+  const d = e.target.closest('[data-days]');
   if (d) { days = Number(d.dataset.days); $$('[data-days]').forEach((b) => b.setAttribute('aria-pressed', String(b === d))); return load(); }
-  if (t.dataset.copy) { try { await navigator.clipboard.writeText(t.dataset.copy); t.textContent = 'Copied'; } catch { t.textContent = 'Select it'; } return; }
-  if (t.dataset.revoke) {
-    if (!confirm('Revoke this key? Anything using it stops working straight away. Its past calls stay in your log.')) return;
-    try { await call(`/api/engine/v1/keys/${t.dataset.revoke}`, { method: 'DELETE' }); load(); } catch (err) { alert(err.message); }
-    return;
+  const el = e.target.closest('[data-copy],[data-revoke],[data-rename],[data-lock],[data-deliv],[data-hooktest],[data-hookdel],[data-planpick],[data-manage],[data-more],[data-fkey]');
+  if (el) {
+    const ds = el.dataset;
+    if (ds.copy) { try { await navigator.clipboard.writeText(ds.copy); toast('Copied'); } catch { toast('Select it and copy'); } return; }
+    if (ds.fkey) { filters = { key: ds.fkey }; location.hash = 'calls'; return; }
+    if (ds.revoke) {
+      if (!(await ask({ title: 'Revoke this key?', body: 'Anything using it stops working straight away. Its past calls stay in your log.', ok: 'Revoke', danger: true }))) return;
+      if (await act(() => call(`/api/engine/v1/keys/${ds.revoke}`, { method: 'DELETE' }), 'Key revoked')) load();
+      return;
+    }
+    if (ds.rename) {
+      const name = await ask({ title: 'Rename this key', input: { value: $(`[data-name="${ds.rename}"]`)?.textContent || '', required: true }, ok: 'Save' });
+      if (!name) return;
+      if (await act(() => call(`/api/engine/v1/keys/${ds.rename}`, { method: 'PATCH', body: { name } }), 'Renamed')) load();
+      return;
+    }
+    if (ds.lock) {
+      const v = await ask({ title: 'Lock to your addresses', body: 'Only allow this key from these addresses (IPs, or IPv4 ranges like 203.0.113.0/24), separated by commas. Empty: it works from anywhere.', input: { value: ds.allow || '', placeholder: '203.0.113.7, 198.51.100.0/24' }, ok: 'Save' });
+      if (v === null) return;
+      if (await act(() => call(`/api/engine/v1/keys/${ds.lock}`, { method: 'PATCH', body: { allowIps: v } }), 'Saved')) load();
+      return;
+    }
+    if (ds.deliv) return act(() => deliveries(ds.deliv));
+    if (ds.hooktest) { if (await act(() => call(`/api/developer/webhooks/${ds.hooktest}/test`, { method: 'POST' }), 'Test sent')) setTimeout(load, 2500); return; }
+    if (ds.hookdel) {
+      if (!(await ask({ title: 'Remove this webhook?', body: 'Nothing more will be sent to it.', ok: 'Remove', danger: true }))) return;
+      if (await act(() => call(`/api/developer/webhooks/${ds.hookdel}`, { method: 'DELETE' }), 'Removed')) load();
+      return;
+    }
+    if (ds.planpick) {
+      const id = ds.planpick;
+      if (id === 'free' && !(await ask({ title: 'Back to free?', body: 'At the end of this month. Your keys keep working, with the free limits.', ok: 'Go back to free' }))) return;
+      el.disabled = true;
+      const r = await act(() => call('/api/developer/plan/checkout', { method: 'POST', body: { plan: id } }));
+      if (r?.url) { location.href = r.url; return; }
+      el.disabled = false; if (r) load();
+      return;
+    }
+    if ('manage' in ds) { const r = await act(() => call('/api/developer/plan/manage', { method: 'POST' })); if (r?.url) location.href = r.url; return; }
+    if ('more' in ds) return loadCalls(true);
   }
-  if (t.dataset.rename) {
-    const name = prompt('New name for this key', $(`[data-name="${t.dataset.rename}"]`)?.textContent || '');
-    if (!name) return;
-    try { await call(`/api/engine/v1/keys/${t.dataset.rename}`, { method: 'PATCH', body: { name } }); load(); } catch (err) { alert(err.message); }
-    return;
-  }
-  if (t.dataset.lock) {
-    const v = prompt('Lock this key to these addresses (IPs, or IPv4 ranges like 203.0.113.0/24), separated by commas. Leave empty to let it work from anywhere.', t.dataset.allow || '');
-    if (v === null) return;
-    try { await call(`/api/engine/v1/keys/${t.dataset.lock}`, { method: 'PATCH', body: { allowIps: v } }); load(); } catch (err) { alert(err.message); }
-    return;
-  }
-  if (t.dataset.deliv) { try { await deliveries(t.dataset.deliv); } catch (err) { alert(err.message); } return; }
-  if (t.dataset.hooktest) { try { await call(`/api/developer/webhooks/${t.dataset.hooktest}/test`, { method: 'POST' }); t.textContent = 'Sent'; setTimeout(load, 2500); } catch (err) { alert(err.message); } return; }
-  if (t.dataset.hookdel) {
-    if (!confirm('Remove this webhook? Nothing more will be sent to it.')) return;
-    try { await call(`/api/developer/webhooks/${t.dataset.hookdel}`, { method: 'DELETE' }); load(); } catch (err) { alert(err.message); }
-    return;
-  }
-  const pick = t.closest('[data-planpick]');
-  if (pick) {
-    const id = pick.dataset.planpick;
-    if (id === 'free' && !confirm('Go back to the free plan at the end of this month? Your keys keep working, with the free limits.')) return;
-    pick.disabled = true;
-    try { const r = await call('/api/developer/plan/checkout', { method: 'POST', body: { plan: id } }); if (r.url) { location.href = r.url; return; } load(); } catch (err) { alert(err.message); pick.disabled = false; }
-    return;
-  }
-  if (t.closest('[data-manage]')) { try { const r = await call('/api/developer/plan/manage', { method: 'POST' }); location.href = r.url; } catch (err) { alert(err.message); } return; }
-  if (t.closest('[data-more]')) return loadCalls(true);
-  const row = t.closest('[data-row]');
-  if (row) { const det = $(`[data-detail="${row.dataset.row}"]`); det.hidden = !det.hidden; row.classList.toggle('is-open', !det.hidden); }
+  const row = e.target.closest('[data-row]');
+  if (row && !e.target.closest('button, a')) { const det = $(`[data-detail="${row.dataset.row}"]`); det.hidden = !det.hidden; row.classList.toggle('open', !det.hidden); }
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches?.('[data-row]')) e.target.click(); });
-
-$('[data-newkey]').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  try {
-    const k = await call('/api/engine/v1/keys', { method: 'POST', body: { name: e.target.name.value } });
-    const box = $('[data-fresh]');
-    box.hidden = false;
-    box.innerHTML = `<p><b>Your new key.</b> Copy it now: it won't be shown again.</p><code class="ax-mono">${esc(k.key)}</code> <button type="button" class="ax-btn ax-btn-sm" data-copy="${esc(k.key)}">Copy</button>`;
-    e.target.reset();
-    load();
-  } catch (err) { alert(err.message); }
-});
-$('[data-newhook]').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  try {
-    const h = await call('/api/developer/webhooks', { method: 'POST', body: { url: f.get('url'), events: f.getAll('events') } });
-    const box = $('[data-hookfresh]');
-    box.hidden = false;
-    box.innerHTML = `<p><b>Signing secret.</b> Copy it now: it won't be shown again. Use it to check the Mint-Signature header.</p><code class="ax-mono">${esc(h.secret)}</code> <button type="button" class="ax-btn ax-btn-sm" data-copy="${esc(h.secret)}">Copy</button>`;
-    e.target.url.value = '';
-    load();
-  } catch (err) { alert(err.message); }
-});
 document.addEventListener('submit', async (e) => {
-  if (!e.target.matches('[data-cap]')) return;
+  const f = e.target;
+  if (f.method === 'dialog') return;
   e.preventDefault();
-  try { await call('/api/developer/plan/cap', { method: 'PUT', body: { dollars: e.target.dollars.value } }); load(); } catch (err) { alert(err.message); }
+  if (f.matches('[data-newkey]')) {
+    const k = await act(() => call('/api/engine/v1/keys', { method: 'POST', body: { name: f.name.value } }));
+    if (!k) return;
+    await load(false); keysTab();
+    $('[data-fresh]').innerHTML = `<div class="card" style="margin-top:14px;border-color:var(--mint)"><p style="margin:0 0 8px"><b>Your new key.</b> Copy it now: it won't be shown again.</p><div class="toolbar"><pre class="code" style="flex:1">${esc(k.key)}</pre><button type="button" class="btn primary" data-copy="${esc(k.key)}">${icon('copy')}Copy</button></div></div>`;
+    return;
+  }
+  if (f.matches('[data-newhook]')) {
+    const d = new FormData(f);
+    const h = await act(() => call('/api/developer/webhooks', { method: 'POST', body: { url: d.get('url'), events: d.getAll('events') } }));
+    if (!h) return;
+    await load(false); webhooksTab();
+    $('[data-hookfresh]').innerHTML = `<div class="card" style="margin-top:14px;border-color:var(--mint)"><p style="margin:0 0 8px"><b>Signing secret.</b> Copy it now: it won't be shown again. Use it to check the Mint-Signature header.</p><div class="toolbar"><pre class="code" style="flex:1">${esc(h.secret)}</pre><button type="button" class="btn primary" data-copy="${esc(h.secret)}">${icon('copy')}Copy</button></div></div>`;
+    return;
+  }
+  if (f.matches('[data-cap]')) { if (await act(() => call('/api/developer/plan/cap', { method: 'PUT', body: { dollars: f.dollars.value } }), 'Saved')) load(); return; }
+  if (f.matches('[data-filters]')) { const d = new FormData(f); filters = { key: d.get('key'), status: d.get('status'), q: String(d.get('q') || '').trim() }; loadCalls(); }
 });
-$('[data-filters]').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  filters = { key: f.get('key'), status: f.get('status'), q: String(f.get('q') || '').trim() };
-  loadCalls();
-});
+window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
-load();
+async function liveState() {
+  try {
+    const s = await call('/api/status');
+    $('[data-live]').className = `live ${s.overall === 'operational' ? '' : /degraded|partial/.test(s.overall) ? 'warn' : 'bad'}`;
+    $('[data-state]').textContent = s.overall === 'operational' ? 'All systems normal' : s.overall;
+  } catch { $('[data-state]').textContent = 'Status unknown'; }
+}
+
+(async () => {
+  shell();
+  tab = location.hash.slice(1) || 'overview';
+  if (!(await load())) return;
+  const open = commandPalette([
+    ...Object.entries(TITLES).map(([k, [t, sub]]) => ({ group: 'Go to', label: t, hint: sub, icon: { overview: 'overview', keys: 'key', calls: 'calls', webhooks: 'hook', plan: 'card' }[k], run: () => { location.hash = k; } })),
+    { group: 'Build', label: 'Docs', icon: 'book', run: () => { location.href = '/docs'; } },
+    { group: 'Build', label: 'Playground', icon: 'play', run: () => { location.href = '/#playground'; } },
+    { group: 'Build', label: 'Status', icon: 'pulse', run: () => { location.href = '/status'; } },
+  ], (q) => (q.length > 2 ? [{ group: 'Find', label: `Search your calls for “${q}”`, icon: 'calls', run: () => { filters = { q }; location.hash = 'calls'; if (tab === 'calls') callsTab(); } }] : []));
+  $('[data-cmdk]').addEventListener('click', open);
+  liveState(); setInterval(liveState, 60e3);
+})();

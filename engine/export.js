@@ -42,6 +42,21 @@ export function toSTL(mesh, name = 'gridfinity', meta = null) {
 // Parts with the same `group` become one object made of several parts (label
 // text stays locked to its bin). `filament` (1-based) picks the AMS slot in
 // Bambu Studio and OrcaSlicer; `color` is shown by other 3MF viewers.
+// A coordinate to 4 decimal places, written as String(+v.toFixed(4)) would
+// (no trailing zeros, no "-0"), without toFixed's cost. Values within a hair of
+// a rounding halfway point go through toFixed itself, so the text is the same.
+const P10 = 10000;
+export function num4(v) {
+  const a = Math.abs(v) * P10, f = a - Math.floor(a);
+  if (!(a < 9e15) || Math.abs(f - 0.5) < 1e-6) return String(+v.toFixed(4));
+  const n = Math.round(a);
+  if (n === 0) return '0';
+  const whole = Math.floor(n / P10), frac = n - whole * P10;
+  let out = (v < 0 ? '-' : '') + whole;
+  if (frac) { let d = String(frac).padStart(4, '0'); while (d.endsWith('0')) d = d.slice(0, -1); out += '.' + d; }
+  return out;
+}
+
 export function to3MF(input, name = 'gridfinity', meta = null) {
   meta = meta || activeExportMeta();
   const parts = (Array.isArray(input) ? input : [{ mesh: input, name }]).map((p, k) => ({ ...p, id: k + 1 }));
@@ -52,7 +67,7 @@ export function to3MF(input, name = 'gridfinity', meta = null) {
     const ix = mesh.indices;
     const verts = [];
     for (let i = 0; i < p.length; i += 3) {
-      verts.push(`<vertex x="${+p[i].toFixed(4)}" y="${+p[i + 1].toFixed(4)}" z="${+p[i + 2].toFixed(4)}"/>`);
+      verts.push(`<vertex x="${num4(p[i])}" y="${num4(p[i + 1])}" z="${num4(p[i + 2])}"/>`);
     }
     const tris = [];
     for (let t = 0; t < ix.length; t += 3) tris.push(`<triangle v1="${ix[t]}" v2="${ix[t + 1]}" v3="${ix[t + 2]}"/>`);
@@ -132,7 +147,7 @@ export function toOBJ(input, name = 'gridfinity') {
   for (const { mesh, name: partName } of parts) {
     out.push(`o ${String(partName || name).replace(/\s+/g, '_')}`);
     const p = mesh.positions;
-    for (let i = 0; i < p.length; i += 3) out.push(`v ${+p[i].toFixed(4)} ${+p[i + 1].toFixed(4)} ${+p[i + 2].toFixed(4)}`);
+    for (let i = 0; i < p.length; i += 3) out.push(`v ${num4(p[i])} ${num4(p[i + 1])} ${num4(p[i + 2])}`);
     const ix = mesh.indices;
     for (let t = 0; t < ix.length; t += 3) out.push(`f ${ix[t] + base} ${ix[t + 1] + base} ${ix[t + 2] + base}`);
     base += p.length / 3;
@@ -149,10 +164,22 @@ const CRC_TABLE = (() => {
   }
   return t;
 })();
+// Slicing-by-4: four tables, four bytes a step (same answer, about 3× quicker).
+const CRC4 = (() => {
+  const t = [CRC_TABLE, new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)];
+  for (let n = 0; n < 256; n++) for (let k = 1; k < 4; k++) t[k][n] = (t[k - 1][n] >>> 8) ^ CRC_TABLE[t[k - 1][n] & 0xff];
+  return t;
+})();
 
-function crc32(bytes) {
-  let c = 0xffffffff;
-  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+export function crc32(bytes) {
+  const [t0, t1, t2, t3] = CRC4;
+  let c = 0xffffffff, i = 0;
+  const n4 = bytes.length & ~3;
+  for (; i < n4; i += 4) {
+    c ^= bytes[i] | (bytes[i + 1] << 8) | (bytes[i + 2] << 16) | (bytes[i + 3] << 24);
+    c = t3[c & 0xff] ^ t2[(c >>> 8) & 0xff] ^ t1[(c >>> 16) & 0xff] ^ t0[c >>> 24];
+  }
+  for (; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 

@@ -11,28 +11,37 @@
     <link rel="stylesheet" href="/css/site.css" />
     <link rel="stylesheet" href="/fonts/poppins.css?w=400-800" />
     <link rel="stylesheet" href="/css/api-portal.css" />
-    <link rel="stylesheet" href="/css/api-console.css" />
-    <link rel="stylesheet" href="/css/api-admin.css" />
+    <link rel="stylesheet" href="/css/app.css" />
   </head>
-  <body class="ax-body">
+  <body class="ax-body app">
     <a class="ax-skip" href="#main">Skip to content</a>
-    <div class="ax-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
-    <canvas class="ax-net ax-net-soft" data-net aria-hidden="true"></canvas>
 
-    <header class="ax-top">
-      <div class="ax-shell ax-top-row">
-        <a class="ax-logo" href="/" aria-label="Mint Motive API home">
-          <img class="ax-wordmark" src="/img/logo.svg" alt="Mint Motive" width="155" height="20" />
-          <img class="ax-mark" src="/img/mark.svg" alt="" width="22" height="22" />
-          <b>API</b>
-        </a>
-        <nav class="ax-nav" aria-label="Sections">
-          <a href="/">Overview</a>
-          <a href="/docs">Docs</a>
-          <a href="/status">Status</a>
-          <a href="/console">Console</a>
-          <a href="/admin" aria-current="page">Admin</a>
-        </nav>
+    <aside class="side" aria-label="Admin">
+      <a class="side-brand" href="/admin"><img src="/img/logo.svg" alt="Mint Motive" width="140" height="18" /><span class="chip">ADMIN</span></a>
+      <button type="button" class="side-search" data-cmdk data-icon="trace">Jump to… <kbd>⌘K</kbd></button>
+      <nav aria-label="Admin sections" data-tabs>
+        <p class="side-group">Monitor</p>
+        <a href="#overview" data-icon="overview">Overview</a>
+        <a href="#alerts" data-icon="alert">Alerts <b data-alertcount hidden></b></a>
+        <a href="#calls" data-icon="calls">Calls</a>
+        <a href="#latency" data-icon="speed">Speed</a>
+        <a href="#trace" data-icon="trace">Trace a file</a>
+        <p class="side-group">Customers</p>
+        <a href="#developers" data-icon="users">Developers</a>
+        <a href="#keys" data-icon="key">Keys</a>
+        <a href="#plans" data-icon="card">Plans and money</a>
+        <a href="#education" data-icon="school">Education <b class="soft" data-educount hidden></b></a>
+        <p class="side-group">Protect</p>
+        <a href="#addresses" data-icon="globe">Addresses</a>
+        <a href="#webhooks" data-icon="hook">Webhooks</a>
+        <a href="#status" data-icon="pulse">Status page</a>
+        <p class="side-group">Grow</p>
+        <a href="#marketing" data-icon="megaphone">Marketing</a>
+        <p class="side-group">System</p>
+        <a href="#settings" data-icon="cog">Settings</a>
+      </nav>
+      <div class="side-foot">
+        <div class="side-me" data-me></div>
         <div class="ax-swatches" role="group" aria-label="Colours">
           <button type="button" data-palette="mint" aria-label="Mint" aria-pressed="true"></button>
           <button type="button" data-palette="brand" aria-label="Mint Motive (brand colours)" title="Mint Motive" aria-pressed="false"></button>
@@ -41,64 +50,45 @@
           <button type="button" data-palette="ember" aria-label="Ember" aria-pressed="false"></button>
           <button type="button" data-palette="synth" aria-label="Synth" aria-pressed="false"></button>
         </div>
-        <span class="cx-who ax-mono" data-who></span>
+        <nav class="side-links" aria-label="Elsewhere"><a href="/">Site</a><a href="/docs">Docs</a><a href="/status">Status</a><a href="/console">Console</a><a href="{{vertex}}/admin">VERTEX admin</a></nav>
       </div>
-    </header>
+    </aside>
 
-    <main id="main" class="ax-shell cx">
-      <div class="cx-head">
-        <div>
-          <p class="ax-label">Staff only</p>
-          <h1>API <span class="ax-grad">control room.</span></h1>
-        </div>
-        <p class="ax-pill"><i class="ax-dot" data-dot aria-hidden="true"></i><span data-state>Checking the engine…</span></p>
-      </div>
-
-      <section class="ax-tile cx-signin" data-signin hidden>
-        <h2>Sign in to open API admin</h2>
-        <p class="ax-tile-s">Admins and owners only. Signing in here keeps the API site separate from VERTEX.</p>
-        <a class="ax-btn ax-btn-primary" href="/signin?next=/admin">Sign in</a>
-      </section>
-
-      <div data-app hidden>
-        <nav class="ad-tabs" aria-label="Admin sections" data-tabs>
-          <a href="#overview">Overview</a>
-          <a href="#alerts">Alerts <b data-alertcount hidden></b></a>
-          <a href="#calls">Calls</a>
-          <a href="#trace">Trace</a>
-          <a href="#latency">Speed</a>
-          <a href="#keys">Keys</a>
-          <a href="#addresses">Addresses</a>
-          <a href="#developers">Developers</a>
-          <a href="#webhooks">Webhooks</a>
-          <a href="#plans">Plans</a>
-          <a href="#status">Status page</a>
-          <a href="#education">Education <b data-educount hidden></b></a>
-          <a href="#settings">Settings</a>
-        </nav>
-        <div class="ad-bar">
-          <div class="cx-range" role="group" aria-label="Period">
-            <button type="button" data-days="7">7 days</button>
-            <button type="button" data-days="30" aria-pressed="true">30 days</button>
-            <button type="button" data-days="90">90 days</button>
-            <button type="button" data-days="365">1 year</button>
+    <div class="main">
+      <header class="bar">
+        <button type="button" class="icon-btn menu-btn" data-menu aria-label="Menu" data-icon="menu"></button>
+        <div><h1 data-title>Overview</h1><p class="sub" data-sub>Everything the APIs did, at a glance.</p></div>
+        <div class="bar-tools">
+          <div class="seg" role="group" aria-label="Period" data-periods>
+            <button type="button" data-days="1">24 h</button>
+            <button type="button" data-days="7">7 d</button>
+            <button type="button" data-days="30" aria-pressed="true">30 d</button>
+            <button type="button" data-days="90">90 d</button>
+            <button type="button" data-days="365">1 y</button>
           </div>
-          <div class="cx-range" role="group" aria-label="Which API">
+          <div class="seg" role="group" aria-label="Which API" data-apis>
             <button type="button" data-api="" aria-pressed="true">Both</button>
             <button type="button" data-api="engine">Engine</button>
             <button type="button" data-api="trace">Tracer</button>
           </div>
+          <span class="live" data-live><i></i><span data-state>Checking…</span></span>
+          <button type="button" class="icon-btn" data-reload aria-label="Refresh" title="Refresh" data-icon="refresh"></button>
         </div>
-        <div data-pane></div>
-      </div>
-    </main>
+      </header>
+      <main id="main" class="content" data-pane>
+        <div class="skel" style="height:118px"></div>
+        <div class="skel" style="height:320px"></div>
+      </main>
+    </div>
 
-    <footer class="ax-foot">
-      <div class="ax-shell ax-foot-row">
-        <span>© {{year}} Mint Motive</span>
-        <nav aria-label="Elsewhere"><a href="/status">Status</a><a href="/docs">Docs</a><a href="/console">Console</a><a href="{{vertex}}">VERTEX</a><a href="/education">Education</a><a href="{{vertex}}/licences">Licences</a><a href="{{vertex}}/privacy">Privacy</a><a href="{{vertex}}/contact">Contact</a></nav>
+    <div class="gate" data-signin hidden>
+      <div class="card">
+        <img src="/img/logo.svg" alt="Mint Motive" width="150" height="20" />
+        <h1>Sign in to API admin</h1>
+        <p>Staff only. You sign in with your VERTEX account.</p>
+        <div class="acts"><a class="btn primary" href="/signin?next=/admin">Sign in with VERTEX</a><a class="btn ghost" href="/">Back to the site</a></div>
       </div>
-    </footer>
+    </div>
     <script type="module" src="/js/pages/api-portal.js"></script>
     <script type="module" src="/js/pages/api-admin.js"></script>
   </body>

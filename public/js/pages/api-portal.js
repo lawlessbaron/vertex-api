@@ -2,7 +2,6 @@
 // and builds the model each one makes, bento tiles that show the API working
 // (measured build times, file sizes, serials), and a playground that writes
 // the exact call for the model on screen.
-import { buildParts } from '/js/models.js';
 
 const BASE = 'https://api.mintmotive.com.au';
 const $ = (s, el = document) => el.querySelector(s);
@@ -100,7 +99,7 @@ function layout(list) {
 }
 function timedBuild(kind, params) {
   const t0 = performance.now();
-  const list = buildParts(kind, params) || [];
+  const list = (buildParts && buildParts(kind, params)) || [];
   return { list, ms: performance.now() - t0, tris: list.reduce((n, p) => n + p.mesh.triangleCount, 0) };
 }
 const kb = (bytes) => (bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`);
@@ -109,8 +108,14 @@ const rnd = (n) => Array.from({ length: n }, () => CROCK[(Math.random() * 32) | 
 const now = new Date();
 const serial = () => `VX-${String(now.getUTCFullYear()).slice(2)}${String(now.getUTCMonth() + 1).padStart(2, '0')}-${rnd(4)}-${rnd(4)}`;
 
-let Viewer = null;
-const viewerReady = import('/js/viewer.js').then((m) => { Viewer = m.Viewer; }).catch(() => {});
+// The 3D viewer and the geometry engine (~250 KB) load only on pages that draw a
+// model, and only once something asks: every other page (docs, sign-in, status)
+// paints without them, and the homepage paints before they arrive.
+let Viewer = null, buildParts = null, ready = null;
+const engineReady = () => (ready ||= Promise.all([
+  import('/js/viewer.js').then((m) => { Viewer = m.Viewer; }),
+  import('/js/models.js').then((m) => { buildParts = m.buildParts; }),
+]).catch(() => {}));
 function makeViewer(canvas, opts) {
   try { const v = new Viewer(canvas, opts); v.setView('iso'); return v; } catch { return null; }
 }
@@ -140,7 +145,7 @@ const EXAMPLES = [
 async function console_() {
   const out = $('[data-type]'), tag = $('[data-hero-tag]');
   if (!out) return;
-  await viewerReady;
+  await engineReady();
   const view = Viewer ? makeViewer($('[data-hero-view]'), { interactive: false }) : null;
   if (view && !still) view.spin(true);
   for (let n = 0; ; n = (n + 1) % EXAMPLES.length) {
@@ -184,7 +189,7 @@ function codeTile() {
 function serials() {
   const ul = $('[data-serials]');
   if (!ul) return;
-  const kinds = ['bin', 'baseplate', 'holder', 'skadis', 'labels', 'morph'];
+  const kinds = ['bin', 'baseplate', 'holder', 'skadis', 'labels', 'morph', 'enclosure', 'simrig', 'tslot', 'swatch', 'spool', 'knob', 'dragchain', 'hinge', 'jar', 'stand', 'deskhook', 'planter', 'cutter', 'keychain', 'bagclip', 'coaster', 'cablewrap', 'battery', 'shelfbracket', 'headphone', 'keyrack', 'plantmarker', 'toothbrush', 'spicerack', 'broomholder', 'bookend', 'laptopstand'];
   const add = () => {
     const li = document.createElement('li');
     li.innerHTML = `<b>${serial()}</b><span>${kinds[(Math.random() * kinds.length) | 0]}.3mf</span>`;
@@ -272,7 +277,7 @@ async function playground() {
   });
   renderFields('bin');
   update(false);
-  await viewerReady;
+  await engineReady();
   if (Viewer) view = makeViewer($('[data-view]'));
   update();
 }

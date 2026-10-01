@@ -11,7 +11,7 @@ import { HttpError, RateLimiter, readJson } from './security.js';
 import { hashToken } from './auth.js';
 import { keyHint } from './api-log.js';
 import { ipAllowed, parseAllow } from './api-guard.js';
-import { buildParts } from '../engine/models.js';
+import { buildParts, loadKind, LAZY_KINDS } from '../engine/models.js';
 import { toSTL, to3MF, toOBJ } from '../engine/export.js';
 import { setSerial } from '../engine/serial.js';
 import { ENGINE } from '../engine/engine.js';
@@ -21,6 +21,36 @@ import { HOLDER_DEFAULTS } from '../engine/geometry/holders.js';
 import { LABEL_CLIP_DEFAULTS } from '../engine/geometry/labelclip.js';
 import { SKADIS_DEFAULTS } from '../engine/geometry/skadis.js';
 import { MORPH_DEFAULTS } from '../engine/geometry/morph.js';
+import { ENCLOSURE_DEFAULTS } from '../engine/geometry/enclosure.js';
+import { SIM_DEFAULTS } from '../engine/geometry/simrig.js';
+import { TSLOT_DEFAULTS } from '../engine/geometry/tslot.js';
+import { SWATCH_DEFAULTS } from '../engine/geometry/swatch.js';
+import { SPOOL_DEFAULTS } from '../engine/geometry/spool.js';
+import { KNOB_DEFAULTS } from '../engine/geometry/knob.js';
+import { DRAGCHAIN_DEFAULTS } from '../engine/geometry/dragchain.js';
+import { HINGE_DEFAULTS } from '../engine/geometry/hinge.js';
+import { JAR_DEFAULTS } from '../engine/geometry/jar.js';
+import { STAND_DEFAULTS } from '../engine/geometry/stand.js';
+import { DESKHOOK_DEFAULTS } from '../engine/geometry/deskhook.js';
+import { PLANTER_DEFAULTS } from '../engine/geometry/planter.js';
+import { CUTTER_DEFAULTS } from '../engine/geometry/cutter.js';
+import { KEYCHAIN_DEFAULTS } from '../engine/geometry/keychain.js';
+import { BAGCLIP_DEFAULTS } from '../engine/geometry/bagclip.js';
+import { COASTER_DEFAULTS } from '../engine/geometry/coaster.js';
+import { CABLEWRAP_DEFAULTS } from '../engine/geometry/cablewrap.js';
+import { BATTERY_DEFAULTS } from '../engine/geometry/battery.js';
+import { SHELFBRACKET_DEFAULTS } from '../engine/geometry/shelfbracket.js';
+import { HEADPHONE_DEFAULTS } from '../engine/geometry/headphone.js';
+import { KEYRACK_DEFAULTS } from '../engine/geometry/keyrack.js';
+import { PLANTMARKER_DEFAULTS } from '../engine/geometry/plantmarker.js';
+import { TOOTHBRUSH_DEFAULTS } from '../engine/geometry/toothbrush.js';
+import { SPICERACK_DEFAULTS } from '../engine/geometry/spicerack.js';
+import { BROOMHOLDER_DEFAULTS } from '../engine/geometry/broomholder.js';
+import { BOOKEND_DEFAULTS } from '../engine/geometry/bookend.js';
+import { LAPTOPSTAND_DEFAULTS } from '../engine/geometry/laptopstand.js';
+
+// The generators the site loads on demand; the API wants them all from the start.
+await Promise.all(LAZY_KINDS.map(loadKind));
 
 // What v1 can make: the generators whose parts the site builds from settings.
 export const API_KINDS = {
@@ -30,6 +60,33 @@ export const API_KINDS = {
   labels: { name: 'Label clips and extras', defaults: LABEL_CLIP_DEFAULTS, generator: '/create?type=labels' },
   skadis: { name: 'Skådis part', defaults: SKADIS_DEFAULTS, generator: '/skadis' },
   morph: { name: 'Deck Foundry part', defaults: MORPH_DEFAULTS, generator: '/morph' },
+  enclosure: { name: 'Pi and Arduino case', defaults: ENCLOSURE_DEFAULTS, generator: '/enclosures' },
+  simrig: { name: 'Sim rig part', defaults: SIM_DEFAULTS, generator: '/sim-rig' },
+  tslot: { name: 'T-slot part', defaults: TSLOT_DEFAULTS, generator: '/sim-rig?type=tslot' },
+  swatch: { name: 'Filament swatches', defaults: SWATCH_DEFAULTS, generator: '/swatches' },
+  spool: { name: 'Spool and dry-box part', defaults: SPOOL_DEFAULTS, generator: '/spool-parts' },
+  knob: { name: 'Knob or drawer pull', defaults: KNOB_DEFAULTS, generator: '/knobs' },
+  dragchain: { name: 'Cable drag chain', defaults: DRAGCHAIN_DEFAULTS, generator: '/drag-chains' },
+  hinge: { name: 'Hinge or hinged box', defaults: HINGE_DEFAULTS, generator: '/hinges' },
+  jar: { name: 'Screw-top jar', defaults: JAR_DEFAULTS, generator: '/jars' },
+  stand: { name: 'Phone or tablet stand', defaults: STAND_DEFAULTS, generator: '/stands' },
+  deskhook: { name: 'Desk hook', defaults: DESKHOOK_DEFAULTS, generator: '/desk-hooks' },
+  planter: { name: 'Plant pot and drip tray', defaults: PLANTER_DEFAULTS, generator: '/planters' },
+  cutter: { name: 'Cookie cutter', defaults: CUTTER_DEFAULTS, generator: '/cookie-cutters' },
+  keychain: { name: 'Name keychain or tag', defaults: KEYCHAIN_DEFAULTS, generator: '/keychains' },
+  bagclip: { name: 'Bag clip', defaults: BAGCLIP_DEFAULTS, generator: '/bag-clips' },
+  coaster: { name: 'Coaster', defaults: COASTER_DEFAULTS, generator: '/coasters' },
+  cablewrap: { name: 'Cable wrap or winder', defaults: CABLEWRAP_DEFAULTS, generator: '/cable-wraps' },
+  battery: { name: 'Battery organiser', defaults: BATTERY_DEFAULTS, generator: '/battery-organisers' },
+  shelfbracket: { name: 'Shelf bracket', defaults: SHELFBRACKET_DEFAULTS, generator: '/shelf-brackets' },
+  headphone: { name: 'Headphone stand', defaults: HEADPHONE_DEFAULTS, generator: '/headphone-stands' },
+  keyrack: { name: 'Key rack', defaults: KEYRACK_DEFAULTS, generator: '/key-racks' },
+  plantmarker: { name: 'Plant markers', defaults: PLANTMARKER_DEFAULTS, generator: '/plant-markers' },
+  toothbrush: { name: 'Toothbrush holder', defaults: TOOTHBRUSH_DEFAULTS, generator: '/toothbrush-holders' },
+  spicerack: { name: 'Spice rack', defaults: SPICERACK_DEFAULTS, generator: '/spice-racks' },
+  broomholder: { name: 'Broom and mop holder', defaults: BROOMHOLDER_DEFAULTS, generator: '/broom-holders' },
+  bookend: { name: 'Bookend', defaults: BOOKEND_DEFAULTS, generator: '/bookends' },
+  laptopstand: { name: 'Laptop stand', defaults: LAPTOPSTAND_DEFAULTS, generator: '/laptop-stands' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };

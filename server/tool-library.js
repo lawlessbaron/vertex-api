@@ -175,12 +175,15 @@ function joined(parts, gap) {
 // The broad "tool" catches what the names miss; dedupe() drops the repeats.
 // Roboflow takes at most 16 names in one call.
 export const SAM3_NAMES = ['tool', 'screwdriver', 'wrench', 'pliers', 'hammer', 'tape measure', 'scissors', 'knife', 'chisel', 'allen key', 'socket', 'drill bit', 'caliper', 'crimpers', 'wire strippers', 'multimeter'];
-// Meta's SAM3 on your own server takes up to 24, so it gets the exact kinds too.
-export const SAM3_META_NAMES = [...SAM3_NAMES, 'combination pliers', 'needle-nose pliers', 'side cutters', 'adjustable wrench', 'utility knife', 'stanley knife', 'box cutter', 'file', 'soldering iron', 'hex key set'];
-export const sam3Spec = () => ({
+// A second call, at the same time, for everyday things that aren't tools: with
+// tool words only, a marker, a cable or a tin had no word and wasn't found.
+export const SAM3_EVERYDAY = ['marker', 'pen', 'pencil', 'cable', 'charger', 'battery', 'tin', 'jar', 'bottle', 'sponge', 'box', 'case', 'tape', 'brush', 'phone', 'container'];
+// Meta's SAM3 on your own server takes up to 32, so it gets the exact kinds too.
+export const SAM3_META_NAMES = [...SAM3_NAMES, 'combination pliers', 'needle-nose pliers', 'side cutters', 'adjustable wrench', 'utility knife', 'stanley knife', 'box cutter', 'file', 'soldering iron', 'hex key set', 'marker', 'pen', 'cable', 'battery', 'tin', 'container'];
+export const sam3Spec = (names = SAM3_NAMES) => ({
   version: '1.0',
   inputs: [{ type: 'InferenceImage', name: 'image' }],
-  steps: [{ type: 'roboflow_core/sam3@v3', name: 'sam', images: '$inputs.image', class_names: SAM3_NAMES, confidence: 0.2, nms_iou_threshold: 0.5, output_format: 'polygons' }],
+  steps: [{ type: 'roboflow_core/sam3@v3', name: 'sam', images: '$inputs.image', class_names: names, confidence: 0.2, nms_iou_threshold: 0.5, output_format: 'polygons' }],
   outputs: [{ type: 'JsonField', name: 'preds', selector: '$steps.sam.predictions' }],
 });
 
@@ -188,7 +191,7 @@ export const sam3Spec = () => ({
 export const folderName = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
 
 // How long our GPU gets before Roboflow traces too, and how long a trace may take at all.
-export const FALLBACK_AFTER = 12000;
+export const FALLBACK_AFTER = 3000; // a warm GPU answers in 2–3 s; asleep it takes 20–40 s, Roboflow about 1.5 s
 const JOB_LIMIT = 90000;
 
 export function createToolLibrary({ db, can, audit, env = process.env, fetchImpl = fetch, fallbackAfter = FALLBACK_AFTER, onOutcome = () => {} }) {
@@ -249,7 +252,25 @@ export function createToolLibrary({ db, can, audit, env = process.env, fetchImpl
     });
   }
 
+  // Roboflow's SAM3: the tool words and the everyday words, asked at the same
+  // time and put together. One failing still gives the other's answer.
   async function outlineWith(use, b64) {
+    if (use !== 'sam3') return outlineOnce(use, b64);
+    const asks = await Promise.allSettled([outlineOnce(use, b64, SAM3_NAMES), outlineOnce(use, b64, SAM3_EVERYDAY)]);
+    const ok = asks.filter((a) => a.status === 'fulfilled').map((a) => a.value);
+    if (!ok.length) throw asks[0].reason;
+    if (ok.length === 1) return ok[0];
+    const boxed = ok.flat().map((t) => {
+      const xs = t.points.map((q) => q[0]), ys = t.points.map((q) => q[1]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      return { points: t.points.map(([x, y]) => ({ x, y })), class: t.label, confidence: t.confidence, x: (x0 + x1) / 2, y: (y0 + y1) / 2, width: x1 - x0, height: y1 - y0 };
+    });
+    return dedupe(boxed)
+      .slice(0, MAX_TOOLS)
+      .map((p) => ({ points: p.points.map((q) => [q.x, q.y]), label: p.class, confidence: p.confidence }));
+  }
+
+  async function outlineOnce(use, b64, names = SAM3_NAMES) {
     const sam3 = use === 'sam3', meta = use === 'sam3-meta';
     const who = meta ? 'Your SAM3 server' : 'Roboflow';
     const t0 = Date.now();
@@ -264,7 +285,7 @@ export function createToolLibrary({ db, can, audit, env = process.env, fetchImpl
         : sam3
         ? await fetchImpl(`${base()}/workflows/run`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(60000),
-          body: JSON.stringify({ api_key: key(), specification: sam3Spec(), inputs: { image: { type: 'base64', value: b64 } } }),
+          body: JSON.stringify({ api_key: key(), specification: sam3Spec(names), inputs: { image: { type: 'base64', value: b64 } } }),
         })
         : await fetchImpl(`${base()}/${use}?format=json`, {
           method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Bearer ${key()}` }, body: b64, signal: AbortSignal.timeout(45000),

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0 · 1 October 2026
+
+### Added
+- Twenty-seven more generators through the API: `enclosure` (Pi and Arduino cases), `simrig` (sim rig parts), `tslot` (T-slot parts), `swatch` (filament swatches), `spool` (spool hubs, desiccant pods and dry-box feed-throughs), `knob` (knobs and drawer pulls), `dragchain` (cable drag chains), `hinge` (hinges and hinged boxes), `jar` (screw-top jars), `stand` (phone and tablet stands), `deskhook` (desk hooks), `planter` (plant pots and drip trays), `cutter` (cookie cutters, from a shape or a drawing), `keychain` (name keychains and tags), `bagclip` (bag clips), `coaster` (coasters), `cablewrap` (cable wraps and earbud winders), `battery` (battery trays with a lid, or Gridfinity battery bins), `shelfbracket` (shelf brackets), `headphone` (headphone stands), `keyrack` (key racks), `plantmarker` (plant markers), `toothbrush` (toothbrush holders), `spicerack` (spice racks), `broomholder` (broom and mop holders), `bookend` (bookends) and `laptopstand` (laptop stands). `GET /engine/v1/kinds` lists each one’s settings. Engine 1.58.0.
+
+## 1.3.0 · 1 October 2026
+
+- **A new developer console.** A sidebar for Overview, Keys, Calls, Webhooks and Plan and billing. Today's usage meter, totals with trends, a calls chart you can hover, what your keys made and in which formats, and a copy-ready first request. Keys are made, renamed, locked and revoked in proper dialogs, and ⌘K (Ctrl K) jumps anywhere.
+- Calls can be filtered and opened for full details; webhook deliveries can be tested from the console.
+- **Tool tracing finds more.** It now knows everyday things as well as tools (markers, pens, cables, batteries, tins, jars, sponges, boxes and more), adds anything that stands out from the paper even when it has no name for it, no longer outlines the sheet of paper itself, and finds the paper more reliably on a desk mat or a light table.
 ## 1.2.0 · 1 October 2026
 
 - Fixed: pages could run a mix of old and new code after an update. Your browser now always checks for the current version.

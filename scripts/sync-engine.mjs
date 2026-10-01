@@ -10,7 +10,7 @@ import { execSync } from 'node:child_process';
 const vertex = resolve(process.argv[2] || '../gridfinity-generator');
 const root = join(vertex, 'public/js');
 if (!existsSync(join(root, 'models.js'))) { console.error(`No VERTEX engine at ${root}`); process.exit(1); }
-const ENTRIES = ['models.js', 'export.js', 'serial.js', 'engine.js', 'geometry/cutout.js', 'trace/vision.js', 'trace/whole.js', 'trace/layout.js'];
+const ENTRIES = ['models.js', 'export.js', 'serial.js', 'engine.js', 'geometry/cutout.js', 'trace/vision.js', 'trace/whole.js', 'trace/layout.js', 'trace/detect.js'];
 const out = resolve('engine');
 const seen = new Set();
 function walk(file) {

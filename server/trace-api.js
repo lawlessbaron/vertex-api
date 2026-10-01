@@ -16,7 +16,8 @@ import { HttpError, RateLimiter, readJson } from './security.js';
 import { hashToken } from './auth.js';
 import { keyHint } from './api-log.js';
 import { ipAllowed } from './api-guard.js';
-import { detectPaper, detectPaperSimple, rectify, homography, applyH, PAPER_SIZES } from '../engine/trace/vision.js';
+import { rectify, homography, applyH, PAPER_SIZES } from '../engine/trace/vision.js';
+import { findPaper, dropPaper, addMissed } from '../engine/trace/detect.js';
 import { wholeOutlines, objectPixels } from '../engine/trace/whole.js';
 import { centred, ccw, placed, growPocket, smallestBin, fingerSpot } from '../engine/trace/layout.js';
 import { generateCutoutBin } from '../engine/geometry/cutout.js';
@@ -62,7 +63,8 @@ export function measure(poly) {
  */
 export async function traceSheet({ image, jpeg, paper = 'a4', outline }) {
   const size = PAPER_SIZES[paper] || PAPER_SIZES.a4;
-  const corners = detectPaper(image) || detectPaperSimple(image);
+  // Both paper finders; the one whose straightened sheet is most paper wins.
+  const corners = findPaper(image, size)?.corners;
   if (!corners) throw Object.assign(new Error('no paper'), { say: 'paper' });
   const sheet = rectify(image, corners, size, 3);
   const W = sheet.widthMm, H = sheet.heightMm;
@@ -78,7 +80,10 @@ export async function traceSheet({ image, jpeg, paper = 'a4', outline }) {
   }
   let mask = null;
   try { mask = objectPixels(sheet.image, sheet.pxPerMm); } catch { /* the AI's outlines alone */ }
-  const tools = (raw.length ? wholeOutlines(raw, sheet, { mask }) : []).map((w) => shapeOf(w.polygon, w.label)).filter((sh) => sh.areaMm2 > 30);
+  const ai = dropPaper(raw, sheet); // not the paper itself
+  const joined = (ai.length ? wholeOutlines(ai, sheet, { mask }) : []).map((w) => shapeOf(w.polygon, w.label)).filter((sh) => sh.areaMm2 > 30);
+  // Anything that stands out from the paper that the AI had no word for.
+  const tools = addMissed(joined, sheet).shapes;
   const r1 = (v) => Math.round(v * 10) / 10;
   return {
     paper: { name: size.name, widthMm: r1(W), heightMm: r1(H) },

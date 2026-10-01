@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { openDatabase } from '../server/db.js';
-import { SAM3_META_NAMES, SAM3_NAMES, createToolLibrary, dedupe, sameTool } from '../server/tool-library.js';
+import { SAM3_EVERYDAY, SAM3_META_NAMES, SAM3_NAMES, createToolLibrary, dedupe, sameTool } from '../server/tool-library.js';
 
 test('a tool matches itself at another angle, and not a different tool', () => {
   assert.ok(sameTool({ length: 150, width: 22, area: 3300 }, { length: 152, width: 22.5, area: 3350 }));
@@ -74,7 +74,7 @@ test('SAM3 mode sends the sheet to a workflow with the key in the body, never th
   assert.equal(sent.api_key, 'k3y');
   assert.equal(sent.inputs.image.value, 'QUJD');
   assert.equal(sent.specification.steps[0].type, 'roboflow_core/sam3@v3');
-  assert.ok(SAM3_NAMES.length <= 16, 'Roboflow refuses more than 16 names (SAM3_MAX_PROMPT_BATCH_SIZE)');
+  assert.ok(SAM3_NAMES.length <= 16 && SAM3_EVERYDAY.length <= 16, 'Roboflow refuses more than 16 names (SAM3_MAX_PROMPT_BATCH_SIZE)');
   assert.deepEqual(out.tools.map((t) => t.label), ['pliers']);
 });
 
@@ -113,7 +113,9 @@ test('with a key, SAM3 is on offer alongside your own model, and the page picks'
   const metaOnly = createToolLibrary({ db, can: () => true, env: { SAM3_URL: 'http://sam3.internal:8080', SAM3_KEY: 's3cret' }, fetchImpl: metaFetch });
   assert.deepEqual(await ask(metaOnly, '/api/admin/tools/ai', 'GET'), { available: true, model: 'sam3-meta', engines: ['sam3-meta'], convert: true });
   assert.equal(createToolLibrary({ db, can: () => true, env: { SAM3_URL: 'http://x.y' }, fetchImpl: metaFetch }).aiOn(), false, 'no key, no Meta SAM3');
-  assert.deepEqual(urls, ['https://serverless.roboflow.com/workflows/run', 'https://serverless.roboflow.com/workflows/run', 'https://serverless.roboflow.com/workflows/run', 'https://serverless.roboflow.com/tools-ngl33/1?format=json'], 'SAM3 unless your own model is asked for by name');
+  // Each SAM3 trace is two calls at once: the tool words and the everyday words.
+  const wf = 'https://serverless.roboflow.com/workflows/run';
+  assert.deepEqual(urls, [wf, wf, wf, wf, wf, wf, 'https://serverless.roboflow.com/tools-ngl33/1?format=json'], 'SAM3 unless your own model is asked for by name');
 });
 
 test('the library counts repeats, keeps names, and AI outlines use the key only on the server', async () => {
@@ -235,4 +237,21 @@ test('a GPU that hangs or fails: Roboflow traces the sheet instead', async () =>
   const dead = async () => new Response('{}', { status: 500 });
   const lib = createToolLibrary({ db, can: () => true, env, fetchImpl: dead, fallbackAfter: 60000 });
   await assert.rejects(ask(lib), /said no/);
+});
+
+test('SAM3 asks with tool words and everyday words at once, and puts the answers together', async () => {
+  const db = openDatabase(':memory:');
+  const pred = (cls, x) => ({ class: cls, confidence: 0.8, x: x + 5, y: 5, width: 10, height: 10, points: [{ x, y: 0 }, { x: x + 10, y: 0 }, { x: x + 10, y: 10 }, { x, y: 10 }] });
+  let failEveryday = false;
+  const fetchImpl = async (_url, init) => {
+    const names = JSON.parse(init.body).specification.steps[0].class_names;
+    if (names.includes('marker') && failEveryday) return new Response('{"message":"busy"}', { status: 503 });
+    const preds = names.includes('marker') ? [pred('marker', 100), pred('pliers', 0)] : [pred('pliers', 0)];
+    return new Response(JSON.stringify({ outputs: [{ preds: { predictions: preds } }] }), { status: 200 });
+  };
+  const lib = createToolLibrary({ db, can: () => true, env: { ROBOFLOW_API_KEY: 'k' }, fetchImpl });
+  const ask = async () => { let out; await lib.handle({ [Symbol.asyncIterator]: async function* () { yield Buffer.from(JSON.stringify({ image: 'data:image/jpeg;base64,QUJD' })); }, headers: { 'content-type': 'application/json' } }, {}, '/api/admin/tools/ai', 'POST', { user: { id: 1 } }, (_r, _s, b) => { out = b; }); return out.tools.map((t) => t.label).sort(); };
+  assert.deepEqual(await ask(), ['marker', 'pliers'], 'both lists, the same pliers once');
+  failEveryday = true;
+  assert.deepEqual(await ask(), ['pliers'], 'one call failing still gives the other');
 });

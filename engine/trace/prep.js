@@ -40,19 +40,26 @@ export function gaussian(src, W, H, sigma) {
   let sum = 0;
   for (let i = -r; i <= r; i++) { k[i + r] = Math.exp(-(i * i) / (2 * sigma * sigma)); sum += k[i + r]; }
   for (let i = 0; i < k.length; i++) k[i] /= sum;
-  const tmp = new Float32Array(W * H), out = new Float32Array(W * H);
+  const tmp = new Float32Array(W * H), out = new Float32Array(W * H), n = r * 2 + 1;
+  // Across: clamp only near the ends; the same taps in the same order either way.
   for (let y = 0; y < H; y++) {
     const row = y * W;
     for (let x = 0; x < W; x++) {
       let v = 0;
-      for (let i = -r; i <= r; i++) v += src[row + Math.min(W - 1, Math.max(0, x + i))] * k[i + r];
+      if (x >= r && x < W - r) { const b = row + x - r; for (let i = 0; i < n; i++) v += src[b + i] * k[i]; }
+      else for (let i = -r; i <= r; i++) v += src[row + Math.min(W - 1, Math.max(0, x + i))] * k[i + r];
       tmp[row + x] = v;
     }
   }
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    let v = 0;
-    for (let i = -r; i <= r; i++) v += tmp[Math.min(H - 1, Math.max(0, y + i)) * W + x] * k[i + r];
-    out[y * W + x] = v;
+  // Down: a whole row at a time, so memory is read in order.
+  const acc = new Float64Array(W);
+  for (let y = 0; y < H; y++) {
+    acc.fill(0);
+    for (let i = -r; i <= r; i++) {
+      const src0 = Math.min(H - 1, Math.max(0, y + i)) * W, w = k[i + r];
+      for (let x = 0; x < W; x++) acc[x] += tmp[src0 + x] * w;
+    }
+    out.set(acc, y * W);
   }
   return out;
 }
@@ -133,9 +140,11 @@ export function canny(src, W, H, low, high) {
     const p = y * W + x;
     const gx = -src[p - W - 1] - 2 * src[p - 1] - src[p + W - 1] + src[p - W + 1] + 2 * src[p + 1] + src[p + W + 1];
     const gy = -src[p - W - 1] - 2 * src[p - W] - src[p - W + 1] + src[p + W - 1] + 2 * src[p + W] + src[p + W + 1];
-    mag[p] = Math.hypot(gx, gy) / 4;
-    const a = ((Math.atan2(gy, gx) * 180) / Math.PI + 180) % 180;
-    dir[p] = a < 22.5 || a >= 157.5 ? 0 : a < 67.5 ? 1 : a < 112.5 ? 2 : 3;
+    mag[p] = Math.sqrt(gx * gx + gy * gy) / 4;
+    // The gradient's direction to the nearest 45° (0: across, 2: down, 1 and 3 the
+    // diagonals), from tan 22.5° and tan 67.5° rather than an arctangent.
+    const ax = gx < 0 ? -gx : gx, ay = gy < 0 ? -gy : gy;
+    dir[p] = ay <= 0.41421356 * ax ? 0 : ay >= 2.41421356 * ax ? 2 : (gx > 0) === (gy > 0) ? 1 : 3;
   }
   const thin = new Float32Array(W * H);
   const off = [[1, 0], [1, 1], [0, 1], [-1, 1]];

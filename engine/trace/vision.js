@@ -1,8 +1,9 @@
 // Photo → tool outlines. Works on plain {width, height, data: RGBA} images so it
 // runs in the browser (ImageData) and in tests.
-import { Grid, boxBlur, components, fillHoles, offsetMask, traceContours } from '../geometry/raster.js';
+import { Grid, boxBlur, components, distanceToForeground, fillHoles, offsetMask, traceContours } from '../geometry/raster.js';
 import { partByNecks } from './split.js';
-import { boxMean, preprocess, PREP_DEFAULTS } from './prep.js';
+import { backgroundToPaper } from './background.js';
+import { boxMean, canny, gaussian, greyscale, paperLevel, preprocess, PREP_DEFAULTS } from './prep.js';
 import { watershed } from './watershed.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
@@ -16,8 +17,8 @@ export const PAPER_SIZES = {
 const lum = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
 
 export function otsu(values) {
-  const hist = new Array(256).fill(0);
-  for (const v of values) hist[Math.max(0, Math.min(255, v | 0))]++;
+  const hist = new Float64Array(256);
+  for (let i = 0, n = values.length; i < n; i++) { const v = values[i] | 0; hist[v < 0 ? 0 : v > 255 ? 255 : v]++; }
   const total = values.length;
   let sum = 0;
   for (let i = 0; i < 256; i++) sum += i * hist[i];
@@ -318,7 +319,18 @@ export function rectify(img, corners, paper = PAPER_SIZES.a4, pxPerMm = 4) {
 // (the brightest few percent of each patch, which is paper unless a tool
 // covers all of it), patches covered by a tool are filled in from the paper
 // around them, and the photo is evened out so the paper reads the same all over.
+// The same photo is evened out more than once in a trace (the shadow test and
+// the cast-shadow test): keep the answer per photo.
+const evenCache = new WeakMap();
 export function evenLight(img, cells = 24) {
+  const hit = evenCache.get(img);
+  if (hit && hit.cells === cells && hit.data === img.data) return hit.out;
+  const out = evenLightRaw(img, cells);
+  evenCache.set(img, { cells, data: img.data, out });
+  return out;
+}
+
+function evenLightRaw(img, cells) {
   const W = img.width, H = img.height, d = img.data;
   const cs = Math.max(4, Math.ceil(Math.max(W, H) / cells));
   const cw = Math.ceil(W / cs), ch = Math.ceil(H / cs);
@@ -413,14 +425,19 @@ export function paperColour(img) {
 // as shadow and its score is cut by `shadows` (0 = off, 1 = ignore completely).
 // Tools stay: dark ones are darker than any soft shadow, coloured ones change
 // the hue, bare metal has texture, and even a flat grey tool has a sharp edge.
-export function objectScore(img, shadows = 0, pxPerMm = 4) {
+// `raw`, when given, is this image's score with shadows off (it's reused, not changed).
+export function objectScore(img, shadows = 0, pxPerMm = 4, raw = null) {
   const n = img.width * img.height;
   const d = img.data;
   const paper = paperColour(img);
-  const s = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const dr = d[i * 4] - paper[0], dg = d[i * 4 + 1] - paper[1], db = d[i * 4 + 2] - paper[2];
-    s[i] = Math.min(255, Math.sqrt(dr * dr + dg * dg + db * db));
+  let s;
+  if (raw) s = raw.slice();
+  else {
+    s = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const dr = d[i * 4] - paper[0], dg = d[i * 4 + 1] - paper[1], db = d[i * 4 + 2] - paper[2];
+      s[i] = Math.min(255, Math.sqrt(dr * dr + dg * dg + db * db));
+    }
   }
   if (!(shadows > 0)) return s;
   const paperL = Math.max(1, 0.299 * paper[0] + 0.587 * paper[1] + 0.114 * paper[2]);
@@ -595,7 +612,10 @@ export const TRACE_DEFAULTS = {
  */
 export function toolMask(sheet, options = {}) {
   const o = { ...TRACE_DEFAULTS, ...options };
-  const { image, pxPerMm: k } = sheet;
+  const k = sheet.pxPerMm;
+  // On a cutting mat, a desk or coloured card, the photo is first redrawn as dark tools on white.
+  const image = o.background === false ? sheet.image : backgroundToPaper(sheet.image, o.margin * k);
+  if (image !== sheet.image) sheet = { ...sheet, image };
   // Over 1.5 mm, blur wipes out the edges and greys the steel (MAX_BLUR).
   const p = preprocess(image, k, { shadowTolerance: o.shadowTolerance, edgeSensitivity: o.edgeSensitivity, smoothing: Math.min(MAX_BLUR, o.blur) });
   const { W, H } = p;
@@ -606,6 +626,27 @@ export function toolMask(sheet, options = {}) {
   const close = Math.round((o.close ?? 1.5) * k), open = Math.round(1 * k);
   const c = offsetMask(offsetMask(g, close), -close);
   fillHoles(c);
+  // White, silver and pale tools on white paper: their outline is too faint
+  // to survive the blur above, so it's found again on the barely-smoothed photo.
+  const pale = o.pale === false ? null : paleOutlines(image, k, m, close, open, o.minArea * k * k);
+  if (pale) for (let i = 0; i < c.data.length; i++) if (pale[i]) c.data[i] = 1;
+  // Faintly tinted tools: a shadow keeps the paper's tint, these don't.
+  let tint = o.tint === false ? null : tintRegions(image, k, m, o.minArea * k * k);
+  if (tint) {
+    // Only where it finds something the other passes mostly missed, and pulled in
+    // by the half-resolution blur it was found at, so it adds no fat to an outline.
+    const tg = new Grid(W, H, 0, 0, 1 / k);
+    for (let i = 0; i < tint.length; i++) tg.data[i] = tint[i];
+    const { labels: tl, count: tc, sizes: ts } = components(tg);
+    const hit = new Float64Array(tc + 1);
+    for (let i = 0; i < tint.length; i++) if (tl[i] && c.data[i] > 0.5) hit[tl[i]]++;
+    const keep = new Uint8Array(tc + 1);
+    for (let l = 1; l <= tc; l++) keep[l] = hit[l] < ts[l] * 0.75 ? 1 : 0;
+    // All of it (pulled in) still shields the tool from the shadow test below.
+    const shrunk = offsetMask(tg, -Math.max(1, Math.round(0.7 * k)));
+    tint = new Uint8Array(tint.length);
+    for (let i = 0; i < tint.length; i++) if (shrunk.data[i] > 0.5) { tint[i] = 1; if (keep[tl[i]]) c.data[i] = 1; }
+  }
   // A shadow with a crisp edge (hard sunlight) gets past the steps above.
   // What gives it away is colour: it's the paper's own colour, only dimmer
   // (shadowPixels). That can only take pixels away, never add them.
@@ -615,7 +656,167 @@ export function toolMask(sheet, options = {}) {
   const shadow = shadowPixels(sheet, { ...o, shadows: Math.max(0.3, Math.min(1, o.shadowTolerance / 100)) });
   // A pixel under half as bright as the paper around it is tool whatever its
   // colour: a shadow is rarely that deep.
-  return joinSlivers(trimShadow(c, (i) => shadow[i] === 1 && p.depth[i] > 0.5, o.minArea * k * k, k, finish), o.minArea * k * k, k);
+  // A strongly coloured pixel (vivid) is never shadow either: a shadow keeps the paper's colour,
+  // and a flat copper tin or plastic case is smooth enough to pass for one otherwise.
+  // Inside a pale outline, anything as bright as the paper or brighter is the tool: a shadow is always dimmer.
+  const isShadow = (i) => shadow[i] === 1 && p.depth[i] > 0.5 && !vivid[i] && !(tint && tint[i]);
+  // In polished metal (pale 2) the dark reflections look just like shadow, but
+  // they lie inside the tool; a shadow cast by it runs along bare paper. So a
+  // shadow-like patch there is kept as tool unless a third of its edge is paper.
+  const metalShadow = pale ? shadowAlongPaper(pale, isShadow, W, H) : null;
+  const trimmed = trimShadow(c, (i) => isShadow(i) && !(pale && ((pale[i] === 2 && !metalShadow[i]) || (pale[i] && p.depth[i] >= 0.97))), o.minArea * k * k, k, finish);
+  const joined = joinSlivers(edgeBounded(trimmed, c, p.edges, k, finish), o.minArea * k * k, k);
+  return o.castShadows === false ? joined : dropCastShadows(joined, image, k, o.minArea * k * k, finish);
+}
+
+// Shadow-like pixels inside metal regions (pale 2), grouped; a group counts as
+// a real shadow when at least a third of its edge touches the paper outside.
+function shadowAlongPaper(pale, isShadow, W, H) {
+  const g = new Grid(W, H);
+  for (let i = 0; i < W * H; i++) if (pale[i] === 2 && isShadow(i)) g.data[i] = 1;
+  const { labels, count } = components(g);
+  const edge = new Uint32Array(count + 1), paper = new Uint32Array(count + 1);
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    const i = y * W + x, l = labels[i];
+    if (!l) continue;
+    for (const j of [i - 1, i + 1, i - W, i + W]) if (labels[j] !== l) { edge[l]++; if (!pale[j]) paper[l]++; }
+  }
+  const out = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) { const l = labels[i]; if (l && paper[l] >= edge[l] / 3) out[i] = 1; }
+  return out;
+}
+
+/**
+ * Tools tinted ever so slightly unlike the paper (cool grey steel on warm
+ * paper, a pale blue grip): too faint to show in brightness, but a shadow never
+ * changes the paper's tint, only its brightness. So, with brightness divided
+ * out, anything whose tint stands clear of the paper's is the tool, and a
+ * shadow vanishes into the paper. → W*H Uint8Array (1 = tinted), or null.
+ */
+export function tintRegions(image, k, margin, minPx) {
+  // At half resolution: tint changes slowly, and the outline is refined by the other passes.
+  const q = 2, W0 = image.width, H0 = image.height, d = image.data;
+  const W = Math.floor(W0 / q), H = Math.floor(H0 / q), n = W * H, kq = k / q;
+  const c1 = new Grid(W, H), c2 = new Grid(W, H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let r = 0, g = 0, b = 0;
+    for (let dy = 0; dy < q; dy++) for (let dx = 0; dx < q; dx++) { const i = ((y * q + dy) * W0 + x * q + dx) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+    const L = Math.max(20 * q * q, (r + g + b) / 3), j = y * W + x;
+    c1.data[j] = ((b - r) / L) * 100;
+    c2.data[j] = ((2 * g - r - b) / L) * 100;
+  }
+  const b1 = boxBlur(c1, 1), b2 = boxBlur(c2, 1);
+  // The paper's own tint nearby, so a gradual colour cast across the sheet
+  // (window light, a warm lamp) counts as paper. Pixels already clearly off the
+  // sheet's overall tint are left out of it, so a tool doesn't hide itself.
+  const med = (a) => { const v = []; for (let i = 0; i < n; i += 5) v.push(a[i]); v.sort((x, y) => x - y); return v[v.length >> 1]; };
+  const g1 = med(b1.data), g2 = med(b2.data);
+  const gd = new Float32Array(n);
+  for (let j = 0; j < n; j++) gd[j] = Math.hypot(b1.data[j] - g1, b2.data[j] - g2);
+  const gs = []; for (let i = 0; i < n; i += 5) gs.push(gd[i]); gs.sort((a, b) => a - b);
+  const gt = Math.max(3, gs[gs.length >> 1] * 6);
+  const Q = 4, Wc = Math.ceil(W / Q), Hc = Math.ceil(H / Q);
+  const w = new Grid(Wc, Hc), v1 = new Grid(Wc, Hc), v2 = new Grid(Wc, Hc);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const j = y * W + x; if (gd[j] > gt) continue;
+    const cj = ((y / Q) | 0) * Wc + ((x / Q) | 0);
+    w.data[cj]++; v1.data[cj] += b1.data[j]; v2.data[cj] += b2.data[j];
+  }
+  const R = Math.max(2, Math.round((25 * kq) / Q));
+  const sw = boxBlur(boxBlur(w, R), R), s1 = boxBlur(boxBlur(v1, R), R), s2 = boxBlur(boxBlur(v2, R), R);
+  const dist = new Float32Array(n);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const j = y * W + x, cj = Math.min(Hc - 1, (y / Q) | 0) * Wc + Math.min(Wc - 1, (x / Q) | 0), ww = sw.data[cj];
+    dist[j] = ww > 1e-6 ? Math.hypot(b1.data[j] - s1.data[cj] / ww, b2.data[j] - s2.data[cj] / ww) : gd[j];
+  }
+  const sample = []; for (let i = 0; i < n; i += 5) sample.push(dist[i]); sample.sort((a, b) => a - b);
+  const t = Math.max(3, sample[sample.length >> 1] * 6);
+  const mg = Math.ceil(margin / q), m = new Grid(W, H, 0, 0, 1);
+  for (let y = mg; y < H - mg; y++) for (let x = mg; x < W - mg; x++) { const j = y * W + x; if (dist[j] > t) m.data[j] = 1; }
+  const step = Math.max(1, Math.round(kq));
+  const g = offsetMask(offsetMask(m, step), -step);
+  fillHoles(g);
+  const op = offsetMask(offsetMask(g, -step), step);
+  const { labels, sizes } = components(op);
+  const minQ = minPx / (q * q);
+  let any = false;
+  const out = new Uint8Array(W0 * H0);
+  for (let y = 0; y < H0; y++) for (let x = 0; x < W0; x++) {
+    const l = labels[Math.min(H - 1, (y / q) | 0) * W + Math.min(W - 1, (x / q) | 0)];
+    if (l && sizes[l] >= minQ && sizes[l] < n / 2) { out[y * W0 + x] = 1; any = true; }
+  }
+  return any ? out : null;
+}
+
+/**
+ * Closed outlines on the barely-smoothed photo, filled: a white or silver tool
+ * on white paper is only a few levels brighter or cooler than it, so its edge
+ * goes in the main blur. The edge thresholds follow this photo's own noise
+ * (the median gradient, mostly bare paper), so grain, creases, printed lines
+ * and uneven light don't close into shapes. A soft shadow has no edge to
+ * follow; a hard one that joins the outline is trimmed later with the rest.
+ * Shapes over half the sheet are dropped (the paper's own edge). → Uint8Array
+ */
+export function paleOutlines(img, k, margin, close, open, minPx) {
+  const W = img.width, H = img.height;
+  const sm = gaussian(greyscale(img), W, H, 0.35 * k * 0.5);
+  const hist = new Uint32Array(256);
+  let n = 0;
+  for (let y = 1; y < H - 1; y += 2) for (let x = 1; x < W - 1; x += 2) {
+    const p = y * W + x, gx = sm[p + 1] - sm[p - 1], gy = sm[p + W] - sm[p - W];
+    hist[Math.min(255, Math.round(Math.hypot(gx, gy) * 2))]++; n++;
+  }
+  let acc = 0, median = 0;
+  for (let v = 0; v < 256; v++) if ((acc += hist[v]) >= n / 2) { median = v / 4; break; }
+  const high = Math.max(4, 4 * median);
+  const e = canny(sm, W, H, high * 0.45, high);
+  const g = new Grid(W, H, 0, 0, 1 / k);
+  for (let y = margin; y < H - margin; y++) for (let x = margin; x < W - margin; x++) g.data[y * W + x] = e[y * W + x];
+  const c = offsetMask(offsetMask(g, close), -close);
+  fillHoles(c);
+  const o = offsetMask(offsetMask(c, -open), open);
+  const { labels, count, sizes } = components(o);
+  // Crisp or soft: across the outline, a tool's edge is a step (most of the
+  // change happens within 2 px), a shadow's a ramp over millimetres. Measured
+  // on boundary pixels, along the brightness gradient: the change across ±2 px
+  // over the change across ±7 px. A step scores near 1; a 4 mm fade about 0.3.
+  const near = new Float64Array(count + 1), far = new Float64Array(count + 1), steps = new Uint32Array(count + 1), seen = new Uint32Array(count + 1);
+  const at = (x, y) => sm[Math.max(0, Math.min(H - 1, Math.round(y))) * W + Math.max(0, Math.min(W - 1, Math.round(x)))];
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    const i = y * W + x, l = labels[i];
+    if (!l || sizes[l] < minPx || sizes[l] >= 0.5 * W * H) continue;
+    if (labels[i - 1] === l && labels[i + 1] === l && labels[i - W] === l && labels[i + W] === l) continue;
+    if (++seen[l] % 2) continue; // every other boundary pixel is plenty
+    // The strongest gradient within 2 px: the closing can leave the boundary a little off the edge.
+    let bx = x, by = y, best = -1;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const q = (y + dy) * W + x + dx;
+      if (q < W || q >= W * (H - 1)) continue;
+      const g = Math.abs(sm[q + 1] - sm[q - 1]) + Math.abs(sm[q + W] - sm[q - W]);
+      if (g > best) { best = g; bx = x + dx; by = y + dy; }
+    }
+    const q = by * W + bx, gx = sm[q + 1] - sm[q - 1], gy = sm[q + W] - sm[q - W], len = Math.hypot(gx, gy);
+    if (len < 1e-3) continue;
+    const ux = gx / len, uy = gy / len;
+    const d2 = Math.abs(at(bx + ux * 2, by + uy * 2) - at(bx - ux * 2, by - uy * 2));
+    const d7 = Math.abs(at(bx + ux * 7, by + uy * 7) - at(bx - ux * 7, by - uy * 7));
+    if (d7 < 2) continue; // nothing either side: grain
+    near[l] += d2; far[l] += d7; steps[l]++;
+  }
+  // Polished metal: crisp nearly all round, with highlights brighter than the
+  // paper around it. A shadow is never brighter than the paper it falls on,
+  // so such a region is all tool (2), and the shadow veto leaves it whole.
+  const paper = paperLevel(sm, W, H, Math.round(25 * k));
+  const shine = new Uint32Array(count + 1);
+  for (let i = 0; i < W * H; i++) if (labels[i] && sm[i] > paper[i] + 4) shine[labels[i]]++;
+  const out = new Uint8Array(W * H);
+  const keep = new Uint8Array(count + 1);
+  for (let l = 1; l <= count; l++) {
+    if (!(sizes[l] >= minPx && sizes[l] < 0.5 * W * H && steps[l] >= 12 && near[l] / far[l] >= 0.55)) continue;
+    keep[l] = near[l] / far[l] >= 0.75 && shine[l] >= sizes[l] * 0.08 ? 2 : 1;
+  }
+  for (let i = 0; i < W * H; i++) if (keep[labels[i]]) out[i] = keep[labels[i]];
+  return out;
 }
 
 /**
@@ -668,6 +869,129 @@ export function joinSlivers(mask, minPx, pxPerMm) {
  * and one is much smaller than the other, the shadow near both of them
  * (within 3 mm) goes back.
  */
+/**
+ * Put back what the shadow veto took off a pale object's own sides. The
+ * shaded flank of a white marker is the paper's colour, only dimmer, just like
+ * a shadow; the difference is the outside: an object ends in a crisp outline,
+ * a shadow fades out. A trimmed pixel within 4 mm of what was kept comes back
+ * when a crisp edge lies just beyond it (within 1.5 mm, further from the kept
+ * part than the pixel itself).
+ */
+export function edgeBounded(kept, before, edges, pxPerMm, finish = (m) => m) {
+  const { width: W, height: H } = kept;
+  // Nothing was trimmed (the usual case): nothing to put back, and no need for the distance map.
+  let trimmed = false;
+  for (let i = 0; i < W * H && !trimmed; i++) if (before.data[i] >= 0.5 && kept.data[i] < 0.5) trimmed = true;
+  if (!trimmed) return kept;
+  const dist = distanceToForeground(kept);
+  const reach = 4 * pxPerMm, r = Math.max(1, Math.round(1.5 * pxPerMm));
+  const out = kept.clone();
+  let back = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    if (kept.data[i] >= 0.5 || before.data[i] < 0.5 || dist[i] > reach) continue;
+    let crisp = false;
+    for (let dy = -r; dy <= r && !crisp; dy++) for (let dx = -r; dx <= r; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H || dx * dx + dy * dy > r * r) continue;
+      const j = yy * W + xx;
+      if (edges[j] && kept.data[j] < 0.5 && dist[j] > dist[i]) { crisp = true; break; }
+    }
+    if (crisp) { out.data[i] = 1; back++; }
+  }
+  // A handful of pixels (under 2 mm²) isn't worth another smoothing pass.
+  if (back < 2 * pxPerMm * pxPerMm) return kept;
+  fillHoles(out);
+  return finish(out);
+}
+
+/**
+ * A hard shadow (sunlight, a bare bulb) has a crisp edge, so nothing about its
+ * edge gives it away, and a flat grey tool the paper's own tint looks the same
+ * up close. What does give it away is its shape: a shadow is the object's own
+ * outline, swept a little way in one direction. So in each found shape, the
+ * flat, paper-coloured, dimmer part is tested against the rest swept along every
+ * offset up to 10 mm; if one sweep covers it (and hardly spills outside the
+ * shape), that part is the object's cast shadow and goes.
+ */
+export function dropCastShadows(mask, image, k, minPx, finish = (m) => m) {
+  const W = mask.width, H = mask.height;
+  if (image.width !== W || image.height !== H) return mask;
+  const even = evenLight(image), d = even.data;
+  const paper = paperColour(even), paperL = Math.max(1, 0.299 * paper[0] + 0.587 * paper[1] + 0.114 * paper[2]);
+  const pSum = Math.max(1, paper[0] + paper[1] + paper[2]), pc = paper.map((v) => v / pSum);
+  const { labels, count, sizes } = components(mask);
+  const q = 2, R = Math.max(2, Math.round((10 * k) / q));
+  let out = null;
+  for (let c = 1; c <= count; c++) {
+    if (sizes[c] < 2 * minPx) continue;
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let i = 0; i < W * H; i++) if (labels[i] === c) { const x = i % W, y = (i / W) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    // Flat, paper-coloured and dimmer: what a shadow looks like.
+    const shade = new Uint8Array(W * H); // 1: shadow-coloured, 2: and flat (shadow-like)
+    let nS = 0;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const i = y * W + x;
+      if (labels[i] !== c) continue;
+      const L = lum(d, i * 4), ratio = L / paperL;
+      const sum = Math.max(1, d[i * 4] + d[i * 4 + 1] + d[i * 4 + 2]);
+      const hue = (Math.abs(d[i * 4] / sum - pc[0]) + Math.abs(d[i * 4 + 1] / sum - pc[1]) + Math.abs(d[i * 4 + 2] / sum - pc[2])) * 255;
+      // Bare paper caught at the shape's edge (3) is neither object nor shadow.
+      if (hue <= 12 && ratio > 0.93 && ratio < 1.015) { shade[i] = 3; continue; }
+      if (ratio < 0.3 || ratio > 0.93 || hue > 18) continue;
+      shade[i] = 1;
+      let lo = 255, hi = 0;
+      for (let yy = Math.max(0, y - 2); yy <= Math.min(H - 1, y + 2); yy++) for (let xx = Math.max(0, x - 2); xx <= Math.min(W - 1, x + 2); xx++) { const v = lum(d, (yy * W + xx) * 4); if (labels[yy * W + xx] === c) { if (v < lo) lo = v; if (v > hi) hi = v; } }
+      if (hi - lo > 24) continue; // not flat: an edge or texture
+      shade[i] = 2; nS++;
+    }
+    if (nS < sizes[c] * 0.12 || sizes[c] - nS < sizes[c] * 0.15) continue;
+    // Coarse grids over the shape's box (plus the search reach) for the sweep test.
+    const bx0 = Math.floor(x0 / q) - R, by0 = Math.floor(y0 / q) - R, bw = Math.floor(x1 / q) - bx0 + R + 1, bh = Math.floor(y1 / q) - by0 + R + 1;
+    const inC = new Uint8Array(bw * bh), inS = new Uint8Array(bw * bh), inO = new Uint8Array(bw * bh);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const i = y * W + x;
+      if (labels[i] !== c) continue;
+      const j = (((y / q) | 0) - by0) * bw + (((x / q) | 0) - bx0);
+      inC[j] = 1;
+      // The object is what isn't shadow-coloured at all; a shadow's own soft or
+      // noisy rim is neither, and only has to lie inside the shape.
+      if (shade[i] === 2) inS[j] = 1; else if (!shade[i]) inO[j] = 1;
+    }
+    for (let j = 0; j < inC.length; j++) if (inO[j]) inS[j] = 0; // mixed cells count as object
+    const O = [], Sn = inS.reduce((a, v) => a + v, 0);
+    for (let j = 0; j < inO.length; j++) if (inO[j]) O.push(j);
+    if (!Sn || !O.length) continue;
+    // A plain shift first, to find the likely directions; then the sweep.
+    const cands = [];
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 1) continue;
+      let cov = 0, spill = 0;
+      for (const j of O) { const x = (j % bw) + dx, y = ((j / bw) | 0) + dy; if (x < 0 || y < 0 || x >= bw || y >= bh) { spill++; continue; } const t = y * bw + x; if (inS[t]) cov++; else if (!inC[t]) spill++; }
+      cands.push([cov - spill, dx, dy]);
+    }
+    cands.sort((a, b) => b[0] - a[0]);
+    let best = null;
+    for (const [, dx, dy] of cands.slice(0, 6)) {
+      const steps = Math.max(Math.abs(dx), Math.abs(dy)), swept = new Uint8Array(bw * bh);
+      for (const j of O) { const ox = j % bw, oy = (j / bw) | 0; for (let s = 1; s <= steps; s++) { const x = ox + Math.round((dx * s) / steps), y = oy + Math.round((dy * s) / steps); if (x >= 0 && y >= 0 && x < bw && y < bh) swept[y * bw + x] = 1; } }
+      let cov = 0, spill = 0, area = 0;
+      for (let j = 0; j < swept.length; j++) { if (!swept[j] || inO[j]) continue; area++; if (inS[j]) cov++; else if (!inC[j]) spill++; }
+      if (cov >= Sn * 0.85 && spill <= area * 0.2 && (!best || cov - spill > best.score)) best = { score: cov - spill, swept };
+    }
+    if (!best) continue;
+    out = out || mask.clone();
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const i = y * W + x;
+      if (labels[i] === c && (shade[i] === 1 || shade[i] === 2) && best.swept[(((y / q) | 0) - by0) * bw + (((x / q) | 0) - bx0)]) out.data[i] = 0;
+    }
+  }
+  if (!out) return mask;
+  const done = finish(out), cc = components(done);
+  for (let i = 0; i < W * H; i++) if (cc.labels[i] && cc.sizes[cc.labels[i]] < minPx) done.data[i] = 0;
+  return done;
+}
+
 export function trimShadow(mask, isShadow, minPx, pxPerMm, finish = (m) => m) {
   const { width: W, height: H } = mask;
   const whole = finish(mask);
@@ -713,7 +1037,7 @@ function found(sheet, o) {
   // The light evened out first, so the paper sits close to zero everywhere.
   const even = evenLight(image);
   const raw = objectScore(even, 0);
-  const score = o.shadows > 0 ? objectScore(even, o.shadows, pxPerMm) : raw;
+  const score = o.shadows > 0 ? objectScore(even, o.shadows, pxPerMm, raw) : raw;
   return { raw, score };
 }
 
@@ -745,13 +1069,13 @@ function touching(one, [minX, minY, maxX, maxY], o) {
   const { width: W, res } = one;
   const pad = 2, x0 = Math.max(0, minX - pad), y0 = Math.max(0, minY - pad);
   const w = Math.min(W, maxX + pad + 1) - x0, h = Math.min(one.height, maxY + pad + 1) - y0;
-  const sub = new Grid(w, h, x0 * res, y0 * res, res);
+  const sub = new Grid(w, h, one.x0 + x0 * res, one.y0 + y0 * res, res);
   for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) sub.data[j * w + i] = one.data[(y0 + j) * W + x0 + i];
   const parted = partByNecks(sub);
   if (!parted) return whole;
   const parts = [];
   for (let c = 1; c <= parted.count; c++) {
-    const mask = new Grid(W, one.height, 0, 0, res);
+    const mask = new Grid(W, one.height, one.x0, one.y0, res);
     let a = W, b = one.height, cx = 0, cy = 0, n = 0;
     for (let k = 0; k < w * h; k++) {
       if (parted.labels[k] !== c) continue;
@@ -770,22 +1094,26 @@ export function traceTools(sheet, options = {}) {
   const o = { ...TRACE_DEFAULTS, ...options };
   const W = sheet.image.width, H = sheet.image.height, pxPerMm = sheet.pxPerMm, res = 1 / pxPerMm;
   const { labels, count, sizes } = components(toolMask(sheet, o));
+  // Every shape's box in one pass; each is then worked on in its own box (plus
+  // room to grow by the clearance and blur), not the whole sheet.
+  const bx0 = new Int32Array(count + 1).fill(W), by0 = new Int32Array(count + 1).fill(H), bx1 = new Int32Array(count + 1), by1 = new Int32Array(count + 1);
+  for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) {
+    const l = labels[i];
+    if (!l) continue;
+    if (x < bx0[l]) bx0[l] = x; if (x > bx1[l]) bx1[l] = x;
+    if (y < by0[l]) by0[l] = y; if (y > by1[l]) by1[l] = y;
+  }
+  const pad = Math.ceil(Math.max(0, o.clearance) * pxPerMm) + 3;
   const shapes = [];
   for (let k = 1; k <= count; k++) {
     if (sizes[k] * res * res < o.minArea) continue;
-    const one = new Grid(W, H, 0, 0, res);
-    let minX = W, minY = H, maxX = 0, maxY = 0;
-    for (let i = 0; i < W * H; i++) {
-      if (labels[i] !== k) continue;
-      one.data[i] = 1;
-      const x = i % W, y = (i / W) | 0;
-      if (x < minX) minX = x; if (x > maxX) maxX = x;
-      if (y < minY) minY = y; if (y > maxY) maxY = y;
-    }
+    const X0 = Math.max(0, bx0[k] - pad), Y0 = Math.max(0, by0[k] - pad), w = Math.min(W - 1, bx1[k] + pad) - X0 + 1, h = Math.min(H - 1, by1[k] + pad) - Y0 + 1;
+    const one = new Grid(w, h, 0, 0, res);
+    for (let y = by0[k]; y <= by1[k]; y++) for (let x = bx0[k]; x <= bx1[k]; x++) if (labels[y * W + x] === k) one.data[(y - Y0) * w + x - X0] = 1;
     fillHoles(one);
-    for (const part of touching(one, [minX, minY, maxX, maxY], o)) {
+    for (const part of touching(one, [bx0[k] - X0, by0[k] - Y0, bx1[k] - X0, by1[k] - Y0], o)) {
       const grown = o.clearance > 0 ? offsetMask(part.mask, o.clearance * pxPerMm) : part.mask;
-      const loops = traceContours(boxBlur(grown, 1), 0.5);
+      const loops = traceContours(boxBlur(grown, 1), 0.5, X0, Y0);
       if (!loops.length) continue;
       // Keep the outer outline (largest area).
       let outline = loops[0];
@@ -794,7 +1122,7 @@ export function traceTools(sheet, options = {}) {
       shapes.push({
         id: shapes.length + 1,
         polygon: outline,
-        bbox: part.bbox.map((v, i) => (i < 2 ? v : v + 1) * res),
+        bbox: part.bbox.map((v, i) => (v + (i % 2 ? Y0 : X0) + (i < 2 ? 0 : 1)) * res),
         areaMm2: Math.abs(signedArea(outline)),
       });
     }

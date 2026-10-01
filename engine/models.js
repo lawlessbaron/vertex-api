@@ -1,5 +1,5 @@
 // Rebuild a model from its saved settings (used by the admin panel and design pages).
-import { generateBinParts } from './geometry/bin.js';
+import { binWithLid } from './geometry/lid.js';
 import { normalisePlate, planPlates, generateTile, generateClipSheet, generateSpacers } from './geometry/plates.js';
 import { generateHolder } from './geometry/holders.js';
 import { generateLabelClips } from './geometry/labelclip.js';
@@ -7,10 +7,56 @@ import { generatePlates, generateScoop } from './geometry/extras.js';
 import { generateSkadis } from './geometry/skadis.js';
 import { generateMorph } from './geometry/morph.js';
 
+// Generators that load only when a saved design of that kind is shown, so the
+// pages that list models don't download them. Await loadKind(kind) first.
+const LAZY = {
+  enclosure: () => import('./geometry/enclosure.js').then((m) => (p) => {
+    const r = m.generateEnclosure(p);
+    return [{ mesh: r.base, name: 'enclosure-base' }, { mesh: r.lid, name: 'enclosure-lid' }, ...(r.inlay ? [{ mesh: r.inlay, name: 'enclosure-inlay' }] : [])];
+  }),
+  simrig: () => import('./geometry/simrig.js').then((m) => (p) => m.generateSimPart(p).parts.map((x) => ({ mesh: x.mesh, name: `sim-${x.name}` }))),
+  tslot: () => import('./geometry/tslot.js').then((m) => (p) => m.generateTslotPart(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  swatch: () => import('./geometry/swatch.js').then((m) => (p) => {
+    const r = m.generateSwatches(p);
+    return [{ mesh: r.body, name: `swatches-${r.count}` }, ...(r.text.positions.length ? [{ mesh: r.text, name: 'swatch-text' }] : [])];
+  }),
+  knob: () => import('./geometry/knob.js').then((m) => (p) => m.generateKnobPart(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  dragchain: () => import('./geometry/dragchain.js').then((m) => (p) => m.generateDragChain(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  hinge: () => import('./geometry/hinge.js').then((m) => (p) => m.generateHingePart(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  jar: () => import('./geometry/jar.js').then((m) => (p) => m.generateJar(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  stand: () => import('./geometry/stand.js').then((m) => (p) => m.generateStand(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  deskhook: () => import('./geometry/deskhook.js').then((m) => (p) => m.generateDeskHook(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  planter: () => import('./geometry/planter.js').then((m) => (p) => m.generatePlanter(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  cutter: () => import('./geometry/cutter.js').then((m) => (p) => m.generateCutter(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  keychain: () => import('./geometry/keychain.js').then((m) => (p) => m.generateKeychain(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  bagclip: () => import('./geometry/bagclip.js').then((m) => (p) => m.generateBagclip(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  coaster: () => import('./geometry/coaster.js').then((m) => (p) => m.generateCoaster(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  laptopstand: () => import('./geometry/laptopstand.js').then((m) => (p) => m.generateLaptopStand(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  bookend: () => import('./geometry/bookend.js').then((m) => (p) => m.generateBookend(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  broomholder: () => import('./geometry/broomholder.js').then((m) => (p) => m.generateBroomHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  spicerack: () => import('./geometry/spicerack.js').then((m) => (p) => m.generateSpiceRack(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  toothbrush: () => import('./geometry/toothbrush.js').then((m) => (p) => m.generateToothbrushHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  plantmarker: () => import('./geometry/plantmarker.js').then((m) => (p) => m.generatePlantMarkers(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  keyrack: () => import('./geometry/keyrack.js').then((m) => (p) => m.generateKeyrack(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  headphone: () => import('./geometry/headphone.js').then((m) => (p) => m.generateHeadphoneStand(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  shelfbracket: () => import('./geometry/shelfbracket.js').then((m) => (p) => m.generateShelfBracket(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  battery: () => import('./geometry/battery.js').then((m) => (p) => m.generateBattery(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  cablewrap: () => import('./geometry/cablewrap.js').then((m) => (p) => m.generateCableWrap(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  spool: () => import('./geometry/spool.js').then((m) => (p) => m.generateSpoolPart(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+};
+const loaded = {};
+export const LAZY_KINDS = Object.keys(LAZY);
+
+/** Load a lazily built generator (a no-op for the rest). */
+export async function loadKind(kind) {
+  if (Object.hasOwn(LAZY, kind) && !loaded[kind]) loaded[kind] = await LAZY[kind]();
+}
+
 export function buildParts(kind, params = {}) {
+  if (Object.hasOwn(loaded, kind)) return loaded[kind](params);
   if (kind === 'bin') {
-    const { body, labels, plates } = generateBinParts(params);
-    return [{ mesh: body, name: 'bin' }, ...(labels ? [{ mesh: labels, name: 'labels' }] : []), ...plates.map((p) => ({ mesh: p.mesh, name: p.name }))];
+    const { body, labels, plates, lid } = binWithLid(params);
+    return [{ mesh: body, name: 'bin' }, ...(labels ? [{ mesh: labels, name: 'labels' }] : []), ...plates.map((p) => ({ mesh: p.mesh, name: p.name })), ...(lid ? [{ mesh: lid, name: 'lid' }] : [])];
   }
   if (kind === 'baseplate' || kind === 'modular') {
     const plan = planPlates(normalisePlate(params));

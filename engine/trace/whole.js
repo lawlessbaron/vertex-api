@@ -3,7 +3,7 @@
 // pocket in a bin has to fit the whole object, so: the AI's outlines, plus
 // the dark silhouette on the paper wherever it touches them, closed over small
 // gaps, and outlined once around the outside.
-import { Grid, boxBlur, components, fillHoles, fillPolygon, offsetMask, traceContours } from '../geometry/raster.js';
+import { Grid, boxBlur, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, traceContours } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
 /**
@@ -15,7 +15,7 @@ import { signedArea, simplifyClosed } from '../geometry/polygon.js';
  * outlines (wholeOutlines), so paper creases elsewhere don't count.
  * @returns { solid: Grid, edge: Grid } masks in the sheet's pixels
  */
-export function objectPixels(img, pxPerMm, { vivid = 45, dark = 0.55, sharp = 70, shadowFloor = 0.3 } = {}) {
+export function objectPixels(img, pxPerMm, { vivid = 45, dark = 0.55, sharp = 40, shadowFloor = 0.3 } = {}) {
   const W = img.width, H = img.height, d = img.data, n = W * H, res = 1 / pxPerMm;
   const L = new Float32Array(n), C = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -113,6 +113,10 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
     for (let c = 1; c <= count; c++) keep[c] = touch[c] >= Math.max(20, sizes[c] * 0.05) ? 1 : 0;
     for (let i = 0; i < W * H; i++) if (keep[labels[i]]) g.data[i] = 1;
   }
+  // What's there before any edges are added: whether a piece is one thing or
+  // several tools side by side is judged on this, so a clear rim (seen only as
+  // an edge) shapes an outline without joining two tools into one.
+  const solidOnly = g.clone();
   if (edge && edge.width === W && edge.height === H) {
     const near = offsetMask(g, Math.round(reach * k));
     for (let i = 0; i < W * H; i++) if (edge.data[i] && near.data[i] >= 0.5) g.data[i] = 1;
@@ -136,8 +140,9 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
   // missed fills a good part of it, or the AI outlined the holder round the keys).
   const cover = new Uint8Array(W * H);
   for (const px of own) for (const i of px) cover[i] = 1;
-  const covered = new Int32Array(count + 1);
-  for (let i = 0; i < W * H; i++) { const l = labels[i]; if (l && cover[i]) covered[l]++; }
+  const base = fillHoles(offsetMask(offsetMask(solidOnly, r), -r));
+  const covered = new Int32Array(count + 1), baseSize = new Int32Array(count + 1);
+  for (let i = 0; i < W * H; i++) { const l = labels[i]; if (!l) continue; if (cover[i]) covered[l]++; if (base.data[i] >= 0.5) baseSize[l]++; }
   // One outline mostly inside another (a key inside its holder's outline) makes them one thing.
   const nested = (idx) => idx.some((a) => idx.some((b) => a !== b && share(a, b) >= 0.6));
   const out = [];
@@ -145,18 +150,31 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
     if (sizes[c] * res * res < minArea) continue;
     const idx = shapes.map((_, i) => i).filter((i) => owner[i] === c), parts = idx.map((i) => shapes[i]);
     if (!parts.length) continue; // only silhouette: not something the AI saw
-    if (parts.length > 1 && covered[c] >= separate * sizes[c] && !nested(idx)) {
+    if (parts.length > 1 && covered[c] >= separate * (baseSize[c] || sizes[c]) && !nested(idx)) {
       // Each tool on its own, snapped to its real edge: its outline plus the
-      // silhouette just round it (not inside another tool's outline), closed and traced.
-      const near = Math.max(1, Math.round(3 * k));
-      idx.forEach((pi) => {
+      // silhouette round it, out to `reach` mm. That takes in what the AI left
+      // off, like the clear plastic rim of a spool of wire, which shows only as
+      // a crisp edge. A pixel goes to whichever tool's outline is nearest, so
+      // two tools touching never take each other's edges. Then the gap between
+      // an edge and the outline is closed, and the whole traced.
+      const far = Math.max(1, Math.round(reach * k));
+      const dist = idx.map((pi) => { const one = new Grid(W, H, 0, 0, res); for (const i of own[pi]) one.data[i] = 1; return distanceToForeground(one); });
+      const close = Math.max(r, Math.round((reach / 2) * k));
+      idx.forEach((pi, m) => {
         const one = new Grid(W, H, 0, 0, res);
         for (const i of own[pi]) one.data[i] = 1;
+        let added = false;
         if (solid && solid.width === W) {
-          const band = offsetMask(one, near);
-          for (let i = 0; i < W * H; i++) if (!one.data[i] && band.data[i] >= 0.5 && labels[i] === c && solid.data[i] && !idx.some((o) => o !== pi && sets[o].has(i))) one.data[i] = 1;
+          const dm = dist[m];
+          for (let i = 0; i < W * H; i++) {
+            if (one.data[i] || dm[i] > far || labels[i] !== c) continue;
+            if (!(solid.data[i] || (edge && edge.data[i]))) continue;
+            if (idx.some((o, n) => n !== m && (sets[o].has(i) || dist[n][i] < dm[i]))) continue;
+            one.data[i] = 1; added = true;
+          }
         }
-        const shape = fillHoles(offsetMask(offsetMask(one, r), -r));
+        const rr = added ? close : r;
+        const shape = fillHoles(offsetMask(offsetMask(one, rr), -rr));
         const loops = traceContours(boxBlur(shape, 1), 0.5);
         let outer = loops[0];
         for (const l of loops) if (Math.abs(signedArea(l)) > Math.abs(signedArea(outer))) outer = l;

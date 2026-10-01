@@ -11,7 +11,7 @@
 // when a saved design would come out noticeably different.
 
 export const ENGINE_MODULES = {
-  gridfinity: { name: 'Gridfinity bins, baseplates and holders', version: '1.1.0' },
+  gridfinity: { name: 'Gridfinity bins, baseplates and holders', version: '1.2.0' },
   skadis: { name: 'Skådis Studio', version: '1.1.0' },
   morph: { name: 'Deck Foundry (the Tectonic Deck)', version: '1.5.0' },
   enclosure: { name: 'Pi and Arduino cases', version: '1.0.0' },
@@ -29,10 +29,193 @@ export const ENGINE_MODULES = {
   inserts: { name: 'Case inserts', version: '1.0.0' },
   cable: { name: 'Cable management', version: '1.4.0' },
   honeycomb: { name: 'Honeycomb wall', version: '1.0.0' },
+  swatch: { name: 'Filament swatches', version: '1.0.0' },
+  spool: { name: 'Spool and dry-box parts', version: '1.0.0' },
+  knob: { name: 'Knobs and handles', version: '1.0.0' },
+  dragchain: { name: 'Cable drag chains', version: '1.0.0' },
+  hinge: { name: 'Hinges and hinged boxes', version: '1.0.0' },
+  jar: { name: 'Screw-top containers', version: '1.0.0' },
+  stand: { name: 'Phone and tablet stands', version: '1.0.0' },
+  deskhook: { name: 'Desk hooks', version: '1.0.0' },
+  planter: { name: 'Plant pots and drip trays', version: '1.0.0' },
+  cutter: { name: 'Cookie cutters', version: '1.0.0' },
+  keychain: { name: 'Name keychains and tags', version: '1.0.0' },
+  bagclip: { name: 'Bag clips', version: '1.0.0' },
+  coaster: { name: 'Coasters', version: '1.0.0' },
+  cablewrap: { name: 'Cable wraps and winders', version: '1.0.0' },
+  battery: { name: 'Battery organisers', version: '1.0.0' },
+  shelfbracket: { name: 'Shelf brackets', version: '1.0.0' },
+  headphone: { name: 'Headphone stands', version: '1.0.0' },
+  keyrack: { name: 'Key racks', version: '1.0.0' },
+  plantmarker: { name: 'Plant markers', version: '1.0.0' },
+  toothbrush: { name: 'Toothbrush holders', version: '1.0.0' },
+  spicerack: { name: 'Spice racks', version: '1.0.0' },
+  broomholder: { name: 'Broom and mop holders', version: '1.0.0' },
+  bookend: { name: 'Bookends', version: '1.0.0' },
+  laptopstand: { name: 'Laptop stands', version: '1.0.0' },
 };
 
 // Newest first.
 export const ENGINE_HISTORY = [
+  {
+    version: '1.58.0', date: '2026-10-02',
+    notes: [
+      'laptopstand 1.0.0 (Laptop stands): two side profiles (a slope at the angle asked, a round-topped front lip, a window leaving a 10 mm frame) with two slots each for bars standing on edge; the bars have shoulders between the sides. All printed flat; the preview stands them together.',
+      'bin: wall and lip one loft from the top of the feet, floor inside it, so no hidden caps meet the outer wall.',
+    ],
+  },
+  {
+    version: '1.57.1', date: '2026-10-02',
+    notes: [
+      'trace: photos on a cutting mat, a desk or coloured card are redrawn as dark tools on white before tracing (trace/background.js): the background is learnt from the sheet border (k-means colours, blends between them, and the same colours in shadow down to 35 %); paper photos are untouched.',
+    ],
+  },
+  {
+    version: '1.57.0', date: '2026-10-02',
+    notes: [
+      'bookend 1.0.0 (Bookends): a profile (a foot under the books, the upright, a back foot and a straight brace, an arched quarter round, or a solid one with up to three initials cut through) unioned on a 0.25 mm raster and extruded across the width, printed on its side; a pair by default.',
+    ],
+  },
+  {
+    version: '1.56.0', date: '2026-10-02',
+    notes: [
+      'broomholder 1.0.0 (Broom and mop holders): C-clips wrapping 260° of the handle (a 100° opening, so it snaps in) with round lips, unioned on a 0.1 mm raster with a web to the strip, extruded through the clip height; the strip is extruded through its thickness with sideways teardrop screw holes between the clips and 10 mm in from each end.',
+      'trace: each shape worked in its own box; traceContours takes an offset so the points are exactly those of the whole sheet.',
+    ],
+  },
+  {
+    version: '1.55.0', date: '2026-10-01',
+    notes: [
+      'spicerack 1.0.0 (Spice racks): one (y, z) profile extruded across the width: tiered steps a jar + 8 mm deep with a front lip, or rows of V cradles (a quarter of the jar deep) for jars lying in a drawer.',
+    ],
+  },
+  {
+    version: '1.54.0', date: '2026-10-01',
+    notes: [
+      'toothbrush 1.0.0 (Toothbrush holders): printed upside down: a 3 mm top with a hole per brush and one for toothpaste, a guide tube under each, an outer wall open at the bottom; an optional drip tray with a rim and 2 mm ribs the holder stands on.',
+    ],
+  },
+  {
+    version: '1.53.0', date: '2026-10-01',
+    notes: [
+      'plantmarker 1.0.0 (Plant markers): one marker per name (comma or newline separated, up to 24): a stake with a pointed tip and a tag or round label sized to the name, the names raised as a second part, laid out in a row.',
+    ],
+  },
+  {
+    version: '1.52.0', date: '2026-10-01',
+    notes: [
+      'keyrack 1.0.0 (Key racks): a rounded plate printed face up with pegs ending in a 45° stepped flare and a flat cap, an optional post trough (a floor and a lip leaning back at 45°, with end walls), a raised name as a second part, and countersunk screw holes or none for tape.',
+    ],
+  },
+  {
+    version: '1.51.0', date: '2026-10-01',
+    notes: [
+      'headphone 1.0.0 (Headphone stands): two flat pieces with a cross-lap joint at half height (front slotted from below, side from above, slot = thickness + 2 × clearance); the front carries a cradle between two concentric arcs and an optional cable hook, the side a short cradle with raised edges; an optional round base with a cross socket 5 mm deep and four 26 mm coin pockets between the arms.',
+      'raster traceContours: typed arrays, the same loops, about 3.8× faster.',
+    ],
+  },
+  {
+    version: '1.50.0', date: '2026-10-01',
+    notes: [
+      'shelfbracket 1.0.0 (Shelf brackets): an L of a wall leg and a shelf leg, held by a straight brace from 30 % up the wall to 70 % along the shelf, or a curved web to the same points; printed on its side, with sideways teardrop screw holes placed where a driver reaches them.',
+    ],
+  },
+  {
+    version: '1.49.0', date: '2026-10-01',
+    notes: [
+      'battery 1.0.0 (Battery organisers): a rounded tray with a pocket per cell (round, 9 V or coin cells on edge) sunk 60 % of the cell, the type raised on a front strip as a second part, and a slip-on cap lid printed top down that clears the cells; or the same pockets as a Gridfinity bin through the holder engine.',
+    ],
+  },
+  {
+    version: '1.48.0', date: '2026-10-01',
+    notes: [
+      'cablewrap 1.0.0 (Cable wraps and winders): a dog-bone winder unioned on a raster from two lobes and a waist, with a slit at each end 0.8 × the cable wide ending in a round seat; or a strap with rounded ends, holes from the far end, and a post-and-cap button that snaps through them.',
+    ],
+  },
+  {
+    version: '1.47.0', date: '2026-10-01',
+    notes: [
+      'coaster 1.0.0 (Coasters): a round, square or hexagonal base with a 2.5 mm rim, and rings, a grid or up to four initials raised as a second part, kept inside the circle that fits within the rim.',
+    ],
+  },
+  {
+    version: '1.46.0', date: '2026-10-01',
+    notes: [
+      'bagclip 1.0.0 (Bag clips): a flat profile printed latched: two arms joined by a half-ring loop, the upper arm reaching past the lower one into a hook whose lip sits under the lower arm with the clearance and is ramped underneath so the arm snaps up past it; small grip ridges stay clear of the gap.',
+    ],
+  },
+  {
+    version: '1.45.0', date: '2026-10-01',
+    notes: [
+      'keychain 1.0.0 (Name keychains and tags): a rounded plate as wide as the name plus margins and room for a ring hole (keychain) or strap slot (bag tag), with the letters raised as their own part for a second colour.',
+    ],
+  },
+  {
+    version: '1.44.0', date: '2026-10-01',
+    notes: [
+      'cutter 1.0.0 (Cookie cutters): a built-in outline or the biggest outline in a photo of a drawing, scaled so its longest side is the size asked for, filled, then grown outward on a raster into a blade (0.9 mm, full height) and a flange (4 mm, 1.6 mm high). The inside of the blade is the outline, so the cookie is the size asked for.',
+    ],
+  },
+  {
+    version: '1.43.0', date: '2026-10-01',
+    notes: [
+      'planter 1.0.0 (Plant pots and drip trays): a pot lofted from foot to rim with a flare of at most 30°, smooth, fluted or faceted outside and a round inside clear of the deepest dip, a floor with up to 12 drainage holes, and a drip tray 6 mm wider than the foot with three ribs the pot stands on.',
+    ],
+  },
+  {
+    version: '1.42.0', date: '2026-10-01',
+    notes: [
+      'deskhook 1.0.0 (Desk hooks): a side profile extruded across the width and printed on its side: a clamp whose jaws open to the desk thickness plus the clearance top and bottom, or a plate for the underside with teardrop screw holes pointing up as printed; a spine dropping below the desk to a bar with a lip.',
+    ],
+  },
+  {
+    version: '1.41.0', date: '2026-10-01',
+    notes: [
+      'stand 1.0.0 (Phone and tablet stands): a side profile (base, back plate at the angle asked for, rear leg spread back by a quarter of the height, an open triangle inside) extruded across the width, plus a seat with a front lip whose gap is the device thickness ÷ sin(angle) + 1 mm. Charging raises the seat to 22 mm and leaves it out in the middle for the plug. Printed on its side.',
+    ],
+  },
+  {
+    version: '1.40.0', date: '2026-10-01',
+    notes: [
+      'jar 1.0.0 (Screw-top containers): a jar lofted ring by ring (loftTube) with a right-hand thread of depth 0.4 × pitch (45° flanks, flat crest) that fades in and out over 1.5 mm, an inside that narrows to the neck at 45°, and a cap whose groove is the full thread moved out by the clearance everywhere; the cap is turned over to print top down.',
+    ],
+  },
+  {
+    version: '1.39.0', date: '2026-10-01',
+    notes: [
+      'hinge 1.0.0 (Hinges and hinged boxes): a flat print-in-place hinge (odd knuckle count; knuckle radius = thickness + clearance so it folds flat; a rod joined to leaf A runs through the other leaf’s bores at the clearance; that leaf’s web starts outside the bore) with M3 holes; and a box with a lid that prints upside down beside it and snaps its C-clips (open downward) onto a bar on three 45° brackets along the back.',
+    ],
+  },
+  {
+    version: '1.38.0', date: '2026-10-01',
+    notes: [
+      'dragchain 1.0.0 (Cable drag chains): links printed standing, inner plates with teardrop pins at the front and outer plates with teardrop holes (+0.25 mm) at the rear, ends rounded about the pins, 0.3 mm between plates. The floors butt when straight (no sag); the top-bar gap is the bend angle per link × half the link height, from the radius asked for. Start and end brackets with two M3 holes.',
+    ],
+  },
+  {
+    version: '1.37.0', date: '2026-10-01',
+    notes: [
+      'knob 1.0.0 (Knobs and handles): grip knobs printed face down (fluted, knurled, star or smooth, with a pointer notch) that push onto a D-shaft or round shaft, or hold an M4–M8 bolt head in a hex pocket; and bar drawer pulls printed on their side with teardrop screw holes (M3/M4 pilot or heat-set insert) at any spacing.',
+    ],
+  },
+  {
+    version: '1.36.0', date: '2026-10-01',
+    notes: [
+      'spool 1.0.0 (Spool and dry-box parts): a hub adapter that slip-fits a spool\'s centre hole onto a rod or a 608 bearing, with a flange and a 1 mm lead-in; a slotted desiccant pod with a vented lid; and a PTFE or PC4-M10 feed-through for a dry-box wall with a clamp ring.',
+    ],
+  },
+  {
+    version: '1.35.0', date: '2026-10-01',
+    notes: [
+      'swatch 1.0.0 (Filament swatches): a sample card per spool with a ring hole, a 0.4/0.8/1.2/1.6 mm stepped strip, and brand, material, colour and temperatures raised as a second part. Several cards are laid out on one plate.',
+    ],
+  },
+  {
+    version: '1.34.0', date: '2026-10-01',
+    notes: [
+      'gridfinity 1.2.0: bin lids and vase-mode bins. A lid’s underside is the bin foot profile over the whole outline, so it seats in the stacking lip like a stacked bin; on top a flat cap, or (stacking) a solid baseplate so bins stand on it. Vase mode makes the bin a solid shape with no lip, cavity, labels, slots or lid, for spiral vase printing. The engine API returns the lid as its own part.',
+    ],
+  },
   {
     version: '1.33.0', date: '2026-10-01',
     notes: [

@@ -51,8 +51,16 @@ export const BIN_DEFAULTS = {
   crushRibs: true,
   onlyCorners: false,
   brandMark: true, // raised Mint Motive mark on the floor
+  // A solid shape for the slicer's spiral vase mode: the bottom layers print the
+  // feet and floor solid, then one wall spirals up. No lip, cavity or extras.
+  vase: false,
+  lid: 'none', // none | flat | stacking (a baseplate on top, so bins stand on the lid)
+  lidTop: 1.5, // flat lid thickness, or the floor under a stacking lid's pockets
   segments: 6,
 };
+
+// Settings a vase-mode bin ignores: it's one wall, so nothing inside and no lip.
+const VASE = { solid: true, lip: false, lite: false, labelTab: 0, notch: 0, scoop: 0, slotsX: 0, slotsY: 0, divisionsX: 1, divisionsY: 1, widthsX: '', depthsY: '', lid: 'none' };
 
 // Inset of the foot outline at height z (0 at the top of the profile).
 function footInset(z) {
@@ -128,6 +136,7 @@ function holeCentres(cell, o) {
 // stacking lip, dividers, scoops, label tabs and the brand mark.
 export function generateBin(options = {}) {
   const o = { ...BIN_DEFAULTS, ...options };
+  if (o.vase) Object.assign(o, VASE);
   const seg = o.segments;
   const { W, D, H, t, floorTop } = binFrame(o);
   const outline = (inset = 0) => ({ cx: 0, cy: 0, w: W - 2 * inset, d: D - 2 * inset, r: Math.max(SPEC.binRadius - inset, 0.3) });
@@ -171,8 +180,17 @@ export function generateBin(options = {}) {
     }
   }
 
+  // Walls stop where the lip's support chamfer starts.
+  const [lipBaseZ, lipBaseInset] = SPEC.lipProfile[0];
+  const support = Math.max(lipBaseInset - t, 0);
+  const wallTop = o.lip ? H - support : H;
+  // With an outer wall, the wall (and lip) is one piece from the top of the feet
+  // up, and the floor fills only the inside of it. No hidden faces are left where
+  // floor, wall and lip would otherwise meet at the outside; the viewer showed
+  // those as thin lines round the bin.
+  const walled = wallTop > floorTop && o.outerWall !== false && !o.vase;
   // Floor spans every foot so the cells become one bin. Screw holes may reach into it.
-  const floorLevels = (za, zb) => [{ z: za, rect: outline() }, { z: zb, rect: outline() }];
+  const floorLevels = (za, zb) => [{ z: za, rect: outline(walled ? t : 0) }, { z: zb, rect: outline(walled ? t : 0) }];
   if (screw && allScrews.length && screwTop > SPEC.baseHeight + 0.05) {
     mesh.append(loftWithHoles(floorLevels(SPEC.baseHeight, screwTop), allScrews.map(([x, y]) => screwHole(x, y)), seg));
     mesh.append(loftSolid(floorLevels(screwTop, floorTop), seg));
@@ -180,10 +198,6 @@ export function generateBin(options = {}) {
     mesh.append(loftSolid(floorLevels(SPEC.baseHeight, floorTop), seg));
   }
 
-  // Walls stop where the lip's support chamfer starts.
-  const [lipBaseZ, lipBaseInset] = SPEC.lipProfile[0];
-  const support = Math.max(lipBaseInset - t, 0);
-  const wallTop = o.lip ? H - support : H;
   // A finger notch cuts the front wall (and lip) from notchZ up.
   const topZ = o.lip ? H + SPEC.lipProfile.at(-1)[0] - lipBaseZ : H;
   const notchHalf = o.notch > 0 && !o.solid ? Math.min(o.notch, W - 2 * SPEC.binRadius - 4) / 2 : 0;
@@ -195,23 +209,18 @@ export function generateBin(options = {}) {
     if (ob.length > 1) mesh.append(loftRing(ob, ib, seg));
     mesh.append(loftPolygons(oa.map((l, k) => ({ z: l.z, pts: notchedRing(l.rect, ia[k].rect, notchHalf, seg) }))));
   };
-  if (wallTop > floorTop && o.outerWall !== false) {
-    const lv = (z, inset) => ({ z, rect: outline(inset) });
-    ring([lv(floorTop, 0), lv(wallTop, 0)], [lv(floorTop, t), lv(wallTop, t)]);
+  if (o.outerWall !== false && !o.vase && (walled || o.lip)) {
+    // One ring: the wall from the top of the feet, then the lip's profile.
+    const zs = [], insets = [];
+    if (walled) { zs.push(SPEC.baseHeight, wallTop); insets.push(t, t); }
+    if (o.lip) for (const [z, i] of SPEC.lipProfile) { const zz = H + z - lipBaseZ; if (zs.length && zz <= zs.at(-1) + 1e-6) continue; zs.push(zz); insets.push(Math.max(i, 0.3)); }
+    if (zs.length > 1) ring(zs.map((z) => ({ z, rect: outline() })), zs.map((z, k) => ({ z, rect: outline(insets[k]) })));
   }
 
-  if (o.lip && o.outerWall !== false) {
-    const zs = [wallTop, ...SPEC.lipProfile.map(([z]) => H + z - lipBaseZ)];
-    const insets = [t, ...SPEC.lipProfile.map(([, i]) => Math.max(i, 0.3))];
-    const outer = zs.map((z) => ({ z, rect: outline() }));
-    const inner = zs.map((z, k) => ({ z, rect: outline(insets[k]) }));
-    if (support === 0) {
-      outer.shift();
-      inner.shift();
-    }
-    ring(outer, inner);
+  if (o.vase) {
+    mesh.append(loftSolid([{ z: floorTop, rect: outline() }, { z: H, rect: outline() }], seg));
+    return mesh;
   }
-
   if (o.solid) {
     const inset = Math.max(t - 0.2, 0.2);
     mesh.append(loftSolid([{ z: floorTop, rect: outline(inset) }, { z: H, rect: outline(inset) }], seg));

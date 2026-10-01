@@ -152,10 +152,16 @@ const holesIn = (poly, holes) => holes.filter((h) => pointInPolygon(h.at, poly))
 // One tile. o: { tileSize, tileType, trench, passHole, bowls..., edges }.
 export function deckTile(o, edges = { right: true, back: true, left: true, front: true }) {
   const S = num(o.tileSize, 90, 250, 150), H = DECK.height, clr = num(o.clearance, 0, 0.6, 0.2);
-  const type = DECK_TILES[o.tileType] ? o.tileType : 'flat';
+  let type = DECK_TILES[o.tileType] ? o.tileType : 'flat';
   const outline = tileOutline(S, edges, clr * 2);
   const mesh = new Mesh();
   const notes = [];
+  // Under 125 mm the receiver's pocket and screws overlap the tile's own edges and
+  // ribs (the cuts left holes in the model): make a sound flat tile instead, and say so.
+  if (type === 'hardpoint' && S < 125) {
+    type = 'flat';
+    notes.push('A hardpoint needs a tile of 125 mm or more for the receiver, so this one is made flat. Make the tiles 125 mm or bigger for a hardpoint.');
+  }
   if (type === 'crater') {
     appendCrater(mesh, outline, S, o);
     return { mesh, notes: [`${bowlCount(o)} bowl${bowlCount(o) > 1 ? 's' : ''}, ${Math.round(bowlDepthOf(o))} mm deep. No trench under a crater tile: route cables round it.`] };
@@ -167,7 +173,6 @@ export function deckTile(o, edges = { right: true, back: true, left: true, front
   if (type === 'hardpoint') {
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) through.push({ at: [sx * DECK.screwAt, sy * DECK.screwAt], ring: circle(sx * DECK.screwAt, sy * DECK.screwAt, DECK.insertD / 2, 24) });
     through.push({ at: DECK.pivot, ring: circle(...DECK.pivot, DECK.insertD / 2, 24) });
-    if (S < 125) notes.push('A hardpoint needs a tile of 125 mm or more for the receiver.');
   }
   // The trench: the solid below the skin is split into pieces with gaps between.
   const xs = trench === 'both' || trench === 'y' ? [[-S, -tw], [tw, S]] : [[-S, S]];

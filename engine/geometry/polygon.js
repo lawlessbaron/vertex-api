@@ -107,12 +107,35 @@ export function triangulate(outer, holes = []) {
     .sort((a, b) => a.x - b.x);
   for (const h of holeLists) list = bridgeHole(h, list);
   const tris = [];
-  clipEars(list, tris);
+  clipEars(list, tris, coords.length > 80 ? indexZ(list) : null);
   return { coords, tris, rings: [outerRing, ...holeRings] };
 }
 
 function node(i, x, y) {
-  return { i, x, y, prev: null, next: null };
+  return { i, x, y, prev: null, next: null, z: 0, prevZ: null, nextZ: null };
+}
+
+// Big rings: every vertex also sits in a list sorted by its z-order (Morton)
+// code, so the ear test only looks at vertices whose code falls inside the
+// triangle's box instead of the whole ring. The codes keep order along each
+// axis, so no vertex inside the box is skipped: the same ears, far faster.
+function zOrder(x, y, z) {
+  let a = Math.floor((x - z.minX) * z.inv), b = Math.floor((y - z.minY) * z.inv);
+  a = (a | (a << 8)) & 0x00FF00FF; a = (a | (a << 4)) & 0x0F0F0F0F; a = (a | (a << 2)) & 0x33333333; a = (a | (a << 1)) & 0x55555555;
+  b = (b | (b << 8)) & 0x00FF00FF; b = (b | (b << 4)) & 0x0F0F0F0F; b = (b | (b << 2)) & 0x33333333; b = (b | (b << 1)) & 0x55555555;
+  return a | (b << 1);
+}
+
+function indexZ(start) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, p = start;
+  do { if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y; if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y; p = p.next; } while (p !== start);
+  const z = { minX, minY, inv: 32767 / Math.max(maxX - minX, maxY - minY, 1e-9) };
+  const nodes = [];
+  p = start;
+  do { p.z = zOrder(p.x, p.y, z); nodes.push(p); p = p.next; } while (p !== start);
+  nodes.sort((a, b) => a.z - b.z);
+  for (let k = 0; k < nodes.length; k++) { nodes[k].prevZ = nodes[k - 1] || null; nodes[k].nextZ = nodes[k + 1] || null; }
+  return z;
 }
 
 function linkedRing(ring, start) {
@@ -215,9 +238,12 @@ function splitBridge(hole, m, outer) {
 function isEar(ear) {
   const a = ear.prev, b = ear, c = ear.next;
   if (area2(a, b, c) >= 0) return false; // reflex (ring is CCW in y-up coordinates)
+  // The triangle's box: a point outside it can't be inside the triangle (cheap first test).
+  const minX = Math.min(a.x, b.x, c.x), maxX = Math.max(a.x, b.x, c.x), minY = Math.min(a.y, b.y, c.y), maxY = Math.max(a.y, b.y, c.y);
   let p = c.next;
   while (p !== a) {
     if (
+      p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY &&
       !equals(p, a) && !equals(p, b) && !equals(p, c) &&
       pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
       area2(p.prev, p, p.next) >= 0
@@ -230,15 +256,34 @@ function isEar(ear) {
 function remove(n) {
   n.prev.next = n.next;
   n.next.prev = n.prev;
+  if (n.prevZ) n.prevZ.nextZ = n.nextZ;
+  if (n.nextZ) n.nextZ.prevZ = n.prevZ;
 }
 
-function clipEars(start, tris) {
+// isEar, looking only at vertices whose z-order code lies in the triangle's box.
+function isEarHashed(ear, z) {
+  const a = ear.prev, b = ear, c = ear.next;
+  if (area2(a, b, c) >= 0) return false;
+  const minX = Math.min(a.x, b.x, c.x), maxX = Math.max(a.x, b.x, c.x), minY = Math.min(a.y, b.y, c.y), maxY = Math.max(a.y, b.y, c.y);
+  const minZ = zOrder(minX, minY, z), maxZ = zOrder(maxX, maxY, z);
+  const blocks = (p) => p !== a && p !== c &&
+    p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY &&
+    !equals(p, a) && !equals(p, b) && !equals(p, c) &&
+    pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
+    area2(p.prev, p, p.next) >= 0;
+  for (let p = ear.prevZ; p && p.z >= minZ; p = p.prevZ) if (blocks(p)) return false;
+  for (let p = ear.nextZ; p && p.z <= maxZ; p = p.nextZ) if (blocks(p)) return false;
+  return true;
+}
+
+function clipEars(start, tris, z = null) {
+  const earTest = z ? (e) => isEarHashed(e, z) : isEar;
   let ear = start;
   let stop = ear;
   let pass = 0;
   while (ear.prev !== ear.next) {
     const prev = ear.prev, next = ear.next;
-    if (isEar(ear)) {
+    if (earTest(ear)) {
       tris.push(prev.i, ear.i, next.i);
       remove(ear);
       ear = next.next;
