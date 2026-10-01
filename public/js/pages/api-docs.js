@@ -6,7 +6,7 @@ import { highlight } from '/js/pages/api-portal.js';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const BASE = 'https://api.mintmotivesolutions.com.au';
+const BASE = 'https://api.mintmotive.com.au';
 
 // Static examples, coloured.
 for (const el of $$('pre[data-lang] code')) el.innerHTML = highlight(el.textContent, el.parentElement.dataset.lang);

@@ -11,7 +11,7 @@ export function loadConfig(rawEnv = process.env) {
     databasePath: env.DATABASE_PATH || 'data/api.db',
     // PostgreSQL that keeps a full copy of this site's data (Railway: ${{Postgres-API.DATABASE_URL}}).
     databaseUrl: env.DATABASE_URL || '',
-    // This site's own address: https://api.mintmotivesolutions.com.au
+    // This site's own address: https://api.mintmotive.com.au
     publicUrl,
     secureCookies: publicUrl.startsWith('https://'),
     trustProxy: flag(env.TRUST_PROXY),

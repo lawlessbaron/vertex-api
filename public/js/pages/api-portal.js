@@ -1,10 +1,10 @@
-// api.mintmotivesolutions.com.au: the developer portal. A console that types real calls
+// api.mintmotive.com.au: the developer portal. A console that types real calls
 // and builds the model each one makes, bento tiles that show the API working
 // (measured build times, file sizes, serials), and a playground that writes
 // the exact call for the model on screen.
 import { buildParts } from '/js/models.js';
 
-const BASE = 'https://api.mintmotivesolutions.com.au';
+const BASE = 'https://api.mintmotive.com.au';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches;

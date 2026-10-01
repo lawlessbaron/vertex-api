@@ -80,7 +80,7 @@
           <h1>The Mint Motive API</h1>
           <p class="dx-lede">Two APIs on one engine. The <b>Engine API</b> turns settings into print-ready models: Gridfinity bins, baseplates, holders, label clips, Skådis parts and Deck Foundry parts, as STL, 3MF or OBJ. The <b>Tracer API</b> turns a photo of tools on a sheet of paper into outlines in millimetres, or a finished bin with a pocket for every tool.</p>
           <div class="dx-cards">
-            <div class="ax-tile"><p class="ax-tile-k">Base URL</p><p class="ax-mono dx-strong">https://api.mintmotivesolutions.com.au</p></div>
+            <div class="ax-tile"><p class="ax-tile-k">Base URL</p><p class="ax-mono dx-strong">https://api.mintmotive.com.au</p></div>
             <div class="ax-tile"><p class="ax-tile-k">Format</p><p class="dx-strong">JSON in, files or JSON out</p></div>
             <div class="ax-tile"><p class="ax-tile-k">Engine</p><p class="ax-mono dx-strong" data-ver>—</p><p class="ax-tile-s"><i class="ax-dot" data-dot2 aria-hidden="true"></i> <span data-state2>Checking…</span></p></div>
           </div>
@@ -192,7 +192,7 @@
               <tr><td><code>name</code></td><td>string</td><td></td><td>The file's name, without the extension.</td></tr>
             </tbody>
           </table>
-          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="curl">curl -X POST https://api.mintmotivesolutions.com.au/engine/v1/generate \
+          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="curl">curl -X POST https://api.mintmotive.com.au/engine/v1/generate \
   -H "Authorization: Bearer $MINT_KEY" \
   -H "Content-Type: application/json" \
   -d '{ "kind": "baseplate", "format": "3mf", "params": { "gridX": 6, "gridY": 4, "bed": 256 } }' \
@@ -233,7 +233,7 @@
         <section id="trace-jobs" class="dx-sec dx-ep">
           <h2><b class="dx-m post">POST</b> /trace/v1/jobs</h2>
           <p>Send the photo as the request body (JPEG, PNG or HEIC, up to 20 MB), or as JSON <code>{ "image": "&lt;base64&gt;", "paper": "a4" }</code>. Say the paper size with <code>?paper=</code>: <code>a4</code> (default), <code>letter</code>, <code>a5</code> or <code>a3</code>.</p>
-          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="curl">curl -X POST "https://api.mintmotivesolutions.com.au/trace/v1/jobs?paper=a4" \
+          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="curl">curl -X POST "https://api.mintmotive.com.au/trace/v1/jobs?paper=a4" \
   -H "Authorization: Bearer $TRACE_KEY" \
   -H "Content-Type: image/jpeg" \
   --data-binary @tools.jpg</code></pre></div>
