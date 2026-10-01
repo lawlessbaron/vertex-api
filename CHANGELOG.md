@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 · 1 October 2026
+
+- Fixed: pages could run a mix of old and new code after an update. Your browser now always checks for the current version.
+- Fixed: the Education page showed an error in the background when you weren't signed in.
+- Short links: staff can make links to post on MakerWorld, socials or flyers, and see how many people each one brings.
+- The site counts its own visits (no cookies, nothing sent anywhere else) so we can see which pages help and where people come from. Your browser's "do not track" setting is respected.
+
 ## 1.1.2 · 1 October 2026
 
 - Fixed: the homepage's 3D previews stopped with an error when a model had more than one part (a split baseplate, for example).

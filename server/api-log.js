@@ -119,8 +119,14 @@ export function createApiLog({ db, now = () => Date.now(), onRecord = null }) {
     const pct = (p) => (ms.length ? ms[Math.min(ms.length - 1, Math.floor(ms.length * p))] : 0);
     const byDay = db.prepare(`SELECT date(r.at / 1000, 'unixepoch') AS day, COUNT(*) AS calls, SUM(r.status >= 400) AS errors FROM api_requests r ${sql} GROUP BY day ORDER BY day`).all(...args);
     const group = (col) => db.prepare(`SELECT ${col} AS name, COUNT(*) AS n FROM api_requests r ${sql} ${sql ? 'AND' : 'WHERE'} ${col} IS NOT NULL GROUP BY ${col} ORDER BY n DESC LIMIT 12`).all(...args);
+    // The period before, for "up 12%" on the cards.
+    const before = where({ ...f, since: since - days * 86400e3 });
+    const prev = db.prepare(`SELECT COUNT(*) AS calls, SUM(r.status >= 400) AS errors, SUM(r.serial IS NOT NULL) AS files, SUM(r.bytes) AS bytes, AVG(r.ms) AS avgMs FROM api_requests r ${before.sql} ${before.sql ? 'AND' : 'WHERE'} r.at < ?`).get(...before.args, since);
+    // A day or two: by the hour instead.
+    const byHour = days <= 2 ? db.prepare(`SELECT strftime('%Y-%m-%dT%H', r.at / 1000, 'unixepoch') AS hour, COUNT(*) AS calls, SUM(r.status >= 400) AS errors FROM api_requests r ${sql} GROUP BY hour ORDER BY hour`).all(...args) : null;
     return {
-      days, totals: { calls: totals.calls || 0, ok: totals.ok || 0, errors: totals.errors || 0, files: totals.files || 0, bytes: totals.bytes || 0, avgMs: Math.round(totals.avgMs || 0), p50: pct(0.5), p95: pct(0.95) },
+      days, byHour, prev: { calls: prev.calls || 0, errors: prev.errors || 0, files: prev.files || 0, bytes: prev.bytes || 0, avgMs: Math.round(prev.avgMs || 0) },
+      totals: { calls: totals.calls || 0, ok: totals.ok || 0, errors: totals.errors || 0, files: totals.files || 0, bytes: totals.bytes || 0, avgMs: Math.round(totals.avgMs || 0), p50: pct(0.5), p95: pct(0.95) },
       byDay, byKind: group('r.kind'), byFormat: group('r.format'), byStatus: group('r.status'), byPath: group('r.path'),
       topKeys: db.prepare(`SELECT r.key_type AS type, r.key_id AS id, MAX(r.key_hint) AS hint, COALESCE(MAX(ek.name), MAX(tk.name)) AS name, COUNT(*) AS n, SUM(r.status >= 400) AS errors ${JOIN} ${sql} ${sql ? 'AND' : 'WHERE'} r.key_hint IS NOT NULL GROUP BY r.key_type, r.key_id, r.key_hint ORDER BY n DESC LIMIT 12`).all(...args),
       topUsers: db.prepare(`SELECT r.user_id AS id, MAX(u.handle) AS handle, COUNT(*) AS n FROM api_requests r LEFT JOIN users u ON u.id = r.user_id ${sql} ${sql ? 'AND' : 'WHERE'} r.user_id IS NOT NULL GROUP BY r.user_id ORDER BY n DESC LIMIT 12`).all(...args),

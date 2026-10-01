@@ -254,6 +254,43 @@ export const MIGRATIONS = [
    );
    CREATE INDEX edu_applications_user ON edu_applications (user_id, created_at);
    CREATE INDEX edu_applications_status ON edu_applications (status, created_at);`,
+  // Marketing: page views (no cookies; a daily-salted visitor hash for unique counts),
+  // short links you post elsewhere (MakerWorld, socials) and the media library.
+  `CREATE TABLE page_views (
+     id INTEGER PRIMARY KEY,
+     at INTEGER NOT NULL,
+     path TEXT NOT NULL,
+     ref TEXT,
+     source TEXT,
+     medium TEXT,
+     campaign TEXT,
+     device TEXT,
+     browser TEXT,
+     country TEXT,
+     visitor TEXT,
+     ms INTEGER
+   );
+   CREATE INDEX page_views_at ON page_views (at);
+   CREATE TABLE short_links (
+     code TEXT PRIMARY KEY,
+     target TEXT NOT NULL,
+     label TEXT,
+     source TEXT,
+     campaign TEXT,
+     clicks INTEGER NOT NULL DEFAULT 0,
+     created_by INTEGER,
+     created_at INTEGER NOT NULL,
+     last_click_at INTEGER
+   );
+   CREATE TABLE media (
+     id TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     type TEXT NOT NULL,
+     bytes INTEGER NOT NULL,
+     note TEXT,
+     created_by INTEGER,
+     created_at INTEGER NOT NULL
+   );`,
 ];
 
 export function openDatabase(path) {

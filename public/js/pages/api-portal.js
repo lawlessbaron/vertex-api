@@ -238,7 +238,7 @@ const FIELDS = {
 const EXTRA = { skadis: { item: 'shelf' }, holder: { item: 'aa' } };
 async function playground() {
   const form = $('[data-form]');
-  if (!form) return;
+  if (!form || !$('[data-fields]')) return; // other pages have their own [data-form]
   const fields = $('[data-fields]'), codeEl = $('[data-code]'), partsEl = $('[data-parts]');
   let tab = 'curl', view = null, timer;
   const renderFields = (kind) => {

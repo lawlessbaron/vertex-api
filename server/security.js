@@ -10,6 +10,8 @@ export function securityHeaders(res, { secure, cdn = '', connect = '' }) {
       "default-src 'self'",
       `script-src 'self'${c}`,
       `style-src 'self' https://fonts.googleapis.com${c}`,
+      // style="" attributes only (bar widths, colours); <style> tags stay blocked.
+      "style-src-attr 'unsafe-inline'",
       // Build videos on custom printers: a YouTube thumbnail, then the player only when pressed.
       `img-src 'self' data: blob: https://i.ytimg.com${c}`,
       // The site's own pages (Admin → Site status previews the page it shows), and YouTube build videos.

@@ -32,6 +32,7 @@ import { createApiPlans } from './api-plans.js';
 import { createEngineApi } from './engine-api.js';
 import { importFromVertex } from './import.js';
 import { createEducation, EDU_KINDS } from './education.js';
+import { createMarketing } from './marketing.js';
 import { ENGINE } from '../engine/engine.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -85,10 +86,11 @@ export function createApp(config) {
   const apiWebhooks = createApiWebhooks({ db, fetchImpl, allowPrivate: Boolean(config.webhooksAllowPrivate) });
   let apiPlans = null;
   const apiGuard = createApiGuard({ db, alerts, link: '/admin', onEvent: (userId, event, data) => apiWebhooks.emit(userId, event, data), perDayFor: (userId) => apiPlans?.planFor(userId).perDay ?? 1000 });
-  let education = null;
+  let education = null, marketing = null;
   apiPlans = createApiPlans({ db, billing: stripe, audit, config, invitedTo: (userId, planId) => Boolean(education?.invitedTo(userId, planId)) });
   // Education plan applications (documents kept beside the database, deleted 30 days after the decision).
   education = createEducation({ db, dir: join(config.databasePath === ':memory:' ? join(ROOT, 'data') : dirname(config.databasePath), 'education'), audit, alerts, plans: apiPlans });
+  marketing = createMarketing({ db, dir: config.databasePath === ':memory:' ? join(ROOT, 'data') : dirname(config.databasePath), config, audit });
   const engineApi = createEngineApi({ db, controls, analytics: null, isStaff, newSerial, plans: apiPlans, onKey: (userId, event, data) => apiWebhooks.emit(userId, event, data) });
   let apiStatus = null;
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
@@ -250,7 +252,7 @@ export function createApp(config) {
       const etag = `"${info.size.toString(16)}-${info.mtimeMs.toString(16)}"`;
       if (req.headers['if-none-match'] === etag) return send(res, 304, null, { ETag: etag }), true;
       const code = /\.(js|css)$/.test(file);
-      send(res, 200, req.method === 'HEAD' ? null : await readFile(file), { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream', ETag: etag, 'Cache-Control': code ? 'max-age=0, stale-while-revalidate=604800' : 'public, max-age=604800' });
+      send(res, 200, req.method === 'HEAD' ? null : await readFile(file), { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream', ETag: etag, 'Cache-Control': code ? 'no-cache' : 'public, max-age=604800' });
       return true;
     } catch { return false; }
   }
@@ -310,6 +312,13 @@ export function createApp(config) {
     if (path === '/api/status' && method === 'GET') return json(res, 200, apiStatus.summary(), { 'Cache-Control': 'public, max-age=30' });
     if (path === '/api/status.rss' && method === 'GET') return send(res, 200, apiStatus.rss(config.publicUrl), { 'Content-Type': 'application/rss+xml; charset=utf-8', 'Cache-Control': 'public, max-age=60' });
 
+    // A page view, from site.js (no cookies; see marketing.js).
+    if (path === '/api/t' && method === 'POST') {
+      const b = await readJson(req, 4096);
+      marketing.view(b, { ip: ctx.ip, ua: req.headers['user-agent'], lang: req.headers['accept-language'] });
+      res.writeHead(204, { 'Cache-Control': 'no-store' }); return res.end();
+    }
+
     // The tracer API (partners' keys), and its owner-only settings.
     if (path.startsWith('/api/admin/trace-api')) requireAdmin(ctx);
     if ((path.startsWith('/api/trace/v1') || path.startsWith('/api/admin/trace-api')) && (await traceApi.handle(req, res, path, method, ctx, json))) return;
@@ -320,6 +329,16 @@ export function createApp(config) {
       const q = Object.fromEntries(url.searchParams);
       const f = { api: q.api, keyType: q.keyType, keyId: q.keyId, userId: q.userId, ip: q.ip, status: q.status, q: q.q, before: q.before, since: q.since };
       const days = (max) => Math.max(1, Math.min(max, Number(q.days) || 30));
+      if (path === '/api/admin/api/marketing/traffic' && method === 'GET') return json(res, 200, marketing.traffic(days(400)));
+      if (path === '/api/admin/api/marketing/search' && method === 'GET') return json(res, 200, await marketing.search(days(480)));
+      if (path === '/api/admin/api/marketing/links' && method === 'GET') return json(res, 200, { links: marketing.links(), base: `${config.publicUrl}/l/` });
+      if (path === '/api/admin/api/marketing/links' && method === 'POST') return json(res, 201, { link: marketing.addLink(me, await readJson(req), ctx.ip) });
+      const lm = path.match(/^\/api\/admin\/api\/marketing\/links\/([a-z0-9-]+)$/);
+      if (lm && method === 'DELETE') { marketing.removeLink(me, lm[1], ctx.ip); return json(res, 200, { ok: true }); }
+      if (path === '/api/admin/api/marketing/media' && method === 'GET') return json(res, 200, { media: marketing.mediaList() });
+      if (path === '/api/admin/api/marketing/media' && method === 'POST') return json(res, 201, { media: await marketing.upload(me, req, q.name, ctx.ip) });
+      const mm = path.match(/^\/api\/admin\/api\/marketing\/media\/([0-9a-f]{16})$/);
+      if (mm && method === 'DELETE') { marketing.removeMedia(me, mm[1], ctx.ip); return json(res, 200, { ok: true }); }
       if (path === '/api/admin/api/summary' && method === 'GET') return json(res, 200, apiLog.summary({ api: q.api }, days(365)));
       if (path === '/api/admin/api/requests' && method === 'GET') return json(res, 200, apiLog.list(f, { staff: true, limit: q.limit || 100 }));
       if (path === '/api/admin/api/requests.csv' && method === 'GET') {
@@ -531,6 +550,11 @@ export function createApp(config) {
       // Old addresses from when the portal lived inside VERTEX.
       if (url.pathname === '/api-portal' || url.pathname.startsWith('/api-portal/')) return redirect(res, `${url.pathname.slice(11) || '/'}${url.search}`, 301);
       if (url.pathname === '/developers') return redirect(res, '/', 301);
+      // Short links posted elsewhere (MakerWorld, socials) and the media library's files.
+      const lk = url.pathname.match(/^\/l\/([A-Za-z0-9-]{2,40})$/);
+      if (lk) { const to = marketing.follow(lk[1]); if (to) return redirect(res, to, 302); }
+      const md = url.pathname.match(/^\/media\/([0-9a-f]{16}\.[a-z0-9]+)$/);
+      if (md && marketing.serveMedia(req, res, md[1])) return;
       const clean = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : '/';
       if (PAGES[clean]) return send(res, 200, page(PAGES[clean]), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       if (VERTEX_PAGES.has(clean)) return redirect(res, `${config.vertexUrl}${clean}${url.search}`);
