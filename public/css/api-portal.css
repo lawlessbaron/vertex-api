@@ -50,6 +50,8 @@
 .ax-top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(16px) saturate(1.4); border-bottom: 1px solid var(--line); }
 .ax-top-row { display: flex; align-items: center; gap: 24px; height: 60px; }
 .ax-logo { display: flex; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; font-weight: 600; }
+.ax-wordmark { display: block; height: 20px; width: auto; }
+.ax-mark { display: none; }
 .ax-logo b { font: 600 10.5px/1 var(--font-mono); letter-spacing: .12em; padding: 4px 7px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--mint) 40%, transparent); color: var(--mint); }
 .ax-nav { display: flex; gap: 26px; margin-left: auto; }
 .ax-nav a { color: var(--mute); text-decoration: none; font-size: 14px; transition: color .2s; }
@@ -58,8 +60,8 @@
 /* Buttons */
 .ax-btn { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 22px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--tile-2); color: var(--ink); font: 500 15px/1 var(--font-ui); text-decoration: none; cursor: pointer; transition: transform .2s, border-color .2s, box-shadow .2s, background .2s; }
 .ax-btn:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--mint) 55%, var(--line-2)); }
-.ax-btn-primary { background: linear-gradient(180deg, var(--mint-2), var(--mint)); border-color: transparent; color: #08110d; font-weight: 600; box-shadow: 0 0 0 1px #ffffff1f inset, 0 10px 30px -10px color-mix(in srgb, var(--mint) 70%, transparent); }
-.ax-btn-primary:hover { box-shadow: 0 0 0 1px #ffffff2a inset, 0 14px 40px -10px var(--mint); }
+.ax-btn-primary { background: var(--mint); border-color: transparent; color: #08110d; font-weight: 600; box-shadow: none; }
+.ax-btn-primary:hover { background: color-mix(in srgb, var(--mint) 88%, #fff); box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--mint) 60%, transparent); }
 .ax-btn-ghost { background: transparent; }
 .ax-btn-sm { min-height: 36px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
 
@@ -265,6 +267,9 @@
 }
 
 /* Colourways: the switcher in the header sets data-palette on <body>. */
+/* Mint Motive's own colours: carbon, eggshell and mint, with sand for warmth. */
+.ax-body[data-palette="brand"] { --bg: #1e2124; --tile: #24282c; --tile-2: #2a2f33; --line: #33393e; --line-2: #3d4449; --ink: #f6eed9; --mute: #a9b3ad; --mint: #9ec4b5; --mint-2: #f6eed9; --accent-3: #d9c09a; --aurora-1: #9ec4b5; --aurora-2: #6f8f84; --aurora-3: #d9c09a; --trace: #6f9e8c; --trace-ink: #4a7262; --model-1: #9ec4b5; --model-2: #f6eed9; }
+.ax-body[data-palette="brand"] { background: radial-gradient(1200px 700px at 70% -10%, #9ec4b51f, transparent 70%), radial-gradient(900px 600px at -10% 60%, #d9c09a14, transparent 70%), #1e2124 fixed; }
 .ax-body[data-palette="volt"] { --mint: #c6ff3d; --mint-2: #eaffb0; --accent-3: #3dffd0; --aurora-1: #9dff00; --aurora-2: #00c2ff; --aurora-3: #7a5cff; --trace: #4d9a00; --trace-ink: #2f6400; --model-1: #c6ff3d; --model-2: #3dffd0; }
 .ax-body[data-palette="ion"] { --mint: #8aa4ff; --mint-2: #d0daff; --accent-3: #d77cff; --aurora-1: #3d6dff; --aurora-2: #9b5cff; --aurora-3: #00d4ff; --trace: #3d5bd9; --trace-ink: #2a3fa0; --model-1: #8aa4ff; --model-2: #d77cff; }
 .ax-body[data-palette="ember"] { --mint: #ff7a2f; --mint-2: #ffc59a; --accent-3: #ff3d7f; --aurora-1: #ff6a1f; --aurora-2: #ff3d7f; --aurora-3: #ffb347; --trace: #e0560f; --trace-ink: #a33b06; --model-1: #ff7a2f; --model-2: #6b7380; }
@@ -275,8 +280,9 @@
 .ax-swatches button { width: 20px; height: 20px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: var(--sw); box-shadow: 0 0 0 2px transparent; transition: transform .2s, box-shadow .2s; }
 .ax-swatches button:hover { transform: scale(1.15); }
 .ax-swatches button[aria-pressed=true] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--sw); }
-@media (max-width: 760px) { .ax-swatches button { width: 18px; height: 18px; } .ax-top-row { gap: 10px; } .ax-logo span { display: none; } }
+@media (max-width: 760px) { .ax-swatches button { width: 18px; height: 18px; } .ax-top-row { gap: 10px; } .ax-wordmark { display: none; } .ax-mark { display: block; } }
 .ax-swatches [data-palette="mint"] { --sw: #9ec4b5; }
+.ax-swatches [data-palette="brand"] { --sw: #9ec4b5; background: linear-gradient(135deg, #1e2124 0 50%, #9ec4b5 50% 100%) !important; box-shadow: 0 0 0 1px #f6eed9 inset; }
 .ax-swatches [data-palette="volt"] { --sw: #c6ff3d; }
 .ax-swatches [data-palette="ion"] { --sw: #8aa4ff; }
 .ax-swatches [data-palette="ember"] { --sw: #ff7a2f; }

@@ -1,0 +1,17 @@
+/* /education: the Education plan and its application form. */
+.ed-intro p { margin: 0 0 12px; max-width: 75ch; line-height: 1.6; }
+.ed-points { margin: 0; padding-left: 20px; display: grid; gap: 8px; max-width: 80ch; line-height: 1.55; }
+.ed-form { display: grid; gap: 14px; margin-top: 14px; }
+.ed-form h2 { margin: 8px 0 0; font: 600 18px/1.2 var(--font-ui); }
+.ed-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ed-form label { display: grid; gap: 6px; font-size: 13px; color: var(--mute); }
+.ed-wide { grid-column: 1 / -1; }
+.ed-form input:not([type=checkbox]):not([type=file]), .ed-form select, .ed-form textarea { min-height: 40px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: #121920; color: var(--ink); font: 400 14.5px/1.4 var(--font-ui); }
+.ed-form textarea { resize: vertical; }
+.ed-check { display: flex !important; align-items: center; gap: 10px; color: var(--ink) !important; }
+.ed-form .ax-btn { justify-self: start; }
+.ed-state { display: inline-block; padding: 4px 10px; border-radius: 99px; font: 600 12px/1.2 var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
+.ed-state.pending, .ed-state.more-info { background: color-mix(in srgb, #f5b84b 22%, transparent); color: #f5c870; }
+.ed-state.approved { background: color-mix(in srgb, var(--mint) 22%, transparent); color: var(--mint); }
+.ed-state.declined { background: color-mix(in srgb, #ff7a7a 20%, transparent); color: #ff9a9a; }
+@media (max-width: 700px) { .ed-grid { grid-template-columns: 1fr; } }

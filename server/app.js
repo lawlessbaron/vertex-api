@@ -31,6 +31,7 @@ import { createApiStatus, STATUS_COMPONENTS, INCIDENT_STATUSES, IMPACTS } from '
 import { createApiPlans } from './api-plans.js';
 import { createEngineApi } from './engine-api.js';
 import { importFromVertex } from './import.js';
+import { createEducation, EDU_KINDS } from './education.js';
 import { ENGINE } from '../engine/engine.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,7 +43,7 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2',
 };
 // Pages: clean paths on this site. The old /api-portal paths (from when it lived inside VERTEX) move here.
-export const PAGES = { '/': 'api-portal', '/docs': 'api-docs', '/console': 'dev-console', '/admin': 'api-admin', '/signin': 'api-signin', '/status': 'api-status' };
+export const PAGES = { '/': 'api-portal', '/docs': 'api-docs', '/console': 'dev-console', '/admin': 'api-admin', '/signin': 'api-signin', '/status': 'api-status', '/education': 'education' };
 // VERTEX pages the portal links to: sent on to VERTEX.
 const VERTEX_PAGES = new Set(['/signup', '/login', '/reset', '/account', '/licences', '/privacy', '/terms', '/contact', '/vertex', '/generators', '/create', '/forum']);
 const STATE_COOKIE = 'mm_api_state';
@@ -84,7 +85,10 @@ export function createApp(config) {
   const apiWebhooks = createApiWebhooks({ db, fetchImpl, allowPrivate: Boolean(config.webhooksAllowPrivate) });
   let apiPlans = null;
   const apiGuard = createApiGuard({ db, alerts, link: '/admin', onEvent: (userId, event, data) => apiWebhooks.emit(userId, event, data), perDayFor: (userId) => apiPlans?.planFor(userId).perDay ?? 1000 });
-  apiPlans = createApiPlans({ db, billing: stripe, audit, config });
+  let education = null;
+  apiPlans = createApiPlans({ db, billing: stripe, audit, config, invitedTo: (userId, planId) => Boolean(education?.invitedTo(userId, planId)) });
+  // Education plan applications (documents kept beside the database, deleted 30 days after the decision).
+  education = createEducation({ db, dir: join(config.databasePath === ':memory:' ? join(ROOT, 'data') : dirname(config.databasePath), 'education'), audit, alerts, plans: apiPlans });
   const engineApi = createEngineApi({ db, controls, analytics: null, isStaff, newSerial, plans: apiPlans, onKey: (userId, event, data) => apiWebhooks.emit(userId, event, data) });
   let apiStatus = null;
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
@@ -158,7 +162,43 @@ export function createApp(config) {
       html = readFileSync(join(ROOT, 'pages', `${name}.html`), 'utf8');
       pageCache.set(name, html);
     }
-    return html.replaceAll('{{year}}', String(new Date().getFullYear())).replaceAll('{{vertex}}', config.vertexUrl);
+    html = html.replaceAll('{{year}}', String(new Date().getFullYear())).replaceAll('{{vertex}}', config.vertexUrl);
+    return html.replace('</head>', `${headMeta(name, html)}\n  </head>`);
+  }
+  // Share previews, search details and icons, from each page's own <title> and description.
+  const PATH_OF = Object.fromEntries(Object.entries(PAGES).map(([path, page]) => [page, path]));
+  const attr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  function headMeta(name, html) {
+    const title = (html.match(/<title>([^<]*)<\/title>/) || [])[1] || 'Mint Motive API';
+    const description = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
+    const url = `${config.publicUrl}${PATH_OF[name] || ''}`;
+    const image = `${config.publicUrl}/img/og-api.png`;
+    const indexed = !/name="robots" content="noindex"/.test(html);
+    const tags = [
+      ...(indexed && PATH_OF[name] ? [`<link rel="canonical" href="${attr(url)}" />`] : []),
+      '<link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />',
+      '<meta property="og:site_name" content="Mint Motive API" />',
+      '<meta property="og:type" content="website" />',
+      `<meta property="og:title" content="${title}" />`,
+      `<meta property="og:description" content="${description}" />`,
+      `<meta property="og:url" content="${attr(url)}" />`,
+      `<meta property="og:image" content="${attr(image)}" />`,
+      '<meta property="og:image:width" content="1200" />',
+      '<meta property="og:image:height" content="630" />',
+      '<meta property="og:image:alt" content="Mint Motive API: print-ready models, from one call." />',
+      '<meta property="og:locale" content="en_AU" />',
+      '<meta name="twitter:card" content="summary_large_image" />',
+      `<meta name="twitter:title" content="${title}" />`,
+      `<meta name="twitter:description" content="${description}" />`,
+      `<meta name="twitter:image" content="${attr(image)}" />`,
+    ];
+    // Structured data: who we are, on every page; what the API is, on the home page; the docs as an article.
+    const org = { '@type': 'Organization', name: 'Mint Motive', url: 'https://mintmotive.com.au', logo: `${config.publicUrl}/img/icon-192.png`, sameAs: [config.vertexUrl] };
+    const ld = [{ '@context': 'https://schema.org', ...org }];
+    if (name === 'api-portal') ld.push({ '@context': 'https://schema.org', '@type': 'WebAPI', name: 'Mint Motive API', description, url, documentation: `${config.publicUrl}/docs`, provider: org, termsOfService: `${config.vertexUrl}/licences` });
+    if (name === 'api-docs') ld.push({ '@context': 'https://schema.org', '@type': 'TechArticle', headline: 'The Mint Motive API', description, url, publisher: org, about: { '@type': 'WebAPI', name: 'Mint Motive API' } });
+    if (indexed) tags.push(`<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>`);
+    return tags.map((t) => `    ${t}`).join('\n');
   }
   async function serveFile(req, res, pathname) {
     let file = normalize(join(PUBLIC, decodeURIComponent(pathname)));
@@ -343,6 +383,16 @@ export function createApp(config) {
         if ('engineApi' in b) { controls.setSwitch('engineApi', Boolean(b.engineApi)); audit.log(me, 'api.switch', 'engineApi', { on: Boolean(b.engineApi) }, ctx.ip); }
         return json(res, 200, { engineApi: controls.status().engineApi });
       }
+      // Education plan applications.
+      if (path === '/api/admin/api/education' && method === 'GET') return json(res, 200, { applications: education.list(q.status || ''), counts: education.counts(), kinds: EDU_KINDS, plans: apiPlans.plans().map((p) => ({ id: p.id, name: p.name, monthly: p.monthly })) });
+      const em = path.match(/^\/api\/admin\/api\/education\/(\d+)(?:\/(decide|files\/([0-9a-f]{16})))?$/);
+      if (em && !em[2] && method === 'GET') { const a = education.one(em[1]); if (!a) throw new HttpError(404, 'No application with that id.'); audit.log(me, 'edu.view', em[1], {}, ctx.ip); return json(res, 200, a); }
+      if (em && em[2] === 'decide' && method === 'POST') return json(res, 200, education.decide(me, em[1], await readJson(req, 8 * 1024), ctx.ip));
+      if (em && em[3] && method === 'GET') {
+        const f = education.file(em[1], em[3]);
+        audit.log(me, 'edu.file', `${em[1]}:${em[3]}`, {}, ctx.ip);
+        return send(res, 200, f.data, { 'Content-Type': f.type, 'Content-Disposition': `inline; filename="${f.name.replace(/[^\w. -]/g, '_')}"`, 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; plugin-types application/pdf", 'X-Content-Type-Options': 'nosniff' });
+      }
       if (path === '/api/admin/api/vertex/refresh' && method === 'POST') { await controls.refresh(); return json(res, 200, controls.status().vertex); }
       if (path === '/api/admin/api/vertex/import' && method === 'POST') {
         if (me.role !== 'owner') throw new HttpError(403, 'Only owners can bring data over.');
@@ -401,6 +451,9 @@ export function createApp(config) {
         audit.log(me, 'api.plan.cap', String(me.id), { cents: cap }, ctx.ip);
         return json(res, 200, apiPlans.usage(me.id));
       }
+      // The Education plan: your application and where it's up to.
+      if (path === '/api/developer/education' && method === 'GET') return json(res, 200, { application: education.mine(me.id), kinds: EDU_KINDS });
+      if (path === '/api/developer/education' && method === 'POST') return json(res, 201, { application: education.apply(me, await readJson(req, 48 * 1024 * 1024), ctx.ip) });
       if (path === '/api/developer/webhooks' && method === 'GET') return json(res, 200, { webhooks: apiWebhooks.list(me.id), events: WEBHOOK_EVENTS });
       if (path === '/api/developer/webhooks' && method === 'POST') {
         const h = await apiWebhooks.create(me.id, await readJson(req, 4096));
@@ -447,6 +500,8 @@ export function createApp(config) {
       if (VERTEX_PAGES.has(clean)) return redirect(res, `${config.vertexUrl}${clean}${url.search}`);
       if (await serveFile(req, res, url.pathname)) return;
       if (url.pathname === '/favicon.ico') return redirect(res, '/img/icon.svg', 301);
+      if (url.pathname === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nDisallow: /console\nDisallow: /admin\nDisallow: /signin\nDisallow: /auth/\nDisallow: /api/\nSitemap: ${config.publicUrl}/sitemap.xml\n`, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+      if (url.pathname === '/sitemap.xml') return send(res, 200, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${['/', '/docs', '/education', '/status'].map((p) => `  <url><loc>${config.publicUrl}${p}</loc></url>`).join('\n')}\n</urlset>\n`, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
       send(res, 404, page('not-found'), { 'Content-Type': 'text/html; charset=utf-8' });
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
@@ -465,6 +520,7 @@ export function createApp(config) {
     every(5 * 60e3, () => apiStatus.probe());
     every(6 * 3600e3, () => apiPlans.billOverage());
     every(5 * 60e3, () => controls.refresh());
+    every(24 * 3600e3, () => education.sweep());
     setTimeout(() => { try { apiStatus.probe(); } catch { /* next time */ } controls.refresh().catch(() => {}); }, 15e3).unref?.();
     // Once: the keys, logs and plans from when the API lived inside VERTEX. Tried until VERTEX answers.
     const tryImport = () => importFromVertex({ db, link }).then((r) => { if (r.done) console.log(`Brought over from VERTEX: ${JSON.stringify(r.counts)}`); else if (r.skipped) clearInterval(imp); }).catch((e) => console.warn(`import from VERTEX: ${e.message}`));
@@ -475,5 +531,5 @@ export function createApp(config) {
   }
   function close() { for (const t of timers) clearInterval(t); }
 
-  return { server, db, link, controls, stripe, syncUser: sync, apiPlans, apiStatus, apiGuard, engineApi, traceApi, schedule, close, handle };
+  return { server, db, link, controls, stripe, education, syncUser: sync, apiPlans, apiStatus, apiGuard, engineApi, traceApi, schedule, close, handle };
 }

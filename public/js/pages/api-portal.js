@@ -435,7 +435,7 @@ console_();
         <p class="ax-price">${p.monthly ? `$${n(p.monthly)}<small>/month</small>` : 'Free'}</p>
         <p class="ax-blurb">${e(p.blurb)}</p>
         <ul class="ax-ticks">${[`${n(p.perDay)} calls a day`, `${n(p.perMinute)} a minute`, `Up to ${n(p.keys)} keys`, ...p.perks].map((t) => `<li>${e(t)}</li>`).join('')}</ul>
-        <a class="ax-btn ${i === 1 ? 'ax-btn-primary' : 'ax-btn-ghost'}" href="/console">${p.monthly ? (r.paid ? `Choose ${e(p.name)}` : 'Opening soon') : 'Get a free key'}</a>
+        ${p.invite ? `<a class="ax-btn ax-btn-ghost" href="/education">Apply for ${e(p.name)}</a>` : `<a class="ax-btn ${i === 1 ? 'ax-btn-primary' : 'ax-btn-ghost'}" href="/console">${p.monthly ? (r.paid ? `Choose ${e(p.name)}` : 'Opening soon') : 'Get a free key'}</a>`}
       </article>`).join('');
   } catch { /* the free plan stays on the page */ }
 })();

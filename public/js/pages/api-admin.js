@@ -307,7 +307,51 @@ async function settingsTab() {
     </form><div data-tknew></div><p class="ax-tile-s">Keys are shown once. Revoke or lock them under Keys.</p>`) : ''}`;
 }
 
-const TABS = { settings: settingsTab, overview, alerts: alertsTab, calls: callsTab, trace: () => traceTab(), latency: latencyTab, keys: keysTab, addresses: addressesTab, developers: () => developersTab(), webhooks: webhooksTab, plans: plansTab, status: statusTab };
+// ---------- education plan applications ----------
+const EDU_STATE = { pending: 'waiting', 'more-info': 'asked for more', approved: 'approved', declined: 'declined' };
+const EDU_PILL = { pending: 'warn', 'more-info': 'info', approved: 'ok', declined: 'bad' };
+let eduPlans = [];
+async function educationTab(openId) {
+  const r = await call('/api/admin/api/education');
+  eduPlans = r.plans;
+  const c = $('[data-educount]'); if (c) { c.textContent = r.counts.pending || ''; c.hidden = !r.counts.pending; }
+  pane().innerHTML = tile(`Education plan applications <span class="cx-rid">${num(r.counts.pending || 0)} waiting</span>`, table(['Institution', 'Kind', 'Country', 'From', 'Sent', 'State', ''], r.applications.map((a) => `
+      <tr><td><b>${esc(a.institution)}</b></td><td>${esc(a.kindName)}</td><td>${esc(a.country)}${a.region ? `, ${esc(a.region)}` : ''}</td><td>@${esc(a.handle || a.userId)}</td><td>${ago(a.createdAt)}</td>
+      <td><span class="cx-pill ${EDU_PILL[a.status] || 'info'}">${esc(EDU_STATE[a.status] || a.status)}</span></td>
+      <td class="cx-actions"><button type="button" class="cx-link" data-eduopen="${a.id}">Open</button></td></tr>`).join(''), 'No applications yet.'))
+    + '<div data-edudetail></div>'
+    + `<p class="ax-tile-s ad-note">Public schools get the Education plan at its near-cost price (set it in Plans). Approve other institutions onto Education or a usual plan, or give a plan free for a while. Documents are deleted 30 days after you decide.</p>`;
+  if (openId) eduOpen(openId);
+}
+async function eduOpen(id) {
+  const a = await call(`/api/admin/api/education/${id}`);
+  const row = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : '');
+  $('[data-edudetail]').innerHTML = tile(`${esc(a.institution)} <span class="cx-pill ${EDU_PILL[a.status] || 'info'}">${esc(EDU_STATE[a.status] || a.status)}</span>`, `
+    <div class="ad-cols">
+      <dl class="ad-kv">
+        ${row('Kind', esc(a.kindName))}${row('Country', esc([a.country, a.region].filter(Boolean).join(', ')))}${row('Website', a.website ? `<a href="${esc(a.website)}" target="_blank" rel="noopener noreferrer">${esc(a.website)}</a>` : '')}
+        ${row('Address', esc(a.address))}${row('Contact', `${esc(a.contactName)}, ${esc(a.contactRole)}`)}${row('Email', esc(a.contactEmail))}${row('Phone', esc(a.contactPhone))}
+        ${row('Students', a.students ? num(a.students) : '')}${row('Levels', esc(a.levels))}${row('Account', `@${esc(a.handle || a.userId)} ${esc(a.email || '')}`)}
+      </dl>
+      <div>
+        <h3 class="ad-h3">What for</h3><p class="ad-wrap">${esc(a.use)}</p>
+        <h3 class="ad-h3">Their proof</h3><p class="ad-wrap">${esc(a.proof)}</p>
+        <h3 class="ad-h3">Documents</h3>
+        ${a.filesDeleted ? '<p class="cx-empty">Deleted after the decision.</p>' : `<ul class="ad-files">${a.files.map((f) => `<li><a href="/api/admin/api/education/${a.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.name)}</a> <span class="cx-rid">${kb(f.bytes)}</span></li>`).join('')}</ul>`}
+      </div>
+    </div>
+    ${a.decisionNote || a.reviewedAt ? `<p class="ax-tile-s">Decided ${when(a.reviewedAt)}${a.reviewedBy ? ` by @${esc(a.reviewedBy)}` : ''}${a.decisionPlan ? `: ${esc(a.decisionPlan)} plan` : ''}. ${esc(a.decisionNote || '')}</p>` : ''}
+    <form class="ad-incform" data-eduform="${a.id}">
+      <label>Decision <select name="status"><option value="approved">Approve</option><option value="more-info">Ask for more</option><option value="declined">Decline</option></select></label>
+      <label>Plan <select name="plan">${eduPlans.filter((p) => p.id !== 'free').map((p) => `<option value="${esc(p.id)}" ${p.id === 'education' ? 'selected' : ''}>${esc(p.name)} ($${p.monthly}/mo)</option>`).join('')}</select></label>
+      <label>Give it free for <select name="giveDays"><option value="">no, they pay</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">a year</option></select></label>
+      <textarea class="ad-text" name="note" maxlength="1500" placeholder="A note they'll see (needed when asking for more or declining)"></textarea>
+      <button class="ax-btn ax-btn-sm">Save decision</button>
+    </form>`);
+  $('[data-edudetail]').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+const TABS = { education: () => educationTab(), settings: settingsTab, overview, alerts: alertsTab, calls: callsTab, trace: () => traceTab(), latency: latencyTab, keys: keysTab, addresses: addressesTab, developers: () => developersTab(), webhooks: webhooksTab, plans: plansTab, status: statusTab };
 async function show(name = tab) {
   tab = TABS[name] ? name : 'overview';
   $$('[data-tabs] a').forEach((a) => a.setAttribute('aria-current', String(a.getAttribute('href') === `#${tab}`)));
@@ -334,6 +378,7 @@ document.addEventListener('change', async (e) => {
   show('settings');
 });
 document.addEventListener('click', async (e) => {
+  if (e.target.closest?.('[data-eduopen]')) { try { await eduOpen(e.target.closest('[data-eduopen]').dataset.eduopen); } catch (err) { alert(err.message); } return; }
   if (e.target.closest?.('[data-vref]')) { try { await call('/api/admin/api/vertex/refresh', { method: 'POST' }); } catch (err) { alert(err.message); } return show('settings'); }
   if (e.target.closest?.('[data-vimport]')) { if (!confirm('Bring the API’s records over from VERTEX again? Rows already here stay as they are.')) return; try { await call('/api/admin/api/vertex/import', { method: 'POST' }); } catch (err) { alert(err.message); } return show('settings'); }
   const t = e.target;
@@ -390,6 +435,15 @@ document.addEventListener('click', async (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches?.('[data-row]')) e.target.click(); });
 document.addEventListener('submit', async (e) => {
+  if (e.target.matches?.('[data-eduform]')) {
+    e.preventDefault();
+    const f = e.target, id = f.dataset.eduform;
+    try {
+      await call(`/api/admin/api/education/${id}/decide`, { method: 'POST', body: { status: f.status.value, plan: f.plan.value, giveDays: f.giveDays.value ? Number(f.giveDays.value) : null, note: f.note.value } });
+      await educationTab(id);
+    } catch (err) { alert(err.message); }
+    return;
+  }
   if (e.target.matches?.('[data-tkform]')) {
     e.preventDefault();
     const f = e.target;

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Education plan · Mint Motive API</title>
+    <meta name="description" content="The Mint Motive API for schools, colleges and universities: Builder limits and a key for every class, with public schools priced near cost. Apply with proof from your institution." />
+    <meta name="theme-color" content="#131a1f" />
+    <link rel="icon" href="/img/icon.svg" />
+    <link rel="stylesheet" href="/css/site.css" />
+    <link rel="stylesheet" href="/fonts/poppins.css?w=400-800" />
+    <link rel="stylesheet" href="/css/api-portal.css" />
+    <link rel="stylesheet" href="/css/api-console.css" />
+    <link rel="stylesheet" href="/css/education.css" />
+  </head>
+  <body class="ax-body">
+    <a class="ax-skip" href="#main">Skip to content</a>
+    <div class="ax-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <canvas class="ax-net ax-net-soft" data-net aria-hidden="true"></canvas>
+
+    <header class="ax-top">
+      <div class="ax-shell ax-top-row">
+        <a class="ax-logo" href="/" aria-label="Mint Motive API home">
+          <img class="ax-wordmark" src="/img/logo.svg" alt="Mint Motive" width="155" height="20" />
+          <img class="ax-mark" src="/img/mark.svg" alt="" width="22" height="22" />
+          <b>API</b>
+        </a>
+        <nav class="ax-nav" aria-label="Sections">
+          <a href="/">Overview</a>
+          <a href="/docs">Docs</a>
+          <a href="/status">Status</a>
+          <a href="/console">Console</a>
+        </nav>
+        <div class="ax-swatches" role="group" aria-label="Colours">
+          <button type="button" data-palette="mint" aria-label="Mint" aria-pressed="true"></button>
+          <button type="button" data-palette="brand" aria-label="Mint Motive (brand colours)" title="Mint Motive" aria-pressed="false"></button>
+          <button type="button" data-palette="volt" aria-label="Volt" aria-pressed="false"></button>
+          <button type="button" data-palette="ion" aria-label="Ion" aria-pressed="false"></button>
+          <button type="button" data-palette="ember" aria-label="Ember" aria-pressed="false"></button>
+          <button type="button" data-palette="synth" aria-label="Synth" aria-pressed="false"></button>
+        </div>
+        
+      </div>
+    </header>
+
+    <main id="main" class="ax-shell cx">
+      <div class="cx-head">
+        <div>
+          <p class="ax-label">Education plan</p>
+          <h1>For schools, colleges <span class="ax-grad">and universities.</span></h1>
+        </div>
+      </div>
+      <section class="ax-tile ed-intro">
+        <p>Teach parametric design with real, printable parts: a few lines of Python, a bin that fits the classroom drawers. The Education plan gives your institution Builder limits and a key for every class. Public schools get it at a price that only covers our costs; school budgets are tight enough.</p>
+        <ul class="ed-points">
+          <li><b>Apply like everyone else.</b> Tell us about the institution and what you'll use it for.</li>
+          <li><b>Show us it's real.</b> A letter on official letterhead signed by your principal, head or dean, <em>or</em> a notarised or certified statement (or your country's usual way of proving it), plus a staff ID or the institution's registration.</li>
+          <li><b>We check every one by hand.</b> You'll see the decision in your console. Your documents are only used for the check and are deleted 30 days after we decide.</li>
+        </ul>
+      </section>
+
+      <section class="ax-tile" data-signin hidden>
+        <h2>Sign in to apply</h2>
+        <p class="ax-tile-s">Applications are tied to your VERTEX account, so the plan lands on the right console.</p>
+        <a class="ax-btn ax-btn-primary" href="/signin?next=/education">Sign in with VERTEX</a>
+      </section>
+
+      <section class="ax-tile" data-status hidden></section>
+
+      <form class="ax-tile ed-form" data-form hidden novalidate>
+        <h2>Your institution</h2>
+        <div class="ed-grid">
+          <label class="ed-wide">Institution name<input name="institution" maxlength="160" required /></label>
+          <label>Kind<select name="kind" required data-kinds></select></label>
+          <label>Country<input name="country" maxlength="80" required autocomplete="country-name" /></label>
+          <label>State or region<input name="region" maxlength="80" /></label>
+          <label>Website<input name="website" type="url" maxlength="300" placeholder="https://" /></label>
+          <label class="ed-wide">Address<textarea name="address" maxlength="400" rows="2"></textarea></label>
+        </div>
+        <h2>Contact person</h2>
+        <div class="ed-grid">
+          <label>Name<input name="contactName" maxlength="120" required autocomplete="name" /></label>
+          <label>Role<input name="contactRole" maxlength="120" required placeholder="e.g. Design and Technology teacher" /></label>
+          <label>Email at the institution<input name="contactEmail" type="email" maxlength="200" required /></label>
+          <label>Phone<input name="contactPhone" maxlength="40" autocomplete="tel" /></label>
+        </div>
+        <h2>How you'll use it</h2>
+        <div class="ed-grid">
+          <label>Roughly how many students<input name="students" type="number" min="0" max="1000000" /></label>
+          <label>Year levels or courses<input name="levels" maxlength="200" placeholder="e.g. Years 9–12, Cert III Engineering" /></label>
+          <label class="ed-wide">What for<textarea name="use" maxlength="3000" rows="4" required placeholder="Classes, projects, the makerspace…"></textarea></label>
+        </div>
+        <h2>Proof</h2>
+        <label class="ed-wide">What are your documents?<textarea name="proof" maxlength="1500" rows="3" required placeholder="e.g. Letter on school letterhead signed by the principal, and my staff ID card."></textarea></label>
+        <label class="ed-wide ed-files">Documents (PDF, PNG or JPEG, up to 4, 8 MB each)<input name="files" type="file" accept="application/pdf,image/png,image/jpeg" multiple required /></label>
+        <label class="ed-check"><input name="agree" type="checkbox" required /> These details are true, and I'm allowed to apply for this institution.</label>
+        <p class="si-err" data-err role="alert" hidden></p>
+        <button class="ax-btn ax-btn-primary">Send application</button>
+      </form>
+    </main>
+
+    <footer class="ax-foot">
+      <div class="ax-shell ax-foot-row">
+        <span>© {{year}} Mint Motive</span>
+        <nav aria-label="Elsewhere"><a href="/status">Status</a><a href="/docs">Docs</a><a href="{{vertex}}">VERTEX</a><a href="/education">Education</a><a href="{{vertex}}/licences">Licences</a><a href="{{vertex}}/privacy">Privacy</a><a href="{{vertex}}/contact">Contact</a></nav>
+      </div>
+    </footer>
+    <script type="module" src="/js/pages/api-portal.js"></script>
+    <script type="module" src="/js/pages/education.js"></script>
+  </body>
+</html>

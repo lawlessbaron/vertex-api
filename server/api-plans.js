@@ -14,9 +14,12 @@ export const DEFAULT_PLANS = [
   { id: 'builder', name: 'Builder', monthly: 19, perMinute: 120, perDay: 10000, keys: 10, overagePer1000: 0.5, overageCap: 50, blurb: 'For a shop or an app that people use every day.', perks: ['Keeps working past the day’s allowance, at $0.50 per 1,000', 'Email support'], active: true },
   { id: 'studio', name: 'Studio', monthly: 79, perMinute: 300, perDay: 50000, keys: 25, overagePer1000: 0.4, overageCap: 250, blurb: 'For busy products and resellers.', perks: ['Keeps working past the day’s allowance, at $0.40 per 1,000', 'Priority support'], active: true },
 ];
+// For schools, colleges and universities, by application only: staff check the proof (see education.js).
+// Priced near cost for public schools; the owner sets the real price in API admin → Plans.
+export const EDUCATION_PLAN = { id: 'education', name: 'Education', monthly: 5, perMinute: 120, perDay: 10000, keys: 25, overagePer1000: 0, overageCap: 0, blurb: 'For schools, colleges and universities. Apply first; we check every application.', perks: ['Builder limits at a school price', 'A key per class (up to 25)', 'Apply with proof from your institution'], active: true, invite: true };
 const LIVE = ['active', 'trialing', 'past_due'];
 
-export function createApiPlans({ db, billing = null, audit = null, config = {}, now = () => Date.now() }) {
+export function createApiPlans({ db, billing = null, audit = null, config = {}, now = () => Date.now(), invitedTo = () => false }) {
   const getSetting = (k, d) => { try { return JSON.parse(db.prepare('SELECT value FROM settings WHERE key = ?').get(k)?.value) ?? d; } catch { return d; } };
   const put = (k, v) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(k, JSON.stringify(v));
   const num = (v, min, max, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : d; };
@@ -25,22 +28,24 @@ export function createApiPlans({ db, billing = null, audit = null, config = {}, 
   // ---------- plans ----------
   function plans() {
     const saved = getSetting('api_plans', null);
-    if (!Array.isArray(saved)) return DEFAULT_PLANS.map((p) => ({ ...p }));
+    if (!Array.isArray(saved)) return [...DEFAULT_PLANS, EDUCATION_PLAN].map((p) => ({ ...p }));
     const free = saved.find((p) => p.id === 'free') || DEFAULT_PLANS[0];
-    return [{ ...free, monthly: 0, active: true }, ...saved.filter((p) => p.id !== 'free')];
+    const list = [{ ...free, monthly: 0, active: true }, ...saved.filter((p) => p.id !== 'free')];
+    // Plans saved before the Education plan existed get it added (the owner can switch it off or reprice it).
+    return list.some((p) => p.id === EDUCATION_PLAN.id) ? list : [...list, { ...EDUCATION_PLAN }];
   }
   const planById = (id) => plans().find((p) => p.id === id);
   function savePlans(list, me, ip) {
     if (!Array.isArray(list) || !list.length) throw new HttpError(400, 'Send the plans.');
     const old = plans();
-    const clean = list.slice(0, 6).map((p, i) => {
+    const clean = list.slice(0, 8).map((p, i) => {
       const id = String(p.id || `plan${i}`).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || `plan${i}`;
       return {
         id, name: String(p.name || id).slice(0, 40), monthly: id === 'free' ? 0 : num(p.monthly, 0, 100000, 0),
         perMinute: Math.round(num(p.perMinute, 1, 10000, 30)), perDay: Math.round(num(p.perDay, 1, 10000000, 1000)), keys: Math.round(num(p.keys, 1, 500, 5)),
         overagePer1000: id === 'free' ? 0 : num(p.overagePer1000, 0, 1000, 0), overageCap: id === 'free' ? 0 : num(p.overageCap, 0, 1000000, 0),
         blurb: String(p.blurb || '').slice(0, 160), perks: (Array.isArray(p.perks) ? p.perks : String(p.perks || '').split('\n')).map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 8),
-        active: id === 'free' ? true : Boolean(p.active), product: old.find((o) => o.id === id)?.product || p.product || '',
+        active: id === 'free' ? true : Boolean(p.active), invite: id === 'free' ? false : Boolean(p.invite), product: old.find((o) => o.id === id)?.product || p.product || '',
       };
     });
     if (!clean.some((p) => p.id === 'free')) clean.unshift({ ...plans()[0] });
@@ -109,6 +114,8 @@ export function createApiPlans({ db, billing = null, audit = null, config = {}, 
       month: { calls, overCalls: over.reduce((n, r) => n + r.calls, 0), overCents: over.reduce((n, r) => n + r.cents, 0), days: over },
       cap: capCents(userId, plan), ownCap: db.prepare('SELECT api_overage_cap FROM users WHERE id = ?').get(userId)?.api_overage_cap ?? null,
       checkout: Boolean(billing?.stripeReady?.()), currency: currency(),
+      // By-application plans this account has been approved for.
+      invited: plans().filter((x) => x.invite && invitedTo(userId, x.id)).map((x) => x.id),
     };
   }
 
@@ -127,6 +134,7 @@ export function createApiPlans({ db, billing = null, audit = null, config = {}, 
     if (cur?.live && cur.provider === 'stripe') return changePlan(user, planId);
     const plan = planById(planId);
     if (!plan || !plan.active || plan.id === 'free' || !plan.monthly) throw new HttpError(404, 'That plan isn’t available.');
+    if (plan.invite && !invitedTo(user.id, plan.id)) throw new HttpError(403, `The ${plan.name} plan is by application. Apply first; we’ll let you know when it’s approved.`);
     const product = await ensureProduct(plan);
     const customer = db.prepare('SELECT stripe_customer_id FROM users WHERE id = ?').get(user.id)?.stripe_customer_id;
     const back = `${origin || config.publicUrl}/console`;
@@ -144,6 +152,7 @@ export function createApiPlans({ db, billing = null, audit = null, config = {}, 
   async function changePlan(user, planId) {
     const plan = planById(planId), cur = subOf(user.id);
     if (!plan || !plan.active) throw new HttpError(404, 'That plan isn’t available.');
+    if (plan.invite && !invitedTo(user.id, plan.id)) throw new HttpError(403, `The ${plan.name} plan is by application. Apply first.`);
     if (!cur?.live || cur.provider !== 'stripe') throw new HttpError(409, 'There’s no paid plan to change.');
     if (plan.id === 'free') { await billing.stripeCall('POST', `/subscriptions/${cur.provider_id}`, { cancel_at_period_end: 'true' }); db.prepare('UPDATE api_plan_subs SET cancel_at_period_end = 1, updated_at = ? WHERE user_id = ?').run(now(), user.id); return { changed: true, plan: cur.plan, endsAt: cur.period_end }; }
     const sub = await billing.stripeCall('GET', `/subscriptions/${cur.provider_id}`);

@@ -111,7 +111,8 @@ test('plans on the API site: pricing, console, admin, and the engine using them'
     };
     const boss = await mk('pl_boss', 'owner'), dev = await mk('pl_dev', 'user');
     const pub = await (await fetch(`${base}/api/engine/v1/plans`)).json();
-    assert.deepEqual(pub.plans.map((p) => p.id), ['free', 'builder', 'studio']);
+    assert.deepEqual(pub.plans.map((p) => p.id), ['free', 'builder', 'studio', 'education']);
+    assert.equal(pub.plans.find((p) => p.id === 'education').invite, true, 'the Education plan is by application');
     assert.equal(pub.plans[0].product, undefined, 'no Stripe ids in public');
     assert.equal(pub.paid, false, 'Stripe isn’t set up in tests');
     // The console shows the plan; paying isn't open without Stripe.

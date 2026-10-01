@@ -41,7 +41,7 @@ function plan(p, list) {
         <h3>${esc(x.name)} <span>${x.monthly ? `$${x.monthly}/mo` : 'Free'}</span></h3>
         <p class="ax-tile-s">${esc(x.blurb)}</p>
         <ul>${[`${num(x.perDay)} calls a day`, `${num(x.perMinute)} a minute`, `${num(x.keys)} keys`, ...x.perks].map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
-        ${ro ? '' : x.id === cur.id ? '<span class="cx-pill ok">Your plan</span>' : x.id === 'free' ? (paying ? '<button type="button" class="cx-link" data-planpick="free">Go back to free at the end of the month</button>' : '') : `<button type="button" class="ax-btn ax-btn-primary ax-btn-sm" data-planpick="${esc(x.id)}" ${p.checkout ? '' : 'disabled'}>${p.checkout ? (paying ? `Switch to ${esc(x.name)}` : `Choose ${esc(x.name)}`) : 'Opening soon'}</button>`}
+        ${ro ? '' : x.id === cur.id ? '<span class="cx-pill ok">Your plan</span>' : x.id === 'free' ? (paying ? '<button type="button" class="cx-link" data-planpick="free">Go back to free at the end of the month</button>' : '') : x.invite && !(p.invited || []).includes(x.id) ? `<a class="ax-btn ax-btn-ghost ax-btn-sm" href="/education">Apply</a>` : `<button type="button" class="ax-btn ax-btn-primary ax-btn-sm" data-planpick="${esc(x.id)}" ${p.checkout ? '' : 'disabled'}>${p.checkout ? (paying ? `Switch to ${esc(x.name)}` : `Choose ${esc(x.name)}`) : 'Opening soon'}</button>`}
       </article>`).join('')}</div>`;
   el.hidden = false;
 }

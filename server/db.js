@@ -224,6 +224,36 @@ export const MIGRATIONS = [
         PRIMARY KEY (user_id, day)
       );
 `,
+  // Education plan applications: a school, college or university asks, staff check the proof and decide.
+  `CREATE TABLE edu_applications (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     institution TEXT NOT NULL,
+     kind TEXT NOT NULL,
+     country TEXT NOT NULL,
+     region TEXT,
+     website TEXT,
+     address TEXT,
+     contact_name TEXT NOT NULL,
+     contact_role TEXT NOT NULL,
+     contact_email TEXT NOT NULL,
+     contact_phone TEXT,
+     students INTEGER,
+     levels TEXT,
+     use TEXT NOT NULL,
+     proof TEXT NOT NULL,
+     files TEXT NOT NULL DEFAULT '[]',
+     status TEXT NOT NULL DEFAULT 'pending',
+     decision_plan TEXT,
+     decision_note TEXT,
+     reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+     reviewed_at INTEGER,
+     files_deleted_at INTEGER,
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   );
+   CREATE INDEX edu_applications_user ON edu_applications (user_id, created_at);
+   CREATE INDEX edu_applications_status ON edu_applications (status, created_at);`,
 ];
 
 export function openDatabase(path) {
