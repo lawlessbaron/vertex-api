@@ -4,6 +4,7 @@
 
 ### Added
 - **Tracer:** grey and silver tools a millimetre or two apart come back as separate outlines (they were merged), and a trace is about 10% faster with the same outlines.
+- **Board game inserts** (`gameinsert`): card wells and token compartments.
 - **Propagation stations** (`propagator`): a windowsill stand for cuttings in tubes.
 - **Thread spool racks** (`spoolrack`): pegs with lips for thread and ribbon.
 - **Bathroom caddies** (`bathcaddy`): a draining basket with optional shower-screen hooks.

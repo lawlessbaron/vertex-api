@@ -83,6 +83,7 @@ export const ENGINE_MODULES = {
   bathcaddy: { name: 'Bathroom shelf caddies', version: '1.0.0' },
   spoolrack: { name: 'Thread and ribbon spool racks', version: '1.0.0' },
   propagator: { name: 'Plant propagation stations', version: '1.0.0' },
+  gameinsert: { name: 'Board game insert trays', version: '1.0.0' },
 };
 
 // Newest first.
@@ -90,6 +91,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'gameinsert 1.0.0 (Board game insert trays): plan slabs printed upright: card wells 1 mm over the sleeved card with flat floors and a 22 mm finger notch in front of each (round-bottomed, widening as it rises), the rest of the back row and a front row as token compartments with an 8 mm floor curve; 1.6 mm floor and dividers, 2 mm walls.',
       'propagator 1.0.0 (Plant propagation stations): plan slabs printed upright: a block with a hole 0.8 mm over each tube down to a 3 mm floor with a small drain hole, 4 mm between holes, and the top edge chamfered at 45°.',
       'spoolrack 1.0.0 (Thread and ribbon spool racks): plan slabs printed on its back: a plate with two countersunk screw holes at grid corners and a grid of round pegs 0.8 mm under the spool hole, each ending in a 1.2 mm lip that widens at 45°.',
       'bathcaddy 1.0.0 (Bathroom shelf caddies): a basket in plan slabs printed upright: 2.4 mm walls and floor with 4 mm drain slots, 2 mm dividers, and two full-height 20 × 9 mm back columns with 12.6 × 4.6 mm pockets 30 mm deep, open at the top; two screen hooks, an upside-down U in side profile printed on its side, with a long leg for the pocket and 0.6 mm play over the glass.',
