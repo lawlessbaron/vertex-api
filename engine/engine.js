@@ -68,6 +68,8 @@ export const ENGINE_MODULES = {
   petbowl: { name: 'Raised pet bowl stands', version: '1.0.0' },
   routershelf: { name: 'Router and modem wall shelves', version: '1.0.0' },
   remotecaddy: { name: 'Remote control caddies', version: '1.0.0' },
+  tabletholder: { name: 'Wall tablet holders', version: '1.0.0' },
+  glassesrack: { name: 'Glasses wall racks', version: '1.0.0' },
 };
 
 // Newest first.
@@ -75,6 +77,8 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'glassesrack 1.0.0 (Glasses wall racks): a side profile drawn as slabs across a narrow strip and printed on its side: a 5 mm strip, a 7 mm peg per pair with a 7 mm turned-up tip and a fillet under it, pegs at the spacing given, two square 4 mm screw slots.',
+      'tabletholder 1.0.0 (Wall tablet holders): four corner pieces, each a side profile drawn as slabs along the edge and printed on its side: a 48 mm plate with two square screw slots, a 5 mm ledge (cradles) or hook (clips) reaching the tablet plus 0.6 mm, a lip over the screen and a 3 mm side stop 26 mm high at the outer end; the notes give the spacing on the wall.',
       'remotecaddy 1.0.0 (Remote control caddies): drawn in plan as slabs and printed upright: a 2.4 mm floor, slots 3 mm over the remote in one row or two (the back row taller by the step), an 82 mm phone slot, a tray across any width a shorter row leaves, and a scoop down the front wall of each slot over its top 40% (at most 22 mm).',
       'routershelf 1.0.0 (Router and modem wall shelves): a side profile drawn as slabs across the width, printed on its side: a wall plate, a 6 mm shelf on three 6 mm brace ribs (ends and middle) that stop above the lower screws, a 10 mm lip, 4 mm fences 22 mm high either side, rows of 14 × 5 mm vent slots (short bridges) and a cable notch 16 mm deep at the back.',
       'serverrack 1.1.0: fan panels (40 mm fans on 1U, 32 mm screw spacing, M3; 80 mm on 2U, 71.5 mm, fan screws; a guard of rings and three spokes), 1U cable pass-through panels (a rounded slot up to 190 mm with tie slots above and below), and device panels for an 8-port desktop switch (TL-SG108), a UniFi Flex Mini and a ZimaBoard.',
