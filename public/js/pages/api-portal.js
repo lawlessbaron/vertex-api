@@ -189,7 +189,7 @@ function codeTile() {
 function serials() {
   const ul = $('[data-serials]');
   if (!ul) return;
-  const kinds = ['bin', 'baseplate', 'holder', 'skadis', 'labels', 'morph', 'enclosure', 'simrig', 'tslot', 'swatch', 'spool', 'knob', 'dragchain', 'hinge', 'jar', 'stand', 'deskhook', 'planter', 'cutter', 'keychain', 'bagclip', 'coaster', 'cablewrap', 'battery', 'shelfbracket', 'headphone', 'keyrack', 'plantmarker', 'toothbrush', 'spicerack', 'broomholder', 'bookend', 'laptopstand', 'monitorriser', 'desktidy', 'cablebox', 'chargedock', 'deskdrawer', 'deskhanger', 'controllerrack', 'grommet', 'serverrack', 'leadhanger', 'bikehook', 'shoerack', 'petbowl', 'routershelf', 'remotecaddy', 'tabletholder', 'glassesrack', 'familycharger'];
+  const kinds = ['bin', 'baseplate', 'holder', 'skadis', 'labels', 'morph', 'enclosure', 'simrig', 'tslot', 'swatch', 'spool', 'knob', 'dragchain', 'hinge', 'jar', 'stand', 'deskhook', 'planter', 'cutter', 'keychain', 'bagclip', 'coaster', 'cablewrap', 'battery', 'shelfbracket', 'headphone', 'keyrack', 'plantmarker', 'toothbrush', 'spicerack', 'broomholder', 'bookend', 'laptopstand', 'monitorriser', 'desktidy', 'cablebox', 'chargedock', 'deskdrawer', 'deskhanger', 'controllerrack', 'grommet', 'serverrack', 'leadhanger', 'bikehook', 'shoerack', 'petbowl', 'routershelf', 'remotecaddy', 'tabletholder', 'glassesrack', 'familycharger', 'hairholder'];
   const add = () => {
     const li = document.createElement('li');
     li.innerHTML = `<b>${serial()}</b><span>${kinds[(Math.random() * kinds.length) | 0]}.3mf</span>`;

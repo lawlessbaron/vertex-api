@@ -71,6 +71,7 @@ export const ENGINE_MODULES = {
   tabletholder: { name: 'Wall tablet holders', version: '1.0.0' },
   glassesrack: { name: 'Glasses wall racks', version: '1.0.0' },
   familycharger: { name: 'Family charging stations', version: '1.0.0' },
+  hairholder: { name: 'Hair tool holders', version: '1.0.0' },
 };
 
 // Newest first.
@@ -78,6 +79,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'hairholder 1.0.0 (Hair tool holders): drawn in plan as slabs and printed upright, the way it hangs: a plate, a ring for the dryer barrel (6 mm wall, 8 mm thick) on a 45° corbel built in 1 mm slabs, a straightener sleeve and a round brush cup standing on the bed with 2.4 mm floors, a cord hook on its own 45° corbel with a 7 mm turned-up tip, and two 6 mm diamond screw holes (no sag across the print).',
       'familycharger 1.0.0 (Family charging stations): two parts drawn in plan as slabs and printed upright. A tray round the charger (2.4 mm floor and walls, a 3 mm ledge inside up to the plate, an 18 × 14 mm cord notch at the back, 4 mm vents through both sides) and a rack that drops onto the ledge flush with the rim (a 3 mm plate 0.3 mm clear of the walls, 3 mm dividers, a rounded opening in each slot for the plug, names raised 0.8 mm on a 14 mm strip in front, sized to fit the slot or listed in the notes if they cannot). Slabs blur and trace only the box each drawing reached, with a faster 3 × 3 blur: the same meshes, a third faster.',
       'glassesrack 1.0.0 (Glasses wall racks): a side profile drawn as slabs across a narrow strip and printed on its side: a 5 mm strip, a 7 mm peg per pair with a 7 mm turned-up tip and a fillet under it, pegs at the spacing given, two square 4 mm screw slots.',
       'tabletholder 1.0.0 (Wall tablet holders): four corner pieces, each a side profile drawn as slabs along the edge and printed on its side: a 48 mm plate with two square screw slots, a 5 mm ledge (cradles) or hook (clips) reaching the tablet plus 0.6 mm, a lip over the screen and a 3 mm side stop 26 mm high at the outer end; the notes give the spacing on the wall.',
