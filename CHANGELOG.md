@@ -4,6 +4,7 @@
 
 ### Added
 - **Tracer:** grey and silver tools a millimetre or two apart come back as separate outlines (they were merged), and a trace is about 10% faster with the same outlines.
+- **Shoe horns and boot hooks** (`shoehorn`): a long horn and a wall plate with boot pegs.
 - **Toy sorting trays** (`toytray`): stacking trays with a building-plate lid.
 - **Hallway hooks** (`hallhooks`): umbrella and lead hooks with a poo-bag peg.
 - **Cutlery drawer organisers** (`cutlerytray`): a drawer-filling tray split into bed-sized pieces.

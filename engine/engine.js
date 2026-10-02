@@ -79,6 +79,7 @@ export const ENGINE_MODULES = {
   cutlerytray: { name: 'Cutlery drawer organisers', version: '1.0.0' },
   hallhooks: { name: 'Umbrella and dog lead hooks', version: '1.0.0' },
   toytray: { name: 'Toy sorting trays', version: '1.0.0' },
+  shoehorn: { name: 'Shoe horns and boot hooks', version: '1.0.0' },
 };
 
 // Newest first.
@@ -86,6 +87,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'shoehorn 1.0.0 (Shoe horns and boot hooks): the horn is a 2.6 mm arc drawn as slabs along its length and printed on its end, its span narrowing from the mouth to 40% at the handle in 2 mm slabs, with a diamond hanging hole; the plate prints on its back with countersunk screw holes, a 28 mm peg for the horn and 110 mm boot pegs whose tips turn up at 45°.',
       'toytray 1.0.0 (Toy sorting trays): plan slabs printed upright: a foot set in by the wall plus 0.4 mm and chamfered out at 45° (so trays stack), a 1.6 mm floor, 2 mm walls, 1.6 mm dividers, an 8 mm floor-to-wall curve in every compartment; a lid with the same foot and 4.8 mm studs, 1.7 mm tall, on the 8 mm brick grid.',
       'hallhooks 1.0.0 (Umbrella and dog lead hooks): drawn in plan as slabs and printed flat on its back: a 50 mm strip with two 4 mm countersunk screw holes (the countersink widening as it rises), umbrella hooks 14 × 12 mm reaching 55 mm and lead hooks 12 × 10 mm reaching 38 mm, each tip turning up 1 mm per mm for its last 16 / 12 mm, and a 14 mm round peg for a bag roll with a 45° lip.',
       'cutlerytray 1.0.0 (Cutlery drawer organisers): plan slabs printed upright: a 1.6 mm floor, 2 mm outer walls and dividers, columns sharing the drawer by weight, split into pieces no bigger than the bed at column edges (or a column\'s middle) and evenly front to back, with 1.2 mm walls either side of each seam, and a 10 mm curve from floor to wall in every compartment, cut in six slabs.',
