@@ -6,6 +6,10 @@
 // row), they are different things and are cut apart along the seam. Pieces that meet over a
 // short stretch (a handle and its shaft, end to end) stay one tool.
 import { components } from '../geometry/raster.js';
+// A pixel's neighbours, written into one reused buffer (a fresh array per pixel kept the garbage collector busy).
+const NB4 = new Int32Array(4), NB2 = new Int32Array(2);
+const nb4 = (a, b, c, d) => { NB4[0] = a; NB4[1] = b; NB4[2] = c; NB4[3] = d; return NB4; };
+const nb2 = (a, b) => { NB2[0] = a; NB2[1] = b; return NB2; };
 
 /**
  * @param mask   the tool mask (Grid), changed in place and returned
@@ -31,7 +35,7 @@ export function separateNeighbours(mask, raw, k, { minArea = 150, seam = 12, gap
   for (let i = 0; i < n; i++) if (big[labels[i]]) { owner[i] = labels[i]; queue[tail++] = i; }
   while (head < tail) {
     const p = queue[head++], x = p % W;
-    for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1]) {
+    for (const q of nb4(x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1)) {
       if (q >= 0 && !owner[q] && m[q] >= 0.5) { owner[q] = owner[p]; queue[tail++] = q; }
     }
   }
@@ -53,7 +57,7 @@ export function separateNeighbours(mask, raw, k, { minArea = 150, seam = 12, gap
     const a = owner[p];
     if (!a) continue;
     const x = p % W;
-    for (const q of [x < W - 1 ? p + 1 : -1, p + W < n ? p + W : -1]) {
+    for (const q of nb2(x < W - 1 ? p + 1 : -1, p + W < n ? p + W : -1)) {
       const b = q >= 0 ? owner[q] : 0;
       if (b && b !== a) { const kk = key(a, b); seamLen.set(kk, (seamLen.get(kk) || 0) + 1); if (bare(p)) seamBare.set(kk, (seamBare.get(kk) || 0) + 1); }
     }
@@ -74,7 +78,7 @@ export function separateNeighbours(mask, raw, k, { minArea = 150, seam = 12, gap
     const a = owner[p];
     if (!a) continue;
     const x = p % W, ga = find(a);
-    for (const q of [x < W - 1 ? p + 1 : -1, p + W < n ? p + W : -1]) {
+    for (const q of nb2(x < W - 1 ? p + 1 : -1, p + W < n ? p + W : -1)) {
       const b = q >= 0 ? owner[q] : 0;
       if (b && find(b) !== ga) { m[p] = 0; seamPx.push(p, q); break; }
     }
@@ -89,7 +93,7 @@ export function separateNeighbours(mask, raw, k, { minArea = 150, seam = 12, gap
     const p = queue[head++], x = p % W;
     if (!raw.data[p]) m[p] = 0;
     if (depth[p] >= reach) continue;
-    for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1]) {
+    for (const q of nb4(x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1)) {
       if (q >= 0 && depth[q] < 0 && owner[q] && !raw.data[q]) { depth[q] = depth[p] + 1; queue[tail++] = q; }
     }
   }
@@ -119,7 +123,11 @@ export function splitByColour(mask, image, k, { minArea = 150, paper = null } = 
   // Pixels of each blob, gathered once.
   const px = new Map();
   for (let i = 0; i < n; i++) { const l = blobs.labels[i]; if (l && blobs.sizes[l] >= 2 * minPx) (px.get(l) || px.set(l, []).get(l)).push(i); }
+  // Scratch the size of the sheet, made once and cleared after each shape (only its own pixels), not per shape.
+  const lab = new Int8Array(n), seen = new Uint8Array(n), owner = new Int8Array(n), inBlob = new Uint8Array(n);
+  const clear = (pts) => { for (const p of pts) { lab[p] = 0; seen[p] = 0; owner[p] = 0; inBlob[p] = 0; } };
   for (const pts of px.values()) {
+    clear(pts);
     // The fringe round a shape (paper-coloured pixels the gap closing took in) isn't either tool's colour: leave it out.
     const near = (i) => Math.abs(d[4 * i] - paper[0]) + Math.abs(d[4 * i + 1] - paper[1]) + Math.abs(d[4 * i + 2] - paper[2]) < 45;
     const body = pts.filter((i) => !near(i));
@@ -131,16 +139,15 @@ export function splitByColour(mask, image, k, { minArea = 150, paper = null } = 
     const shadowy = (c) => { const L = (c[0] + c[1] + c[2]) / 3, chroma = Math.max(...c) - Math.min(...c); return chroma < 20 && L > paperL * 0.45 && L < paperL * 0.98; };
     if (shadowy(ca) || shadowy(cb)) continue;
     // Each colour's main piece, and how much of that colour it holds.
-    const lab = new Int8Array(n);
     for (const p of body) lab[p] = two.of(p) + 1;
-    const pieceA = biggestPiece(body, lab, 1, W, n), pieceB = biggestPiece(body, lab, 2, W, n);
+    const pieceA = biggestPiece(body, lab, 1, W, n, seen), pieceB = biggestPiece(body, lab, 2, W, n, seen);
     const countA = body.reduce((s, p) => s + (lab[p] === 1), 0), countB = body.length - countA;
     const big = (piece, count) => piece.length >= Math.max(minPx, body.length * 0.15) && piece.length >= count * 0.8;
     if (!big(pieceA, countA) || !big(pieceB, countB)) continue; // a stripe or speckle: one tool
     // One colour mostly wrapped in the other (a tin's lid in its rim, a label on a case): one thing.
     const small = pieceA.length < pieceB.length ? pieceA : pieceB, other = small === pieceA ? 2 : 1;
     let edge = 0, wrapped = 0;
-    for (const p of small) { const x = p % W; for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1]) if (q < 0 || lab[q] !== lab[p]) { edge++; if (q >= 0 && lab[q] === other) wrapped++; } }
+    for (const p of small) { const x = p % W; for (const q of nb4(x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1)) if (q < 0 || lab[q] !== lab[p]) { edge++; if (q >= 0 && lab[q] === other) wrapped++; } }
     if (wrapped > edge * 0.7) continue;
     const a = shapeOf(pieceA, W), b = shapeOf(pieceB, W);
     // End to end along one line: one tool in two colours.
@@ -148,18 +155,18 @@ export function splitByColour(mask, image, k, { minArea = 150, paper = null } = 
     const dx = b.cx - a.cx, dy = b.cy - a.cy, along = Math.abs(dx * Math.cos(a.angle) + dy * Math.sin(a.angle)), across = Math.abs(-dx * Math.sin(a.angle) + dy * Math.cos(a.angle));
     if (dAng < 0.35 && across < Math.max(a.halfW, b.halfW) * 1.2 + k && along > 0.6 * (a.halfL + b.halfL)) continue;
     // Two tools: every pixel goes to the nearer piece, then the seam between them is cleared.
-    const owner = new Int8Array(n), queue = new Int32Array(pts.length), inBlob = new Uint8Array(n);
+    const queue = new Int32Array(pts.length);
     for (const p of pts) inBlob[p] = 1;
     let head = 0, tail = 0;
     for (const p of pieceA) { owner[p] = 1; queue[tail++] = p; }
     for (const p of pieceB) { owner[p] = 2; queue[tail++] = p; }
     while (head < tail) {
       const p = queue[head++], x = p % W;
-      for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1]) if (q >= 0 && !owner[q] && inBlob[q]) { owner[q] = owner[p]; queue[tail++] = q; }
+      for (const q of nb4(x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1)) if (q >= 0 && !owner[q] && inBlob[q]) { owner[q] = owner[p]; queue[tail++] = q; }
     }
     const seam = Math.max(2, Math.round(0.4 * k)); // wide enough that the smoothing before outlining doesn't bridge it
     const cutPx = [];
-    for (const p of pts) { const x = p % W; for (const q of [x < W - 1 ? p + 1 : -1, p + W < n ? p + W : -1]) if (q >= 0 && owner[q] && owner[q] !== owner[p]) { cutPx.push(p); break; } }
+    for (const p of pts) { const x = p % W; for (const q of nb2(x < W - 1 ? p + 1 : -1, p + W < n ? p + W : -1)) if (q >= 0 && owner[q] && owner[q] !== owner[p]) { cutPx.push(p); break; } }
     for (const p of cutPx) { const x = p % W, y = (p - x) / W; for (let yy = y - seam + 1; yy < y + seam; yy++) for (let xx = x - seam + 1; xx < x + seam; xx++) if (xx >= 0 && yy >= 0 && xx < W && yy < H) m[yy * W + xx] = 0; }
   }
   return mask;
@@ -183,15 +190,14 @@ function twoColours(pts, d) {
   return { centres: [c1, c2], of: (p) => { const v = [d[4 * p], d[4 * p + 1], d[4 * p + 2]]; return dist(v, c1) <= dist(v, c2) ? 0 : 1; } };
 }
 // The largest 4-connected piece of the pixels labelled `which`.
-function biggestPiece(pts, lab, which, W, n) {
-  const seen = new Uint8Array(n);
+function biggestPiece(pts, lab, which, W, n, seen = new Uint8Array(n)) {
   let best = [];
   for (const start of pts) {
     if (lab[start] !== which || seen[start]) continue;
     const piece = [start]; seen[start] = 1;
     for (let h = 0; h < piece.length; h++) {
       const p = piece[h], x = p % W;
-      for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1]) if (q >= 0 && !seen[q] && lab[q] === which) { seen[q] = 1; piece.push(q); }
+      for (const q of nb4(x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p >= W ? p - W : -1, p + W < n ? p + W : -1)) if (q >= 0 && !seen[q] && lab[q] === which) { seen[q] = 1; piece.push(q); }
     }
     if (piece.length > best.length) best = piece;
   }

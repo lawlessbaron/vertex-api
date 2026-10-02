@@ -5,6 +5,9 @@
 // hooked or hollow-sided (pliers, cutters).
 import { Grid, fillPolygon, components, distanceToForeground, traceContours, boxBlur, offsetMask } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
+// A pixel's neighbours, written into one reused buffer (a fresh array per pixel kept the garbage collector busy).
+const NB4 = new Int32Array(4);
+const nb4 = (a, b, c, d) => { NB4[0] = a; NB4[1] = b; NB4[2] = c; NB4[3] = d; return NB4; };
 
 // Distance from (x, y) to the segment a–b.
 function toSegment(x, y, [ax, ay], [bx, by]) {
@@ -115,7 +118,7 @@ function necksAt(mask, { neck = 2.5, minCore = 150, minShare = 0.25, floor = 25 
   for (let k = 0; k < W * H; k++) if (cl[k] && keep[cl[k]]) { labels[k] = keep[cl[k]]; queue[tail++] = k; }
   while (head < tail) {
     const k = queue[head++], x = k % W;
-    for (const q of [x > 0 ? k - 1 : -1, x < W - 1 ? k + 1 : -1, k - W, k + W]) {
+    for (const q of nb4(x > 0 ? k - 1 : -1, x < W - 1 ? k + 1 : -1, k - W, k + W)) {
       if (q >= 0 && q < W * H && !labels[q] && data[q] >= 0.5) { labels[q] = labels[k]; queue[tail++] = q; }
     }
   }

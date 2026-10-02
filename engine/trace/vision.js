@@ -671,6 +671,11 @@ export function toolMask(sheet, options = {}) {
     if (o.separate === false) return mask;
     const found = g.clone();
     for (let i = 0; i < found.data.length; i++) if (pale && pale[i] === 2) found.data[i] = 1;
+    // A grey or pale tool is found only by its outline (it isn't dark inside):
+    // filled in, each outline is the tool, big enough to count as one; as thin
+    // rings they were too small, and two such tools a millimetre or two apart
+    // were never parted.
+    fillHoles(found);
     const parted = separateNeighbours(mask, found, k, { minArea: o.minArea, image });
     return o.colourSplit === false ? parted : splitByColour(parted, photo, k, { minArea: o.minArea });
   };

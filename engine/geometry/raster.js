@@ -212,7 +212,7 @@ export function distanceToForeground(grid) {
 // then the best of the 2r + 1 rows round each pixel, is all it takes.
 function near(g, r, on) {
   const { width: w, height: h, data } = g, R = Math.floor(r), BIG = 1e9;
-  const hd = new Float64Array(w * h); // squared distance along the row, BIG past R
+  const hd = new Float32Array(w * h); // squared distance along the row (whole numbers, exact in 32 bits), BIG past R
   for (let y = 0; y < h; y++) {
     const row = y * w;
     let last = -BIG;
