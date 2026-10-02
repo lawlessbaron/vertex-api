@@ -4,12 +4,21 @@ import { normalisePlate, planPlates, generateTile, generateClipSheet, generateSp
 import { generateHolder } from './geometry/holders.js';
 import { generateLabelClips } from './geometry/labelclip.js';
 import { generatePlates, generateScoop } from './geometry/extras.js';
-import { generateSkadis } from './geometry/skadis.js';
-import { generateMorph } from './geometry/morph.js';
 
 // Generators that load only when a saved design of that kind is shown, so the
 // pages that list models don't download them. Await loadKind(kind) first.
 const LAZY = {
+  morph: () => import('./geometry/morph.js').then((m) => (p) => m.generateMorph(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  skadis: () => import('./geometry/skadis.js').then((m) => (p) => {
+    const r = m.generateSkadis(p);
+    const parts = [{ mesh: r.mesh, name: `skadis-${p.item || 'hook'}` }];
+    if (r.clipSheet) parts.push({ mesh: r.clipSheet, name: `skadis-clips-x${r.clips}` });
+    if (r.baseplate) {
+      const plan = planPlates(normalisePlate({ ...r.baseplate, sizeMode: 'grid', style: 'frame', border: false }));
+      parts.push(...plan.tiles.map((t) => ({ mesh: generateTile(plan, t), name: 'baseplate' })));
+    }
+    return parts;
+  }),
   enclosure: () => import('./geometry/enclosure.js').then((m) => (p) => {
     const r = m.generateEnclosure(p);
     return [{ mesh: r.base, name: 'enclosure-base' }, { mesh: r.lid, name: 'enclosure-lid' }, ...(r.inlay ? [{ mesh: r.inlay, name: 'enclosure-inlay' }] : [])];
@@ -118,17 +127,6 @@ export function buildParts(kind, params = {}) {
     if (o.extra === 'scoop') return [{ mesh: generateScoop({ width: o.scoopWidth, length: o.scoopLength, height: o.scoopHeight, handle: o.handle }), name: 'parts-scoop' }];
     if (o.extra === 'plates') return [{ mesh: generatePlates({ count: o.plateCount, length: o.plateLength, height: o.plateHeight, thickness: o.plateThickness }), name: 'divider-plates' }];
     return [{ mesh: generateLabelClips(o).mesh, name: 'label-clips' }];
-  }
-  if (kind === 'morph') return generateMorph(params).parts.map((p) => ({ mesh: p.mesh, name: p.name }));
-  if (kind === 'skadis') {
-    const r = generateSkadis(params);
-    const parts = [{ mesh: r.mesh, name: `skadis-${params.item || 'hook'}` }];
-    if (r.clipSheet) parts.push({ mesh: r.clipSheet, name: `skadis-clips-x${r.clips}` });
-    if (r.baseplate) {
-      const plan = planPlates(normalisePlate({ ...r.baseplate, sizeMode: 'grid', style: 'frame', border: false }));
-      parts.push(...plan.tiles.map((t) => ({ mesh: generateTile(plan, t), name: 'baseplate' })));
-    }
-    return parts;
   }
   return null;
 }
