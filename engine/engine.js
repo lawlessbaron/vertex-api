@@ -13,7 +13,7 @@
 export const ENGINE_MODULES = {
   gridfinity: { name: 'Gridfinity bins, baseplates and holders', version: '1.2.0' },
   skadis: { name: 'Skådis Studio', version: '1.1.0' },
-  morph: { name: 'Deck Foundry (the Tectonic Deck)', version: '1.5.0' },
+  morph: { name: 'Deck Foundry (the Tectonic Deck)', version: '1.6.0' },
   enclosure: { name: 'Pi and Arduino cases', version: '1.0.0' },
   simrig: { name: 'Sim rig parts', version: '1.3.0' },
   tslot: { name: 'T-slot parts', version: '1.0.0' },
@@ -53,10 +53,43 @@ export const ENGINE_MODULES = {
   broomholder: { name: 'Broom and mop holders', version: '1.0.0' },
   bookend: { name: 'Bookends', version: '1.0.0' },
   laptopstand: { name: 'Laptop stands', version: '1.0.0' },
+  monitorriser: { name: 'Monitor risers', version: '1.0.0' },
+  desktidy: { name: 'Pen pots and desk tidies', version: '1.0.0' },
+  cablebox: { name: 'Cable boxes', version: '1.0.0' },
+  chargedock: { name: 'Charging docks', version: '1.0.0' },
+  deskdrawer: { name: 'Under-desk drawers', version: '1.0.0' },
+  deskhanger: { name: 'Under-desk headphone hooks', version: '1.0.0' },
+  controllerrack: { name: 'Controller and headset racks', version: '1.0.0' },
+  grommet: { name: 'Desk cable grommets', version: '1.0.0' },
+  serverrack: { name: 'Modular 10-inch server racks', version: '1.0.0' },
+  leadhanger: { name: 'Extension lead and hose hangers', version: '1.0.0' },
+  bikehook: { name: 'Bike and helmet wall hooks', version: '1.0.0' },
 };
 
 // Newest first.
 export const ENGINE_HISTORY = [
+  {
+    version: '1.60.0', date: '2026-10-02',
+    notes: [
+      'bikehook 1.0.0 (Bike and helmet wall hooks): a side profile drawn as slabs across the width, printed on its side: an 8 mm plate, a 14 mm arm with a 45° brace and a lip, a channel the tyre plus 2 mm a side wide between 6 mm walls, a helmet peg with a knob, three 5 mm screw slots.',
+      'leadhanger 1.0.0 (Extension lead and hose hangers): a side profile drawn as slabs across the width, printed on its side: a wall plate, an arm that thickens with its reach, a lip, a 45° brace that grows with the reach, strap slots through the arm and brace near the wall and the lip, square screw slots above and below the arm.',
+      'serverrack 1.0.0 (Modular 10-inch server racks): 254 mm ears, rail holes 236.5 mm apart, 222.25 mm clear, EIA-310 holes at 6.35, 22.225 and 38.1 mm in each 44.45 mm unit. Boxes of 1–5U: side panels lying flat with hex vents and both rails standing off them (teardrop holes), plates (8 mm) between the panels on M3 self-tapping screws into their edges, notched round the rails; top plates carry four pins and bottom plates the holes they drop into. 1U shelves (a face with slotted ears and a finger pull, a floor and two lips standing off it), vented blanks, keystone patch panels (pocketed to 2 mm behind each jack) and drawer sleeves print face down; drawers print upright; a carry handle prints on its side and bolts to the cap plate; device panels (Pi 4/5 on sleds with M2.5 standoffs, ThinkCentre Tiny, NUC, Mac mini, 3.5" and 2.5" drives or custom) have windows for the device fronts, a floor and guide walls. The default framed build: L-section uprights (EIA holes in the face, teardrop M3 holes in a 4 mm flange) per section of up to 5U, splice plates joining sections so the hole spacing runs on, 255.8 mm end frames with corner brackets, badged side panels and carry handles; the boxes build is still there.',
+      'grommet 1.0.0 (Desk cable grommets): a sleeve (a rim on the bed, a tube 0.3 mm under the hole with six 0.8 mm crush ribs and a 0.6 mm lead-in at its end) and a cap (a disc on the bed with a ring that drops into the bore at the fit given, one slot past the middle or two that stop short of it).',
+      'controllerrack 1.0.0 (Controller and headset racks): wall modules side by side, each a side profile drawn as slabs across its width and printed on its side: a cradle (two prongs with turned-up tips and 45° braces, two square screw slots between them), a headset hook (a wide, thicker rest with a lip, a slot either side of it) and a cable shelf (a ledge with a lip).',
+      'deskhanger 1.0.0 (Under-desk headphone hooks): a side profile (a plate with square screw slots, a drop with two lead notches, an arm and a turned-up lip, filleted inside corners) drawn as slabs across the width, printed on its side; the outer 0.4 mm of each face steps in against elephant’s foot.',
+      'deskdrawer 1.0.0 (Under-desk drawers): a drawer whose top edges flare out at 45° into 6 mm flanges, with a front and a finger pull; two rails, each a U (a plate for the desk with counterbored screw holes, a channel at the flange’s thickness plus the clearance, a lip it slides on), printed lying on their side.',
+      'chargedock 1.0.0 (Charging docks): a base with a recess for a watch’s charging puck and a pocket for an earbuds case, a phone stand (a front lip, a slot at the phone’s thickness leaning back, a backrest sloping in over its own foot), and channels open below that carry each cable to the back with a hole up to each device. Built from slabs (slabs.js, shared with Deck Foundry).',
+      'cablebox 1.0.0 (Cable boxes): a base sized round a power strip (20 mm each end, 25 mm each side for plugs and the cables’ bend) with U-slots open at the top in both ends and optionally the back, and a lid with vent slots and an inner lip at the fit asked. The base prints upright, the lid top down; the preview shows the lid on.',
+      'desktidy 1.0.0 (Pen pots and desk tidies): pen pots (round, hexagon or square; one to three cups sharing walls, each next one lower by a step; dividers across or in a cross), a business card stand (a front lip, a slot sized to the stack leaning 15° back, a back wedge whose face slopes in) and rounded trays. Walls straight up, a 0.6 mm chamfer round each rim, the bottom 0.4 mm stepped in.',
+      'monitorriser 1.0.0 (Monitor risers): a shelf on two legs. Each leg is a frame with a window (a keyboard slides under) and two tabs that push up through slots in the shelf; a brace runs through both legs’ back posts, its 3 mm shoulders against their inner faces, so the riser can’t rack or the legs slide in. Every piece prints flat; the preview shows it assembled (both rotations with a determinant of +1).',
+    ],
+  },
+  {
+    version: '1.59.0', date: '2026-10-02',
+    notes: [
+      'morph 1.6.0 (Deck Foundry): the Tectonic Deck v2, ported from the parametric CAD. Tiles on a 150 mm grid (1 × 1, 2 × 1, 2 × 2 cells; two dovetails a cell edge), the trench under every cell with a 45° peaked roof (no bridge over 10 mm), crater tiles with four spherical bowls a cell over the trench, hardpoints for an S, M or L receiver (56.4 / 70.4 / 90.4 mm pockets, screws ±38 / ±44 / ±54). The receiver: a 45° lead-in on the pocket, a printed snap pivot (two tines and a 0.6 mm barb) with SHUT and OPEN detent notches, the cam lobe R5.5 at 17.5 mm shut at 138° (3.5 mm engagement, swept clear of the shoe and frame), link-bar sockets in the base; a snap-on hood (five tabs, a 2 mm lead-in for the shoe); the lever with a printed spring beam (0.8 to 1.2 mm) and a bump in its bore; an inserts variant (M3 pivot through a printed washer, a screwed hood). The shoe gains a 4 mm neck, a 1 mm lead-in and inserts on top for a separate mount plate (cradle, tray, any bolt pattern with counterbored heads, iron yokes, a hole grid, blank). New: the electronics tile (a measured cradle for a soldering station, a cable trough with snap grooves and pass-downs to the trench, iron yokes at 30°, a tip-cleaner cup, a solder spindle, parts bowls), the trough lid, the link bar and the pivot washer. Old designs open with the v2 parts.',
+    ],
+  },
   {
     version: '1.58.0', date: '2026-10-02',
     notes: [

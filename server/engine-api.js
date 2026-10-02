@@ -48,6 +48,17 @@ import { SPICERACK_DEFAULTS } from '../engine/geometry/spicerack.js';
 import { BROOMHOLDER_DEFAULTS } from '../engine/geometry/broomholder.js';
 import { BOOKEND_DEFAULTS } from '../engine/geometry/bookend.js';
 import { LAPTOPSTAND_DEFAULTS } from '../engine/geometry/laptopstand.js';
+import { MONITORRISER_DEFAULTS } from '../engine/geometry/monitorriser.js';
+import { DESKTIDY_DEFAULTS } from '../engine/geometry/desktidy.js';
+import { CABLEBOX_DEFAULTS } from '../engine/geometry/cablebox.js';
+import { CHARGEDOCK_DEFAULTS } from '../engine/geometry/chargedock.js';
+import { DESKDRAWER_DEFAULTS } from '../engine/geometry/deskdrawer.js';
+import { DESKHANGER_DEFAULTS } from '../engine/geometry/deskhanger.js';
+import { CONTROLLERRACK_DEFAULTS } from '../engine/geometry/controllerrack.js';
+import { GROMMET_DEFAULTS } from '../engine/geometry/grommet.js';
+import { SERVERRACK_DEFAULTS } from '../engine/geometry/serverrack.js';
+import { LEADHANGER_DEFAULTS } from '../engine/geometry/leadhanger.js';
+import { BIKEHOOK_DEFAULTS } from '../engine/geometry/bikehook.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -87,6 +98,17 @@ export const API_KINDS = {
   broomholder: { name: 'Broom and mop holder', defaults: BROOMHOLDER_DEFAULTS, generator: '/broom-holders' },
   bookend: { name: 'Bookend', defaults: BOOKEND_DEFAULTS, generator: '/bookends' },
   laptopstand: { name: 'Laptop stand', defaults: LAPTOPSTAND_DEFAULTS, generator: '/laptop-stands' },
+  monitorriser: { name: 'Monitor riser', defaults: MONITORRISER_DEFAULTS, generator: '/monitor-risers' },
+  desktidy: { name: 'Pen pot, card stand or desk tray', defaults: DESKTIDY_DEFAULTS, generator: '/desk-tidies' },
+  cablebox: { name: 'Cable box', defaults: CABLEBOX_DEFAULTS, generator: '/cable-boxes' },
+  chargedock: { name: 'Charging dock', defaults: CHARGEDOCK_DEFAULTS, generator: '/charging-docks' },
+  deskdrawer: { name: 'Under-desk drawer', defaults: DESKDRAWER_DEFAULTS, generator: '/desk-drawers' },
+  deskhanger: { name: 'Under-desk headphone hook', defaults: DESKHANGER_DEFAULTS, generator: '/headphone-hooks' },
+  controllerrack: { name: 'Controller and headset rack', defaults: CONTROLLERRACK_DEFAULTS, generator: '/controller-racks' },
+  grommet: { name: 'Desk cable grommet', defaults: GROMMET_DEFAULTS, generator: '/desk-grommets' },
+  serverrack: { name: 'Modular 10-inch server rack', defaults: SERVERRACK_DEFAULTS, generator: '/server-racks' },
+  leadhanger: { name: 'Extension lead and hose hanger', defaults: LEADHANGER_DEFAULTS, generator: '/lead-hangers' },
+  bikehook: { name: 'Bike and helmet wall hook', defaults: BIKEHOOK_DEFAULTS, generator: '/bike-hooks' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };

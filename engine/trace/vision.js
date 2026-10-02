@@ -3,6 +3,7 @@
 import { Grid, boxBlur, components, distanceToForeground, fillHoles, offsetMask, traceContours } from '../geometry/raster.js';
 import { partByNecks } from './split.js';
 import { backgroundToPaper } from './background.js';
+import { separateNeighbours } from './separate.js';
 import { boxMean, canny, gaussian, greyscale, paperLevel, preprocess, PREP_DEFAULTS } from './prep.js';
 import { watershed } from './watershed.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
@@ -629,7 +630,18 @@ export function toolMask(sheet, options = {}) {
   // White, silver and pale tools on white paper: their outline is too faint
   // to survive the blur above, so it's found again on the barely-smoothed photo.
   const pale = o.pale === false ? null : paleOutlines(image, k, m, close, open, o.minArea * k * k);
-  if (pale) for (let i = 0; i < c.data.length; i++) if (pale[i]) c.data[i] = 1;
+  // Like the tint pass: only a shape the main pass mostly missed (a white or
+  // silver tool) is added. One it already has (a dark or coloured tool) gains
+  // nothing from it but the paper's grain caught along its edge, closed into a
+  // bump; it still counts as pale for the shadow and separation steps below.
+  if (pale) {
+    const pg = new Grid(W, H, 0, 0, 1 / k);
+    for (let i = 0; i < pale.length; i++) pg.data[i] = pale[i] ? 1 : 0;
+    const { labels: pl, count: pc, sizes: ps } = components(pg);
+    const hit = new Float64Array(pc + 1);
+    for (let i = 0; i < pale.length; i++) if (pl[i] && c.data[i] > 0.5) hit[pl[i]]++;
+    for (let i = 0; i < pale.length; i++) if (pl[i] && hit[pl[i]] < ps[pl[i]] * 0.85) c.data[i] = 1;
+  }
   // Faintly tinted tools: a shadow keeps the paper's tint, these don't.
   let tint = o.tint === false ? null : tintRegions(image, k, m, o.minArea * k * k);
   if (tint) {
@@ -651,7 +663,16 @@ export function toolMask(sheet, options = {}) {
   // What gives it away is colour: it's the paper's own colour, only dimmer
   // (shadowPixels). That can only take pixels away, never add them.
   const finish = (m) => offsetMask(offsetMask(m, -open), open);
-  if (o.veto === false) return finish(c);
+  // Tools a few millimetres apart were joined by closing the gaps above; part
+  // them again. What counts as found before the closing: the raw pixels plus
+  // the pale-metal and tint passes, so a chrome highlight isn't taken for a gap.
+  const apart = (mask) => {
+    if (o.separate === false) return mask;
+    const found = g.clone();
+    for (let i = 0; i < found.data.length; i++) if (pale && pale[i] === 2) found.data[i] = 1;
+    return separateNeighbours(mask, found, k, { minArea: o.minArea, image });
+  };
+  if (o.veto === false) return apart(finish(c));
   // Always some: with none, a hard shadow joins the tool and breaks it up.
   const shadow = shadowPixels(sheet, { ...o, shadows: Math.max(0.3, Math.min(1, o.shadowTolerance / 100)) });
   // A pixel under half as bright as the paper around it is tool whatever its
@@ -666,7 +687,7 @@ export function toolMask(sheet, options = {}) {
   const metalShadow = pale ? shadowAlongPaper(pale, isShadow, W, H) : null;
   const trimmed = trimShadow(c, (i) => isShadow(i) && !(pale && ((pale[i] === 2 && !metalShadow[i]) || (pale[i] && p.depth[i] >= 0.97))), o.minArea * k * k, k, finish);
   const joined = joinSlivers(edgeBounded(trimmed, c, p.edges, k, finish), o.minArea * k * k, k);
-  return o.castShadows === false ? joined : dropCastShadows(joined, image, k, o.minArea * k * k, finish);
+  return apart(o.castShadows === false ? joined : dropCastShadows(joined, image, k, o.minArea * k * k, finish));
 }
 
 // Shadow-like pixels inside metal regions (pale 2), grouped; a group counts as

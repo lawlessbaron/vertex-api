@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.5.0 · 2 October 2026
+
+### Added
+- `monitorriser`: monitor risers (a shelf, two legs and a back brace), `desktidy`: pen pots, business card stands and desk trays, `cablebox`: vented boxes that hide a power strip, `chargedock`: one stand for a phone, a watch and earbuds, `deskdrawer`: a drawer and two rails that screw under a desk, `deskhanger`: a headphone hook that screws under the desk edge, `controllerrack`: wall racks for game controllers and a headset, `grommet`: desk cable grommets, `serverrack`: modular 10-inch homelab racks (stackable boxes, shelves, drawers, patch panels, Pi and mini PC panels), `leadhanger`: extension lead and hose hangers, and `bikehook`: bike and helmet wall hooks. 44 model kinds. Engine 1.60.0.
+
+### Improved
+- **Tracing is faster and more accurate.**
+  - Joining each tool into one whole outline is about five times quicker.
+  - Tools lying a few millimetres apart come out separately.
+  - Outlines sit within about a third of a millimetre of the real edge.
+- **One big photo no longer slows down everyone else's calls.** Tracing now runs on its own background threads. A photo with no paper in it is still turned away before any outlining, so it costs nothing.
+- **The status page says why.** Each part that isn't working in the admin's Status tab now shows the reason: the last checks failed, or which open incident it's under (its number, how bad it is, and its title).
+
 ## 1.4.0 · 1 October 2026
 
 ### Added

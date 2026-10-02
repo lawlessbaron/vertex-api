@@ -3,7 +3,7 @@
 // pocket in a bin has to fit the whole object, so: the AI's outlines, plus
 // the dark silhouette on the paper wherever it touches them, closed over small
 // gaps, and outlined once around the outside.
-import { Grid, boxBlur, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, traceContours } from '../geometry/raster.js';
+import { Grid, boxBlur, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, polygonIndices, traceContours } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
 /**
@@ -83,9 +83,13 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
   if (!shapes.length) return [];
   const W = sheet.image.width, H = sheet.image.height, k = sheet.pxPerMm, res = 1 / k;
   // Each outline as pixels, to see which hold which.
-  const own = shapes.map((sh) => { const one = new Grid(W, H, 0, 0, res); fillPolygon(one, sh.polygon, 1); const px = []; for (let i = 0; i < W * H; i++) if (one.data[i] >= 0.5) px.push(i); return px; });
+  const frame = { width: W, height: H, x0: 0, y0: 0, res };
+  const own = shapes.map((sh) => polygonIndices(frame, sh.polygon));
   const sets = own.map((px) => new Set(px));
-  const share = (a, b) => { if (!own[a].length) return 0; let n = 0; for (const i of own[a]) if (sets[b].has(i)) n++; return n / own[a].length; }; // how much of a lies in b
+  // Each outline's box in pixels: two whose boxes don't meet share nothing.
+  const boxes = shapes.map((sh) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of sh.polygon) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } return [x0, y0, x1, y1]; });
+  const meet = (a, b) => boxes[a][0] <= boxes[b][2] && boxes[b][0] <= boxes[a][2] && boxes[a][1] <= boxes[b][3] && boxes[b][1] <= boxes[a][3];
+  const share = (a, b) => { if (!own[a].length || !meet(a, b)) return 0; let n = 0; for (const i of own[a]) if (sets[b].has(i)) n++; return n / own[a].length; }; // how much of a lies in b
   // A group outline: one round several tools (SAM3's "tool" round three crimpers
   // that each have their own outline too). It's dropped when those tools cover
   // nearly all of it; a holder round keys stays, since the holder shows round them.
@@ -157,25 +161,48 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
       // a crisp edge. A pixel goes to whichever tool's outline is nearest, so
       // two tools touching never take each other's edges. Then the gap between
       // an edge and the outline is closed, and the whole traced.
+      // Worked in a window round each tool (its box plus the reach and the
+      // closing), not the whole sheet; distances to the others are measured in
+      // a window `far` wider still, which is as far as one could be nearer.
       const far = Math.max(1, Math.round(reach * k));
-      const dist = idx.map((pi) => { const one = new Grid(W, H, 0, 0, res); for (const i of own[pi]) one.data[i] = 1; return distanceToForeground(one); });
       const close = Math.max(r, Math.round((reach / 2) * k));
+      const box = idx.map((pi) => { let x0 = W, y0 = H, x1 = -1, y1 = -1; for (const i of own[pi]) { const x = i % W, y = (i / W) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } return [x0, y0, x1, y1]; });
+      // Each tool's distance from its own pixels, measured once in its box plus
+      // `far` (a pixel further off is further than `far` from it, which is all
+      // the tests below need to know): Infinity outside that.
+      const dist = box.map(([x0, y0, x1, y1], m) => {
+        if (x1 < 0) return null;
+        const DX0 = Math.max(0, x0 - far - 1), DY0 = Math.max(0, y0 - far - 1), DX1 = Math.min(W - 1, x1 + far + 1), DY1 = Math.min(H - 1, y1 + far + 1), dw = DX1 - DX0 + 1;
+        const g2 = new Grid(dw, DY1 - DY0 + 1, 0, 0, res);
+        for (const i of own[idx[m]]) g2.data[(((i / W) | 0) - DY0) * dw + (i % W) - DX0] = 1;
+        return { DX0, DY0, DX1, DY1, dw, d: distanceToForeground(g2) };
+      });
+      const distAt = (m, x, y) => { const t = dist[m]; return t && x >= t.DX0 && x <= t.DX1 && y >= t.DY0 && y <= t.DY1 ? t.d[(y - t.DY0) * t.dw + x - t.DX0] : Infinity; };
       idx.forEach((pi, m) => {
-        const one = new Grid(W, H, 0, 0, res);
-        for (const i of own[pi]) one.data[i] = 1;
+        const [bx0, by0, bx1, by1] = box[m];
+        if (bx1 < 0) { out.push({ polygon: shapes[pi].polygon, label: shapes[pi].label || '', parts: 1 }); return; }
+        const pad = far + close + 3;
+        const X0 = Math.max(0, bx0 - pad), Y0 = Math.max(0, by0 - pad), X1 = Math.min(W - 1, bx1 + pad), Y1 = Math.min(H - 1, by1 + pad), w = X1 - X0 + 1, h = Y1 - Y0 + 1;
+        const QX0 = Math.max(0, X0 - far), QY0 = Math.max(0, Y0 - far), QX1 = Math.min(W - 1, X1 + far), QY1 = Math.min(H - 1, Y1 + far), qw = QX1 - QX0 + 1, qh = QY1 - QY0 + 1;
+        const near = [];
+        idx.forEach((o, n) => { if (n !== m && box[n][0] <= QX1 && box[n][2] >= QX0 && box[n][1] <= QY1 && box[n][3] >= QY0) near.push({ o, n }); });
+        const one = new Grid(w, h, 0, 0, res);
+        for (const i of own[pi]) one.data[((i / W) | 0) - Y0 >= 0 ? (((i / W) | 0) - Y0) * w + (i % W) - X0 : 0] = 1;
         let added = false;
         if (solid && solid.width === W) {
-          const dm = dist[m];
-          for (let i = 0; i < W * H; i++) {
-            if (one.data[i] || dm[i] > far || labels[i] !== c) continue;
+          for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) {
+            const i = y * W + x, j = (y - Y0) * w + x - X0, q = (y - QY0) * qw + x - QX0;
+            if (one.data[j] || labels[i] !== c) continue;
+            const dmq = distAt(m, x, y);
+            if (dmq > far) continue;
             if (!(solid.data[i] || (edge && edge.data[i]))) continue;
-            if (idx.some((o, n) => n !== m && (sets[o].has(i) || dist[n][i] < dm[i]))) continue;
-            one.data[i] = 1; added = true;
+            if (near.some(({ o, n }) => sets[o].has(i) || distAt(n, x, y) < dmq)) continue;
+            one.data[j] = 1; added = true;
           }
         }
         const rr = added ? close : r;
         const shape = fillHoles(offsetMask(offsetMask(one, rr), -rr));
-        const loops = traceContours(boxBlur(shape, 1), 0.5);
+        const loops = traceContours(boxBlur(shape, 1), 0.5, X0, Y0);
         let outer = loops[0];
         for (const l of loops) if (Math.abs(signedArea(l)) > Math.abs(signedArea(outer))) outer = l;
         out.push({ polygon: outer ? simplifyClosed(outer, smoothing) : shapes[pi].polygon, label: shapes[pi].label || '', parts: 1 });
@@ -197,9 +224,12 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
 export function withoutGroups(shapes, sheet) {
   if (shapes.length < 3) return shapes;
   const W = sheet.image.width, H = sheet.image.height, res = 1 / sheet.pxPerMm;
-  const own = shapes.map((sh) => { const one = new Grid(W, H, 0, 0, res); fillPolygon(one, sh.polygon, 1); const px = []; for (let i = 0; i < W * H; i++) if (one.data[i] >= 0.5) px.push(i); return px; });
+  const frame = { width: W, height: H, x0: 0, y0: 0, res };
+  const own = shapes.map((sh) => polygonIndices(frame, sh.polygon));
   const sets = own.map((px) => new Set(px));
-  const share = (a, b) => { if (!own[a].length) return 0; let n = 0; for (const i of own[a]) if (sets[b].has(i)) n++; return n / own[a].length; };
+  const boxes = shapes.map((sh) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of sh.polygon) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } return [x0, y0, x1, y1]; });
+  const meet = (a, b) => boxes[a][0] <= boxes[b][2] && boxes[b][0] <= boxes[a][2] && boxes[a][1] <= boxes[b][3] && boxes[b][1] <= boxes[a][3];
+  const share = (a, b) => { if (!own[a].length || !meet(a, b)) return 0; let n = 0; for (const i of own[a]) if (sets[b].has(i)) n++; return n / own[a].length; };
   return shapes.filter((_, g) => {
     const inner = shapes.map((__, j) => j).filter((j) => j !== g && share(j, g) >= 0.7);
     if (inner.length < 2) return true;

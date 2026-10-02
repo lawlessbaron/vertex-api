@@ -33,7 +33,20 @@ export class Grid {
 // adds its crossing to only the rows it spans (not every edge tested on every
 // row), so a detailed outline costs what its crossings cost.
 export function fillPolygon(grid, poly, value = 1) {
-  const { width, height, x0, y0, res, data } = grid;
+  const data = grid.data;
+  polygonSpans(grid, poly, (row, i0, i1) => { for (let i = i0; i <= i1; i++) data[row + i] = value; });
+}
+
+/** The pixels fillPolygon would set, as ascending indices, without a grid of their own. */
+export function polygonIndices(grid, poly) {
+  const out = [];
+  polygonSpans(grid, poly, (row, i0, i1) => { for (let i = i0; i <= i1; i++) out.push(row + i); });
+  return out;
+}
+
+// Each run of pixel centres inside `poly`, row by row (even-odd rule): span(row start, i0, i1).
+function polygonSpans(grid, poly, span) {
+  const { width, height, x0, y0, res } = grid;
   const n = poly.length;
   if (n < 3) return;
   const px = new Float64Array(n), py = new Float64Array(n);
@@ -60,7 +73,7 @@ export function fillPolygon(grid, poly, value = 1) {
     for (let k = 0; k + 1 < xs.length; k += 2) {
       const i0 = Math.max(0, Math.ceil(xs[k]));
       const i1 = Math.min(width - 1, Math.floor(xs[k + 1]));
-      for (let i = i0; i <= i1; i++) data[row + i] = value;
+      if (i1 >= i0) span(row, i0, i1);
     }
   }
 }
@@ -109,23 +122,25 @@ export function fillHoles(grid) {
 // Label 4-connected foreground components. Returns { labels, count, sizes }.
 export function components(grid) {
   const { width: w, height: h, data } = grid;
-  const labels = new Int32Array(w * h);
+  const n = w * h, labels = new Int32Array(n);
   const sizes = [0];
   let count = 0;
-  const stack = [];
-  for (let s = 0; s < w * h; s++) {
+  const stack = new Int32Array(n);
+  for (let s = 0; s < n; s++) {
     if (data[s] < 0.5 || labels[s]) continue;
     count++;
-    let size = 0;
+    let size = 0, top = 0;
     labels[s] = count;
-    stack.push(s);
-    while (stack.length) {
-      const p = stack.pop();
+    stack[top++] = s;
+    while (top) {
+      const p = stack[--top];
       size++;
-      const x = p % w, y = (p / w) | 0;
-      for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) {
-        if (q >= 0 && data[q] >= 0.5 && !labels[q]) { labels[q] = count; stack.push(q); }
-      }
+      const x = p % w;
+      // The same neighbours in the same order as ever: left, right, up, down.
+      if (x > 0 && data[p - 1] >= 0.5 && !labels[p - 1]) { labels[p - 1] = count; stack[top++] = p - 1; }
+      if (x < w - 1 && data[p + 1] >= 0.5 && !labels[p + 1]) { labels[p + 1] = count; stack[top++] = p + 1; }
+      if (p >= w && data[p - w] >= 0.5 && !labels[p - w]) { labels[p - w] = count; stack[top++] = p - w; }
+      if (p + w < n && data[p + w] >= 0.5 && !labels[p + w]) { labels[p + w] = count; stack[top++] = p + w; }
     }
     sizes.push(size);
   }
@@ -141,7 +156,6 @@ export function distanceToForeground(grid) {
   const f = new Float64Array(m), d = new Float64Array(m), z = new Float64Array(m + 1);
   const v = new Int32Array(m);
   const out = new Float64Array(w * h);
-  for (let i = 0; i < w * h; i++) out[i] = data[i] >= 0.5 ? 0 : INF;
   // One 1-D pass over n values of out, starting at `at`, `step` apart (a column
   // or a row), written in place. Plain loops: no callbacks per pixel.
   const pass = (at, step, n) => {
@@ -168,7 +182,20 @@ export function distanceToForeground(grid) {
     }
     for (let q = 0, i = at; q < n; q++, i += step) out[i] = d[q];
   };
-  for (let x = 0; x < w; x++) pass(x, w, h);
+  // Down the columns the input is only "on" or "off", so the squared distance
+  // to the nearest "on" pixel in the column is two sweeps (down, then up): the
+  // same numbers the general pass gives, a row at a time, in memory order.
+  const below = new Float64Array(w); // rows since the last "on" pixel, per column
+  below.fill(INF);
+  for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {
+    if (data[i] >= 0.5) below[x] = 0; else if (below[x] < INF) below[x]++;
+    out[i] = below[x] < INF ? below[x] * below[x] : INF;
+  }
+  below.fill(INF);
+  for (let y = h - 1; y >= 0; y--) for (let x = 0, i = y * w; x < w; x++, i++) {
+    if (data[i] >= 0.5) below[x] = 0; else if (below[x] < INF) below[x]++;
+    if (below[x] < INF && below[x] * below[x] < out[i]) out[i] = below[x] * below[x];
+  }
   for (let y = 0; y < h; y++) pass(y * w, 1, w);
   for (let i = 0; i < w * h; i++) out[i] = Math.sqrt(out[i]);
   return out;
@@ -178,6 +205,39 @@ export function distanceToForeground(grid) {
 // the mask (plus r and a pixel) is measured: nothing further away can change,
 // so the answer is the same as measuring the whole grid, and a few small tools
 // on a big sheet cost what their own area costs.
+// Within r of an "on" pixel (on = true) or further than r from every one
+// (on = false), for a small r, written over g. The same answer as measuring the
+// whole distance and comparing it with r: only "on" pixels within r rows and r
+// columns can be that near, so the nearest one along each row (two sweeps),
+// then the best of the 2r + 1 rows round each pixel, is all it takes.
+function near(g, r, on) {
+  const { width: w, height: h, data } = g, R = Math.floor(r), BIG = 1e9;
+  const hd = new Float64Array(w * h); // squared distance along the row, BIG past R
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let last = -BIG;
+    for (let x = 0; x < w; x++) { if (data[row + x] >= 0.5) last = x; const d = x - last; hd[row + x] = d <= R ? d * d : BIG; }
+    last = BIG;
+    for (let x = w - 1; x >= 0; x--) { if (data[row + x] >= 0.5) last = x; const d = last - x; if (d <= R && d * d < hd[row + x]) hd[row + x] = d * d; }
+  }
+  // Rows down each column to the nearest row with anything within R along it:
+  // further than R and the pixel can't be near (most of an empty sheet).
+  const gap = new Int32Array(w * h), run = new Int32Array(w).fill(BIG);
+  for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) { run[x] = hd[i] < BIG ? 0 : run[x] + 1; gap[i] = run[x]; }
+  run.fill(BIG);
+  for (let y = h - 1; y >= 0; y--) for (let x = 0, i = y * w; x < w; x++, i++) { run[x] = hd[i] < BIG ? 0 : run[x] + 1; if (run[x] < gap[i]) gap[i] = run[x]; }
+  for (let y = 0; y < h; y++) {
+    const ya = Math.max(0, y - R), yb = Math.min(h - 1, y + R);
+    for (let x = 0; x < w; x++) {
+      if (gap[y * w + x] > R) { data[y * w + x] = on ? 0 : 1; continue; }
+      let best = hd[y * w + x];
+      for (let yy = ya; yy <= yb && best > 0; yy++) { const v = hd[yy * w + x] + (yy - y) * (yy - y); if (v < best) best = v; }
+      const within = best < BIG && Math.sqrt(best) <= r;
+      data[y * w + x] = on ? (within ? 1 : 0) : (within ? 0 : 1);
+    }
+  }
+}
+
 export function offsetMask(grid, r) {
   const out = grid.clone();
   if (!r) return out;
@@ -195,6 +255,12 @@ export function offsetMask(grid, r) {
   }
   // Shrinking measures from the background; outside the box everything is background
   // already, so a box with no background inside it (the mask fills it) needs no change.
+  if (Math.abs(r) <= 16) {
+    near(sub, Math.abs(r), r > 0);
+    out.data.fill(0);
+    for (let y = 0; y < h; y++) out.data.set(sub.data.subarray(y * w, y * w + w), (y + by0) * W + bx0);
+    return out;
+  }
   const dist = distanceToForeground(sub);
   out.data.fill(0);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {

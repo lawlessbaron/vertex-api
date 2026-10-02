@@ -268,7 +268,7 @@ async function statusTab() {
   const open = r.incidents.filter((i) => !i.resolvedAt), past = r.incidents.filter((i) => i.resolvedAt);
   const opt = (list, cur) => list.map((x) => `<option value="${x}" ${x === cur ? 'selected' : ''}>${x}</option>`).join('');
   const tone = (s) => (/operational|up|ok/i.test(s) ? 'ok' : /degraded|partial/i.test(s) ? 'warn' : 'bad');
-  pane().innerHTML = `<div class="kpis">${live.components.map((c) => kpi({ k: c.name, v: `<span class="pill ${tone(c.state)}" style="font-size:14px">${esc(c.state)}</span>`, x: `${c.uptime != null ? `${c.uptime}% over 90 days` : ''}${c.checkedAt ? ` · ${ago(c.checkedAt)}` : ''}` })).join('')}</div>`
+  pane().innerHTML = `<div class="kpis">${live.components.map((c) => kpi({ k: c.name, v: `<span class="pill ${tone(c.state)}" style="font-size:14px">${esc(c.state)}</span>`, x: `${c.uptime != null ? `${c.uptime}% over 90 days` : ''}${c.checkedAt ? ` · ${ago(c.checkedAt)}` : ''}${c.reason ? `<br><b>Why:</b> ${esc(c.reason)}` : ''}` })).join('')}</div>`
     + `<div class="grid g2">
       ${card('Open an incident', `
         <form class="grid" style="gap:12px" data-incident>

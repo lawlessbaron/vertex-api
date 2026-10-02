@@ -16,9 +16,8 @@ import { HttpError, RateLimiter, readJson } from './security.js';
 import { hashToken } from './auth.js';
 import { keyHint } from './api-log.js';
 import { ipAllowed } from './api-guard.js';
-import { rectify, homography, applyH, PAPER_SIZES } from '../engine/trace/vision.js';
-import { findPaper, dropPaper, addMissed } from '../engine/trace/detect.js';
-import { wholeOutlines, objectPixels } from '../engine/trace/whole.js';
+import { applyH, PAPER_SIZES } from '../engine/trace/vision.js';
+import { runTrace, warmTrace } from './trace-pool.js';
 import { centred, ccw, placed, growPocket, smallestBin, fingerSpot } from '../engine/trace/layout.js';
 import { generateCutoutBin } from '../engine/geometry/cutout.js';
 import { toSTL, to3MF } from '../engine/export.js';
@@ -62,14 +61,12 @@ export function measure(poly) {
  * whole thing into one outline. image: { width, height, data (RGBA) }; jpeg: base64.
  */
 export async function traceSheet({ image, jpeg, paper = 'a4', outline }) {
-  const size = PAPER_SIZES[paper] || PAPER_SIZES.a4;
-  // Both paper finders; the one whose straightened sheet is most paper wins.
-  const corners = findPaper(image, size)?.corners;
-  if (!corners) throw Object.assign(new Error('no paper'), { say: 'paper' });
-  const sheet = rectify(image, corners, size, 3);
-  const W = sheet.widthMm, H = sheet.heightMm;
-  const toMm = homography(corners, [[0, 0], [W, 0], [W, H], [0, H]]);
+  // Finding the paper, and joining the outlines below, run on a worker thread.
+  // The paper comes first: a photo without one never costs an AI call.
+  const prep = await runTrace('prepSheet', { image, paper });
+  if (prep.error) throw Object.assign(new Error('no paper'), { say: 'paper' });
   const found = await outline(`data:image/jpeg;base64,${jpeg}`);
+  const { size, sheet, W, H, toMm } = prep;
   const raw = [];
   for (const t of found) {
     const pts = t.points.map(([x, y]) => applyH(toMm, x, y));
@@ -78,12 +75,10 @@ export async function traceSheet({ image, jpeg, paper = 'a4', outline }) {
     const sh = shapeOf(pts.map(([x, y]) => [Math.min(W, Math.max(0, x)), Math.min(H, Math.max(0, y))]), t.label);
     if (sh.areaMm2 > 30 && sh.areaMm2 < 0.7 * W * H) raw.push(sh); // not dust, not the paper itself
   }
-  let mask = null;
-  try { mask = objectPixels(sheet.image, sheet.pxPerMm); } catch { /* the AI's outlines alone */ }
-  const ai = dropPaper(raw, sheet); // not the paper itself
-  const joined = (ai.length ? wholeOutlines(ai, sheet, { mask }) : []).map((w) => shapeOf(w.polygon, w.label)).filter((sh) => sh.areaMm2 > 30);
+  const { joined: whole } = await runTrace('finishSheet', { raw, sheet });
+  const joined = whole.map((w) => shapeOf(w.polygon, w.label)).filter((sh) => sh.areaMm2 > 30);
   // Anything that stands out from the paper that the AI had no word for.
-  const tools = addMissed(joined, sheet).shapes;
+  const tools = (await runTrace('addMissedOn', { joined, sheet })).map((w) => shapeOf(w.polygon, w.label));
   const r1 = (v) => Math.round(v * 10) / 10;
   return {
     paper: { name: size.name, widthMm: r1(W), heightMm: r1(H) },
@@ -112,6 +107,7 @@ export function binFor(tools, { clearance = 1, depth = 20, finger = 22 } = {}) {
 export function createTraceApi({ db, can, audit, toolLibrary, newSerial = () => `T${Date.now().toString(36).toUpperCase()}` }) {
   const minute = new RateLimiter(TRACE_LIMITS.perMinute, 60e3);
   const jobs = new Map();
+  warmTrace();
   const state = () => { try { return { on: false, ...JSON.parse(db.prepare('SELECT value FROM settings WHERE key = ?').get(KEY)?.value || '{}') }; } catch { return { on: false }; } };
   const save = (v) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(KEY, JSON.stringify(v));
 

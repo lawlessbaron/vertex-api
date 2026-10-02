@@ -3,7 +3,7 @@
 // outline is filled on a fine grid, a thin band along the line is cleared,
 // and each piece left is traced on its own. Works on any shape, however
 // hooked or hollow-sided (pliers, cutters).
-import { Grid, fillPolygon, components, traceContours, boxBlur, offsetMask } from '../geometry/raster.js';
+import { Grid, fillPolygon, components, distanceToForeground, traceContours, boxBlur, offsetMask } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
 // Distance from (x, y) to the segment a–b.
@@ -69,13 +69,45 @@ export function splitOutline(poly, a, b, { gap = 1.5, res = 0.25, minArea = 25 }
  * split off. `mask` is a Grid (res in mm). Returns { labels (1..count),
  * count }, or null when it's one tool.
  */
-export function partByNecks(mask, { neck = 2.5, minCore = 150, minShare = 0.25 } = {}) {
+export function partByNecks(mask, opts = {}) {
+  return necksAt(mask, opts) || compactParts(mask);
+}
+
+// Round or squarish things lying touching (a row of batteries, coins, nuts):
+// closing the trace's small gaps has already filled the pinch between them, so
+// a 2.5 mm neck doesn't part them. Shrink deeper, but only keep a split whose
+// pieces are all compact (each about as big as the circle that fits in it,
+// like a disc or a square, never a long handle) and much the same size.
+function compactParts(mask) {
+  const { width: W, height: H, res, data } = mask;
+  const inv = new Grid(W, H, mask.x0, mask.y0, res);
+  for (let i = 0; i < W * H; i++) inv.data[i] = data[i] >= 0.5 ? 0 : 1;
+  const dt = distanceToForeground(inv); // distance to the outside, in pixels
+  let peak = 0;
+  for (let i = 0; i < W * H; i++) if (dt[i] > peak) peak = dt[i];
+  for (const f of [0.35, 0.5, 0.65]) {
+    const parts = necksAt(mask, { neck: peak * f * res, minCore: 1, minShare: 0.6, floor: 1 });
+    if (!parts) continue;
+    const area = new Float64Array(parts.count + 1), inner = new Float64Array(parts.count + 1);
+    for (let i = 0; i < W * H; i++) { const l = parts.labels[i]; if (l) { area[l]++; if (dt[i] > inner[l]) inner[l] = dt[i]; } }
+    let compact = true;
+    for (let l = 1; l <= parts.count; l++) if (area[l] / (Math.PI * inner[l] * inner[l]) > 1.8) compact = false;
+    if (compact) return parts;
+  }
+  return null;
+}
+
+function necksAt(mask, { neck = 2.5, minCore = 150, minShare = 0.25, floor = 25 } = {}) {
   const { width: W, height: H, res, data } = mask;
   const core = offsetMask(mask, -neck / res);
   const { labels: cl, count, sizes } = components(core);
+  // Small things (a row of AA cells) leave small cores: what counts as a
+  // good-sized part follows the biggest core, down to 25 mm².
+  const biggest = Math.max(0, ...sizes.slice(1)) * res * res;
+  const least = Math.min(minCore, Math.max(floor, biggest * 0.3));
   const keep = new Int32Array(count + 1);
   let n = 0;
-  for (let c = 1; c <= count; c++) if (sizes[c] * res * res >= minCore) keep[c] = ++n;
+  for (let c = 1; c <= count; c++) if (sizes[c] * res * res >= least) keep[c] = ++n;
   if (n < 2) return null;
   const labels = new Int32Array(W * H);
   const queue = new Int32Array(W * H);

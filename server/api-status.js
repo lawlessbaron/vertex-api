@@ -80,15 +80,16 @@ export function createApiStatus({ db, controls, traceOn = () => false, onInciden
     const list = days(key);
     const counted = list.reduce((a, d) => ({ ok: a.ok + d.ok, total: a.total + d.total }), { ok: 0, total: 0 });
     const last = db.prepare('SELECT ok, at, note FROM api_status_samples WHERE component = ? ORDER BY at DESC, id DESC LIMIT 3').all(key);
-    const open = db.prepare("SELECT impact FROM api_incidents WHERE resolved_at IS NULL AND (',' || components || ',') LIKE ?").all(`%,${key},%`);
     const recent = db.prepare("SELECT ms FROM api_requests WHERE api = ? AND at > ? AND status < 400 ORDER BY ms").all(key === 'tracer' ? 'trace' : key, now() - DAY).map((r) => r.ms || 0);
-    let state = 'operational';
-    if (isOff(key)) state = 'off';
-    else if (last.length && last.every((s) => !s.ok)) state = 'outage';
-    else if (last.length && !last[0].ok) state = 'degraded';
-    for (const o of open) { const s = o.impact === 'critical' ? 'outage' : o.impact === 'major' ? 'partial' : 'degraded'; if (RANK[s] > RANK[state]) state = s; }
+    let state = 'operational', reason = null;
+    if (isOff(key)) { state = 'off'; reason = 'switched off'; }
+    else if (last.length && last.every((s) => !s.ok)) { state = 'outage'; reason = `the last ${last.length} checks failed`; }
+    else if (last.length && !last[0].ok) { state = 'degraded'; reason = 'the last check failed'; }
+    // An open incident sets the state too, whatever the checks say: say which one.
+    const incidents = db.prepare("SELECT id, title, impact FROM api_incidents WHERE resolved_at IS NULL AND (',' || components || ',') LIKE ?").all(`%,${key},%`);
+    for (const o of incidents) { const s = o.impact === 'critical' ? 'outage' : o.impact === 'major' ? 'partial' : 'degraded'; if (RANK[s] > RANK[state]) { state = s; reason = `open incident #${o.id} (${o.impact}): ${o.title}`; } }
     return {
-      key, ...STATUS_COMPONENTS[key], state,
+      key, ...STATUS_COMPONENTS[key], state, reason,
       uptime: counted.total ? Math.round((counted.ok / counted.total) * 100000) / 1000 : null,
       p95: recent.length ? recent[Math.min(recent.length - 1, Math.floor(recent.length * 0.95))] : null,
       checkedAt: last[0]?.at || null,

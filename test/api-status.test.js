@@ -57,6 +57,8 @@ test('self-checks, real calls and incidents make the 90 days', () => {
   sum = s.summary();
   assert.equal(sum.active.length, 1);
   assert.equal(sum.components.find((c) => c.key === 'engine').state, 'partial');
+  assert.match(sum.components.find((c) => c.key === 'engine').reason, /open incident #\d+ \(major\): Slow files/, 'the card says why');
+  assert.match(sum.components.find((c) => c.key === 'webhooks').reason, /checks? failed/);
   assert.equal(sum.overall, 'outage', 'webhooks are still down');
   T += 3600e3;
   s.updateIncident(null, inc.id, { status: 'identified', body: 'A slow disk.' });

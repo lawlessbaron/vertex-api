@@ -68,7 +68,7 @@ test('keys: owner-issued, switch, test keys, allowance, revoke, and no engine na
   const run = async (key) => {
     const s = await call(api, '/api/trace/v1/jobs', 'POST', { key, body: { image: 'AAAA', paper: 'a4' } });
     if (s.status !== 202) return s;
-    for (let i = 0; i < 50; i++) { const r = await call(api, s.out.check, 'GET', { key }); if (r.out.status !== 'running') return r; await new Promise((ok) => setTimeout(ok, 20)); }
+    for (let i = 0; i < 250; i++) { const r = await call(api, s.out.check, 'GET', { key }); if (r.out.status !== 'running') return r; await new Promise((ok) => setTimeout(ok, 20)); } // the trace runs on a worker thread
     throw new Error('never finished');
   };
   const done = await run(live.key);
