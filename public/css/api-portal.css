@@ -313,3 +313,13 @@
 .ax-price small { font-size: 16px; font-weight: 500; letter-spacing: 0; color: var(--mute); margin-left: 4px; }
 .ax-plan .ax-blurb { margin: -12px 0 18px; font-size: 14px; color: var(--mute); }
 @media (max-width: 900px) { .ax-plans-also { grid-template-columns: 1fr; } }
+
+/* Wide and ultra-wide screens (2560, 3440 and up): a wider page, and everything
+   a little larger so text stays comfortable to read from across the desk. */
+@media (min-width: 2200px) {
+  .ax-shell { width: min(1720px, 100% - 96px); }
+  .dx { grid-template-columns: 270px minmax(0, 1fr); gap: 64px; }
+  .dx-main { max-width: 1120px; }
+}
+@media (min-width: 2800px) { html { zoom: 1.15; } }
+.ax-kinds li a { color: inherit; text-decoration: none; } .ax-kinds li:has(a):hover { color: var(--ink); border-color: var(--mint); }

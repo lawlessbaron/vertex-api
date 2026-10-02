@@ -418,6 +418,14 @@ function palettes() {
 
 palettes();
 background();
+// The number of kinds comes from the engine itself, so it's never out of date.
+fetch('/engine/v1/kinds').then((r) => (r.ok ? r.json() : null)).then((j) => {
+  const n = j?.kinds ? Object.keys(j.kinds).length : 0;
+  if (!n) return;
+  $$('[data-kind-count]').forEach((el) => { el.textContent = String(n); if (el.dataset.count) el.dataset.count = String(n); });
+  const more = $('[data-kind-more]');
+  if (more) more.textContent = `+${n - 6} more: racks, kitchen, desk and home`;
+}).catch(() => {});
 $$('.ax-stats [data-count]').forEach(countUp);
 reveal();
 codeTile();

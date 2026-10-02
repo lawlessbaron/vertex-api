@@ -270,3 +270,6 @@ pre.code { margin: 0; padding: 14px 16px; border-radius: 10px; background: color
 html:has(body.app) { background: #131a1f; }
 .content > .lede { font-size: 13px; line-height: 1.55; color: var(--mute); margin: 0; max-width: 80ch; }
 .app .lede { font-size: 13px; line-height: 1.55; }
+
+/* Wide and ultra-wide screens: the console and admin use the room. */
+@media (min-width: 2200px) { .content { max-width: 2200px; } }
