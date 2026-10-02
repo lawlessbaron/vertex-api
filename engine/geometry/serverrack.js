@@ -42,7 +42,11 @@ export const SERVERRACK_DEFAULTS = {
   style: 'frame', // frame: uprights, end frames, side panels | box: stackable boxes
   panels: true, // side panels (framed racks)
   badge: 'VERTEX', // raised on each side panel; empty for none
-  device: 'none', // device panels: none | pi | tiny | nuc | macmini | custom
+  fans: 0, // fan panels: blow air through the rack
+  fanSize: 80, // 40 mm fans on 1U panels, 80 mm on 2U
+  fanCount: 2, // fans across each panel
+  cable: 0, // 1U cable pass-through panels
+  device: 'none', // device panels: none | pi | tiny | nuc | macmini | switch8 | flexmini | zima | hdd35 | ssd25 | custom
   devices: 2, // how many across each panel
   devCount: 1, // how many device panels
   devW: 120, devH: 38, devD: 120, // a custom device: its front face and depth
@@ -57,6 +61,9 @@ export const RACK_DEVICES = {
   tiny: { name: 'Lenovo ThinkCentre Tiny', w: 181, h: 37, d: 185, lift: 0 },
   nuc: { name: 'Intel NUC (slim)', w: 119, h: 39, d: 114, lift: 0 },
   macmini: { name: 'Mac mini (M4)', w: 129, h: 52, d: 129, lift: 0 },
+  switch8: { name: '8-port desktop switch (TP-Link TL-SG108)', w: 160, h: 27, d: 103, lift: 0 },
+  flexmini: { name: 'UniFi Flex Mini switch', w: 119, h: 23, d: 92, lift: 0 },
+  zima: { name: 'ZimaBoard', w: 141, h: 37, d: 84, lift: 0 },
   hdd35: { name: '3.5" hard drive', w: 102.6, h: 28, d: 147, lift: 0 },
   ssd25: { name: '2.5" drive', w: 70.9, h: 16, d: 100, lift: 0 },
 };
@@ -79,6 +86,7 @@ export function serverRackPlan(options = {}) {
     device: RACK_DEVICES[o.device] || o.device === 'custom' ? o.device : 'none',
     devCount: Math.round(num(o.devCount, 0, 4, 1)), devices: Math.round(num(o.devices, 1, 4, 2)),
     dev: o.device === 'custom' ? { name: 'your device', w: num(o.devW, 20, 215, 120) + 2, h: num(o.devH, 10, 125, 38) + 2, d: num(o.devD, 30, 240, 120), lift: 0 } : RACK_DEVICES[o.device] || null,
+    fans: Math.round(num(o.fans, 0, 4, 0)), fanSize: Number(o.fanSize) === 40 ? 40 : 80, fanCount: Math.round(num(o.fanCount, 1, 4, 2)), cable: Math.round(num(o.cable, 0, 4, 0)),
     drawers: Math.round(num(o.drawers, 0, 4, 0)), drawerU: Math.round(num(o.drawerU, 1, 3, 2)), handle: o.handle !== false && o.handle !== 'false',
     style: o.style === 'box' ? 'box' : 'frame', panels: o.panels !== false && o.panels !== 'false', badge: String(o.badge ?? 'VERTEX').toUpperCase().replace(/[^A-Z0-9 .\-]/g, '').slice(0, 14).trim(),
   };
@@ -169,7 +177,9 @@ function plate(p, kind) {
 //   shelf  — a floor and two side lips standing up off its back;
 //   blank  — hex vents;
 //   patch  — a row of keystone jack holes, the panel thinned to 2 mm round each so the jacks clip in;
-//   drawer — an opening and a sleeve (four walls standing off its back) the drawer slides in.
+//   drawer — an opening and a sleeve (four walls standing off its back) the drawer slides in;
+//   fan    — a guarded opening for each fan, with its four screw holes (40 mm fans: 32 mm apart, M3; 80 mm: 71.5 mm, fan screws);
+//   cable  — a long rounded slot for cables to pass through, with tie slots above and below it.
 function frontPanel(p, u, kind) {
   const h = u * RACK10.U - 0.8, hw = RACK10.ears / 2, ft = 4;
   const ks = keystones(p), kw = p.keyW, kh = p.keyH;
@@ -188,6 +198,19 @@ function frontPanel(p, u, kind) {
       if (z > 2) d.off(rr(x - kw / 2 - 2.5, h / 2 - kh / 2 - 3, x + kw / 2 + 2.5, h / 2 + kh / 2 + 3, 1)); // thinned behind, so its latch reaches
     }
     if (kind === 'drawer') d.off(rr(-dw + 2, 3, dw - 2, dh - 1, 2)); // the opening
+    if (kind === 'fan') for (const x of fanXs(p)) {
+      const R = p.fanSize / 2 - 2, y = h / 2, sp = p.fanSize === 40 ? 16 : 35.75, sr = p.fanSize === 40 ? 1.7 : 2.25;
+      d.disc(x, y, R, 0);
+      for (let r = R - 5; r > 7; r -= 7) { d.disc(x, y, r + 0.9); d.disc(x, y, r - 0.9, 0); } // the guard: rings…
+      for (const a of [0, 60, 120]) { const c = Math.cos((a * Math.PI) / 180), s = Math.sin((a * Math.PI) / 180), w = 0.9; d.on([[x - R * c - w * s, y - R * s + w * c], [x + R * c - w * s, y + R * s + w * c], [x + R * c + w * s, y + R * s - w * c], [x - R * c + w * s, y - R * s - w * c]]); } // …and spokes
+      d.disc(x, y, 7);
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) d.disc(x + sx * sp, y + sy * sp, sr, 0);
+    }
+    if (kind === 'cable') {
+      const sw = Math.min(2 * p.ex - 30, 190), sh = Math.min(16, h - 18);
+      d.off(rr(-sw / 2, h / 2 - sh / 2, sw / 2, h / 2 + sh / 2, sh / 2));
+      for (let x = -sw / 2 + 15; x <= sw / 2 - 15 + 0.01; x += (sw - 30) / 4) for (const y of [h / 2 - sh / 2 - 5, h / 2 + sh / 2 + 5]) d.off(rr(x - 2.5, y - 1.2, x + 2.5, y + 1.2, 1.2));
+    }
     if (kind === 'device') for (const x of devXs(p)) d.off(rr(x - p.dev.w / 2, 3 + p.dev.lift, x + p.dev.w / 2, Math.min(h - 2, 3 + p.dev.lift + p.dev.h), 2)); // a window for each device's front
   }, 0.12, 0.1);
   if (kind === 'device') m.append(deviceFloor(p, h, ft));
@@ -201,6 +224,11 @@ function frontPanel(p, u, kind) {
     m.append(extrudePolygon(ring, [hole], ft - 0.01, ft + p.shelfDepth)); // the sleeve; open at the back
   }
   return m;
+}
+// Fan panels: how many fans fit across, and where.
+function fanXs(p) {
+  const pitch = p.fanSize + 6, n = Math.max(1, Math.min(p.fanCount, Math.floor((2 * p.ex - 10) / pitch)));
+  return Array.from({ length: n }, (_, k) => (k - (n - 1) / 2) * pitch);
 }
 // Device panels: how many fit across, and where.
 export const devUnits = (p) => Math.max(1, Math.ceil((3 + p.dev.lift + p.dev.h + 3) / RACK10.U));
@@ -422,7 +450,7 @@ export function generateServerRack(options = {}) {
     z += H;
   });
   // Gear, filled into the boxes from the bottom: shelves, drawers, patch panels, blanks.
-  const kinds = [['shelf', 1, p.shelves], ...(p.dev ? [['device', devUnits(p), p.devCount]] : []), ['drawer', p.drawerU, p.drawers], ['patch', 1, p.patch], ['blank', 1, p.blanks]];
+  const kinds = [['shelf', 1, p.shelves], ...(p.dev ? [['device', devUnits(p), p.devCount]] : []), ['drawer', p.drawerU, p.drawers], ['patch', 1, p.patch], ['cable', 1, p.cable], ['fan', p.fanSize === 40 ? 1 : 2, p.fans], ['blank', 1, p.blanks]];
   const fill = [];
   for (const [kind, u, n] of kinds) {
     if (!n) continue;
@@ -457,7 +485,7 @@ export function generateServerRack(options = {}) {
     preview.append(c);
   }
   const total = p.boxes.reduce((a, u) => a + u, 0);
-  const gear = [p.dev && p.devCount ? `${p.devCount} panel${p.devCount > 1 ? 's' : ''} for ${devXs(p).length} × ${p.dev.name} (${devUnits(p)}U)` : '', p.shelves ? `${p.shelves} shel${p.shelves > 1 ? 'ves' : 'f'}` : '', p.drawers ? `${p.drawers} ${p.drawerU}U drawer${p.drawers > 1 ? 's' : ''}` : '', p.patch ? `${p.patch} patch panel${p.patch > 1 ? 's' : ''} (${keystones(p).length} jacks each)` : '', p.blanks ? `${p.blanks} blank${p.blanks > 1 ? 's' : ''}` : '', p.handle && !framed ? 'a handle (2 M3 × 16)' : ''].filter(Boolean).join(', ');
+  const gear = [p.dev && p.devCount ? `${p.devCount} panel${p.devCount > 1 ? 's' : ''} for ${devXs(p).length} × ${p.dev.name} (${devUnits(p)}U)` : '', p.shelves ? `${p.shelves} shel${p.shelves > 1 ? 'ves' : 'f'}` : '', p.drawers ? `${p.drawers} ${p.drawerU}U drawer${p.drawers > 1 ? 's' : ''}` : '', p.patch ? `${p.patch} patch panel${p.patch > 1 ? 's' : ''} (${keystones(p).length} jacks each)` : '', p.cable ? `${p.cable} cable panel${p.cable > 1 ? 's' : ''}` : '', p.fans ? `${p.fans} fan panel${p.fans > 1 ? 's' : ''} (${fanXs(p).length} × ${p.fanSize} mm fans each)` : '', p.blanks ? `${p.blanks} blank${p.blanks > 1 ? 's' : ''}` : '', p.handle && !framed ? 'a handle (2 M3 × 16)' : ''].filter(Boolean).join(', ');
   const room = p.boxes.reduce((a, u) => a + u, 0), want = p.shelves + p.blanks + p.patch + p.drawers * p.drawerU + (p.dev ? p.devCount * devUnits(p) : 0);
   const notes = [
     `10-inch rack, ${total}U${p.boxes.length > 1 ? ` (${p.boxes.map((u) => `${u}U`).join(' + ')})` : ''}: ${p.D} × ${Math.round(2 * (framed ? frameXo(p) : p.outer))} × ${Math.round(z)} mm. Rail holes ${p.hole} mm (${p.hole >= 6 ? 'M6 bolts and nuts' : 'tap M6 in'}).`,

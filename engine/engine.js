@@ -61,11 +61,12 @@ export const ENGINE_MODULES = {
   deskhanger: { name: 'Under-desk headphone hooks', version: '1.0.0' },
   controllerrack: { name: 'Controller and headset racks', version: '1.0.0' },
   grommet: { name: 'Desk cable grommets', version: '1.0.0' },
-  serverrack: { name: 'Modular 10-inch server racks', version: '1.0.0' },
+  serverrack: { name: 'Modular 10-inch server racks', version: '1.1.0' },
   leadhanger: { name: 'Extension lead and hose hangers', version: '1.0.0' },
   bikehook: { name: 'Bike and helmet wall hooks', version: '1.0.0' },
   shoerack: { name: 'Shoe and boot wall racks', version: '1.0.0' },
   petbowl: { name: 'Raised pet bowl stands', version: '1.0.0' },
+  routershelf: { name: 'Router and modem wall shelves', version: '1.0.0' },
 };
 
 // Newest first.
@@ -73,6 +74,8 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'routershelf 1.0.0 (Router and modem wall shelves): a side profile drawn as slabs across the width, printed on its side: a wall plate, a 6 mm shelf on three 6 mm brace ribs (ends and middle) that stop above the lower screws, a 10 mm lip, 4 mm fences 22 mm high either side, rows of 14 × 5 mm vent slots (short bridges) and a cable notch 16 mm deep at the back.',
+      'serverrack 1.1.0: fan panels (40 mm fans on 1U, 32 mm screw spacing, M3; 80 mm on 2U, 71.5 mm, fan screws; a guard of rings and three spokes), 1U cable pass-through panels (a rounded slot up to 190 mm with tie slots above and below), and device panels for an 8-port desktop switch (TL-SG108), a UniFi Flex Mini and a ZimaBoard.',
       'petbowl 1.0.0 (Raised pet bowl stands): drawn as slabs in plan and printed upside down: a 5 mm deck on the bed with a hole 1 mm over each bowl, the name cut 0.6 mm into it (mirrored, so it reads from the front once turned over), a 4 mm apron to 35% of the height (at most 30 mm), then L-shaped corner legs with a 10 mm solid corner for a rubber foot. Over the bed width it splits into one-bowl modules with two square-ended M4 slots up each side apron from its lower edge, so the bolts drop in from below.',
       'shoerack 1.0.0 (Shoe and boot wall racks): a side profile drawn as slabs across the width, printed on its side: a wall plate, a 7 mm shelf sloping down at the tilt given, a lip standing off its front, a brace underneath, screw slots in two columns clear of the shelf.',
     ],

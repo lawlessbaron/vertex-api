@@ -3,7 +3,7 @@
 ## 1.6.0 · unreleased
 
 ### Added
-- `shoerack`: shoe and boot wall racks (a tilted shelf with a lip and a brace; a taller back for boots) and `petbowl`: raised pet bowl stands (sized to the bowls, a name on top, bolt-together modules when too wide for the bed). 46 model kinds. Engine 1.61.0.
+- `shoerack`: shoe and boot wall racks (a tilted shelf with a lip and a brace; a taller back for boots) and `petbowl`: raised pet bowl stands (sized to the bowls, a name on top, bolt-together modules when too wide for the bed) and `routershelf`: router and modem wall shelves. `serverrack` gains fan panels (`fans`, `fanSize`, `fanCount`), cable panels (`cable`) and devices `switch8`, `flexmini` and `zima`. 47 model kinds. Engine 1.61.0.
 
 ## 1.5.0 · 2 October 2026
 

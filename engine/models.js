@@ -41,6 +41,7 @@ const LAZY = {
   bikehook: () => import('./geometry/bikehook.js').then((m) => (p) => m.generateBikeHook(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   shoerack: () => import('./geometry/shoerack.js').then((m) => (p) => m.generateShoeRack(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   petbowl: () => import('./geometry/petbowl.js').then((m) => (p) => m.generatePetBowlStand(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  routershelf: () => import('./geometry/routershelf.js').then((m) => (p) => m.generateRouterShelf(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   chargedock: () => import('./geometry/chargedock.js').then((m) => (p) => m.generateChargeDock(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   cablebox: () => import('./geometry/cablebox.js').then((m) => (p) => m.generateCableBox(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   desktidy: () => import('./geometry/desktidy.js').then((m) => (p) => m.generateDeskTidy(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
