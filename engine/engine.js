@@ -65,14 +65,21 @@ export const ENGINE_MODULES = {
   leadhanger: { name: 'Extension lead and hose hangers', version: '1.0.0' },
   bikehook: { name: 'Bike and helmet wall hooks', version: '1.0.0' },
   shoerack: { name: 'Shoe and boot wall racks', version: '1.0.0' },
+  petbowl: { name: 'Raised pet bowl stands', version: '1.0.0' },
 };
 
 // Newest first.
 export const ENGINE_HISTORY = [
   {
+    version: '1.61.0', date: '2026-10-02',
+    notes: [
+      'petbowl 1.0.0 (Raised pet bowl stands): drawn as slabs in plan and printed upside down: a 5 mm deck on the bed with a hole 1 mm over each bowl, the name cut 0.6 mm into it (mirrored, so it reads from the front once turned over), a 4 mm apron to 35% of the height (at most 30 mm), then L-shaped corner legs with a 10 mm solid corner for a rubber foot. Over the bed width it splits into one-bowl modules with two square-ended M4 slots up each side apron from its lower edge, so the bolts drop in from below.',
+      'shoerack 1.0.0 (Shoe and boot wall racks): a side profile drawn as slabs across the width, printed on its side: a wall plate, a 7 mm shelf sloping down at the tilt given, a lip standing off its front, a brace underneath, screw slots in two columns clear of the shelf.',
+    ],
+  },
+  {
     version: '1.60.0', date: '2026-10-02',
     notes: [
-      'shoerack 1.0.0 (Shoe and boot wall racks): a side profile drawn as slabs across the width, printed on its side: a wall plate, a 7 mm shelf sloping down at the tilt given, a lip standing off its front, a brace underneath, screw slots in two columns clear of the shelf.',
       'bikehook 1.0.0 (Bike and helmet wall hooks): a side profile drawn as slabs across the width, printed on its side: an 8 mm plate, a 14 mm arm with a 45° brace and a lip, a channel the tyre plus 2 mm a side wide between 6 mm walls, a helmet peg with a knob, three 5 mm screw slots.',
       'leadhanger 1.0.0 (Extension lead and hose hangers): a side profile drawn as slabs across the width, printed on its side: a wall plate, an arm that thickens with its reach, a lip, a 45° brace that grows with the reach, strap slots through the arm and brace near the wall and the lip, square screw slots above and below the arm.',
       'serverrack 1.0.0 (Modular 10-inch server racks): 254 mm ears, rail holes 236.5 mm apart, 222.25 mm clear, EIA-310 holes at 6.35, 22.225 and 38.1 mm in each 44.45 mm unit. Boxes of 1–5U: side panels lying flat with hex vents and both rails standing off them (teardrop holes), plates (8 mm) between the panels on M3 self-tapping screws into their edges, notched round the rails; top plates carry four pins and bottom plates the holes they drop into. 1U shelves (a face with slotted ears and a finger pull, a floor and two lips standing off it), vented blanks, keystone patch panels (pocketed to 2 mm behind each jack) and drawer sleeves print face down; drawers print upright; a carry handle prints on its side and bolts to the cap plate; device panels (Pi 4/5 on sleds with M2.5 standoffs, ThinkCentre Tiny, NUC, Mac mini, 3.5" and 2.5" drives or custom) have windows for the device fronts, a floor and guide walls. The default framed build: L-section uprights (EIA holes in the face, teardrop M3 holes in a 4 mm flange) per section of up to 5U, splice plates joining sections so the hole spacing runs on, 255.8 mm end frames with corner brackets, badged side panels and carry handles; the boxes build is still there.',
