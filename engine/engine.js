@@ -76,6 +76,7 @@ export const ENGINE_MODULES = {
   mughooks: { name: 'Under-shelf mug hooks', version: '1.0.0' },
   wraprack: { name: 'Wrap and foil dispensers', version: '1.0.0' },
   glassrail: { name: 'Wine glass rails', version: '1.0.0' },
+  cutlerytray: { name: 'Cutlery drawer organisers', version: '1.0.0' },
 };
 
 // Newest first.
@@ -83,6 +84,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'cutlerytray 1.0.0 (Cutlery drawer organisers): plan slabs printed upright: a 1.6 mm floor, 2 mm outer walls and dividers, columns sharing the drawer by weight, split into pieces no bigger than the bed at column edges (or a column\'s middle) and evenly front to back, with 1.2 mm walls either side of each seam, and a 10 mm curve from floor to wall in every compartment, cut in six slabs.',
       'glassrail 1.0.0 (Wine glass rails): a T-slot cross-section drawn as slabs along the rail and printed standing on its end: a 4 mm plate under the shelf, 4 mm walls shared between rows, 4 mm lips with the stem gap between, the slot 4 mm wider and 3 mm taller than the foot, two 6 mm diamond screw holes over each row.',
       'wraprack 1.0.0 (Wrap and foil dispensers): two end pieces, each a side profile drawn as slabs across its reach and printed on its side with its 2.4 mm end wall on the bed: a plate on the door, and per box a floor, a lip and a 12 mm fillet under the floor, two square screw slots. The left piece is the right one mirrored, drawn upside down in profile so its end wall is on the bed too.',
       'mughooks 1.0.0 (Under-shelf mug hooks): a side profile drawn as slabs across the clip and printed on its side: a C over the shelf (3.2 mm arms and spine, the slot 0.4 mm over the shelf, a 1.7 mm grip bump at the back of the top arm) and J hooks under it (4.5 mm stem and bar, a 9 mm turned-up tip, a 6 mm fillet at the arm), spaced so the next hook\'s mouth always clears.',

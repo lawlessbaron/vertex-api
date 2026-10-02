@@ -3,6 +3,7 @@
 ## 1.6.0 · unreleased
 
 ### Added
+- **Cutlery drawer organisers** (`cutlerytray`): a drawer-filling tray split into bed-sized pieces.
 - **Wine glass rails** (`glassrail`): T-slot rows under a shelf for glasses upside down.
 - **Wrap and foil dispensers** (`wraprack`): two mirror door pieces for wrap, foil and paper boxes.
 - **Under-shelf mug hooks** (`mughooks`): a slide-on shelf clip with hooks for mugs.

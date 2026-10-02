@@ -71,6 +71,7 @@ import { LIDRACK_DEFAULTS } from '../engine/geometry/lidrack.js';
 import { MUGHOOKS_DEFAULTS } from '../engine/geometry/mughooks.js';
 import { WRAPRACK_DEFAULTS } from '../engine/geometry/wraprack.js';
 import { GLASSRAIL_DEFAULTS } from '../engine/geometry/glassrail.js';
+import { CUTLERYTRAY_DEFAULTS } from '../engine/geometry/cutlerytray.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -133,6 +134,7 @@ export const API_KINDS = {
   mughooks: { name: 'Under-shelf mug hooks', defaults: MUGHOOKS_DEFAULTS, generator: '/mug-hooks' },
   wraprack: { name: 'Wrap and foil dispenser', defaults: WRAPRACK_DEFAULTS, generator: '/wrap-dispensers' },
   glassrail: { name: 'Wine glass rail', defaults: GLASSRAIL_DEFAULTS, generator: '/glass-rails' },
+  cutlerytray: { name: 'Cutlery drawer organiser', defaults: CUTLERYTRAY_DEFAULTS, generator: '/cutlery-trays' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };
