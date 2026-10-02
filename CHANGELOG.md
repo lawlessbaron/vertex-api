@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.3 · 2 October 2026
+
+### Fixed
+- **The Skådis part (and other parts that load on demand) shows on the main screen again.** Picking it in "Try it" built nothing; now it loads the part's generator first and shows the model.
+
 ## 1.6.2 · 2 October 2026
 
 ### Fixed

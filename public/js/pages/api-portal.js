@@ -154,7 +154,9 @@ function layout(list) {
     return { mesh: m, color: i === 0 ? a : b };
   });
 }
-function timedBuild(kind, params) {
+// Some kinds (Skådis, Desk Pod and the rest) load their generator on first use: load it, then build.
+async function timedBuild(kind, params) {
+  if (loadKind) await loadKind(kind);
   const t0 = performance.now();
   const list = (buildParts && buildParts(kind, params)) || [];
   return { list, ms: performance.now() - t0, tris: list.reduce((n, p) => n + p.mesh.triangleCount, 0) };
@@ -168,10 +170,10 @@ const serial = () => `VX-${String(now.getUTCFullYear()).slice(2)}${String(now.ge
 // The 3D viewer and the geometry engine (~250 KB) load only on pages that draw a
 // model, and only once something asks: every other page (docs, sign-in, status)
 // paints without them, and the homepage paints before they arrive.
-let Viewer = null, buildParts = null, ready = null;
+let Viewer = null, buildParts = null, loadKind = null, ready = null;
 const engineReady = () => (ready ||= Promise.all([
   import('/js/viewer.js').then((m) => { Viewer = m.Viewer; }),
-  import('/js/models.js').then((m) => { buildParts = m.buildParts; }),
+  import('/js/models.js').then((m) => { buildParts = m.buildParts; loadKind = m.loadKind; }),
 ]).catch(() => {}));
 function makeViewer(canvas, opts) {
   try { const v = new Viewer(canvas, opts); v.setView('iso'); return v; } catch { return null; }
@@ -220,7 +222,7 @@ async function console_() {
     await whenLive(zone);
     if (still) out.innerHTML = highlight(cmd, 'curl');
     else for (let i = 0; i <= cmd.length; i += 2) { if (!isLive(zone)) await whenLive(zone); out.innerHTML = highlight(cmd.slice(0, i), 'curl'); await sleep(14); }
-    const { list, ms, tris } = timedBuild(ex.kind, ex.params);
+    const { list, ms, tris } = await timedBuild(ex.kind, ex.params);
     await sleep(still ? 0 : 260);
     const head = [
       ['content-type', 'model/3mf'],
@@ -325,9 +327,9 @@ async function playground() {
     codeEl.innerHTML = highlight(callFor({ kind, format: form.format.value, params: params() }, tab), tab);
     if (!rebuild) return;
     clearTimeout(timer);
-    timer = setTimeout(() => {
+    timer = setTimeout(async () => {
       try {
-        const { list, ms, tris } = timedBuild(kind, params());
+        const { list, ms, tris } = await timedBuild(kind, params());
         partsEl.textContent = `${list.length} part${list.length === 1 ? '' : 's'} · ${tris.toLocaleString()} triangles · ${Math.round(ms)} ms`;
         show(view, layout(list));
         recordBuild(kind, ms, tris);
