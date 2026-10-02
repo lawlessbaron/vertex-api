@@ -73,6 +73,7 @@ export const ENGINE_MODULES = {
   familycharger: { name: 'Family charging stations', version: '1.0.0' },
   hairholder: { name: 'Hair tool holders', version: '1.0.0' },
   lidrack: { name: 'Pot lid racks', version: '1.0.0' },
+  mughooks: { name: 'Under-shelf mug hooks', version: '1.0.0' },
 };
 
 // Newest first.
@@ -80,6 +81,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'mughooks 1.0.0 (Under-shelf mug hooks): a side profile drawn as slabs across the clip and printed on its side: a C over the shelf (3.2 mm arms and spine, the slot 0.4 mm over the shelf, a 1.7 mm grip bump at the back of the top arm) and J hooks under it (4.5 mm stem and bar, a 9 mm turned-up tip, a 6 mm fillet at the arm), spaced so the next hook\'s mouth always clears.',
       'lidrack 1.0.0 (Pot lid racks): drawn in plan as slabs and printed upright: a 3 mm base, 4 mm dividers with an 8 mm foot for the first 12 mm, the space between them as asked, and a round-bottomed scoop half the rack wide in each divider top (cut in 1 mm slabs, widening as it rises, so nothing overhangs); screw holes in the base if asked.',
       'hairholder 1.0.0 (Hair tool holders): drawn in plan as slabs and printed upright, the way it hangs: a plate, a ring for the dryer barrel (6 mm wall, 8 mm thick) on a 45° corbel built in 1 mm slabs, a straightener sleeve and a round brush cup standing on the bed with 2.4 mm floors, a cord hook on its own 45° corbel with a 7 mm turned-up tip, and two 6 mm diamond screw holes (no sag across the print).',
       'familycharger 1.0.0 (Family charging stations): two parts drawn in plan as slabs and printed upright. A tray round the charger (2.4 mm floor and walls, a 3 mm ledge inside up to the plate, an 18 × 14 mm cord notch at the back, 4 mm vents through both sides) and a rack that drops onto the ledge flush with the rim (a 3 mm plate 0.3 mm clear of the walls, 3 mm dividers, a rounded opening in each slot for the plug, names raised 0.8 mm on a 14 mm strip in front, sized to fit the slot or listed in the notes if they cannot). Slabs blur and trace only the box each drawing reached, with a faster 3 × 3 blur: the same meshes, a third faster.',
