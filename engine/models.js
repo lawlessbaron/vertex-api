@@ -44,6 +44,7 @@ const LAZY = {
   routershelf: () => import('./geometry/routershelf.js').then((m) => (p) => m.generateRouterShelf(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   remotecaddy: () => import('./geometry/remotecaddy.js').then((m) => (p) => m.generateRemoteCaddy(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   tabletholder: () => import('./geometry/tabletholder.js').then((m) => (p) => m.generateTabletHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  magnetholder: () => import('./geometry/magnetholder.js').then((m) => (p) => m.generateMagnetHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   dateclip: () => import('./geometry/dateclip.js').then((m) => (p) => m.generateDateClip(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   pillbox: () => import('./geometry/pillbox.js').then((m) => (p) => m.generatePillBox(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   cardholder: () => import('./geometry/cardholder.js').then((m) => (p) => m.generateCardHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),

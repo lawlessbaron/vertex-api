@@ -6,6 +6,7 @@
 - **Tracer:** grey and silver tools a millimetre or two apart come back as separate outlines (they were merged), and a trace is about 10% faster with the same outlines.
 - **Pill organisers** (`pillbox`): a week of compartments with day-marked lids.
 - **Dated bag clips** (`dateclip`): a spring clip with a dial you turn to the day the packet was opened.
+- **Fridge magnet holders** (`magnetholder`): pen cups, marker trays and note baskets with pockets for round magnets.
 - **Card holders** (`cardholder`): a curved block that fans a hand of cards.
 - **Dice towers** (`dicetower`): two mirror halves with baffles and a tray.
 - **Board game inserts** (`gameinsert`): card wells and token compartments.

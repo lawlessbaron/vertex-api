@@ -83,6 +83,7 @@ import { DICETOWER_DEFAULTS } from '../engine/geometry/dicetower.js';
 import { CARDHOLDER_DEFAULTS } from '../engine/geometry/cardholder.js';
 import { PILLBOX_DEFAULTS } from '../engine/geometry/pillbox.js';
 import { DATECLIP_DEFAULTS } from '../engine/geometry/dateclip.js';
+import { MAGNETHOLDER_DEFAULTS } from '../engine/geometry/magnetholder.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -157,6 +158,7 @@ export const API_KINDS = {
   cardholder: { name: 'Card holder', defaults: CARDHOLDER_DEFAULTS, generator: '/card-holders' },
   pillbox: { name: 'Pill organiser', defaults: PILLBOX_DEFAULTS, generator: '/pill-organisers' },
   dateclip: { name: 'Dated bag clip', defaults: DATECLIP_DEFAULTS, generator: '/date-clips' },
+  magnetholder: { name: 'Fridge magnet holder', defaults: MAGNETHOLDER_DEFAULTS, generator: '/fridge-holders' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };
