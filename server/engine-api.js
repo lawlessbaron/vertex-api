@@ -59,6 +59,7 @@ import { GROMMET_DEFAULTS } from '../engine/geometry/grommet.js';
 import { SERVERRACK_DEFAULTS } from '../engine/geometry/serverrack.js';
 import { LEADHANGER_DEFAULTS } from '../engine/geometry/leadhanger.js';
 import { BIKEHOOK_DEFAULTS } from '../engine/geometry/bikehook.js';
+import { SHOERACK_DEFAULTS } from '../engine/geometry/shoerack.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -109,6 +110,7 @@ export const API_KINDS = {
   serverrack: { name: 'Modular 10-inch server rack', defaults: SERVERRACK_DEFAULTS, generator: '/server-racks' },
   leadhanger: { name: 'Extension lead and hose hanger', defaults: LEADHANGER_DEFAULTS, generator: '/lead-hangers' },
   bikehook: { name: 'Bike and helmet wall hook', defaults: BIKEHOOK_DEFAULTS, generator: '/bike-hooks' },
+  shoerack: { name: 'Shoe and boot wall rack', defaults: SHOERACK_DEFAULTS, generator: '/shoe-racks' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.0 · unreleased
+
+### Added
+- `shoerack`: shoe and boot wall racks (a tilted shelf with a lip and a brace; a taller back for boots). 45 model kinds. Engine 1.60.0.
+
 ## 1.5.0 · 2 October 2026
 
 ### Added
