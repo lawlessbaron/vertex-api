@@ -77,6 +77,7 @@ import { TOYTRAY_DEFAULTS } from '../engine/geometry/toytray.js';
 import { SHOEHORN_DEFAULTS } from '../engine/geometry/shoehorn.js';
 import { BATHCADDY_DEFAULTS } from '../engine/geometry/bathcaddy.js';
 import { SPOOLRACK_DEFAULTS } from '../engine/geometry/spoolrack.js';
+import { PROPAGATOR_DEFAULTS } from '../engine/geometry/propagator.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -145,6 +146,7 @@ export const API_KINDS = {
   shoehorn: { name: 'Shoe horn and boot hooks', defaults: SHOEHORN_DEFAULTS, generator: '/shoe-horns' },
   bathcaddy: { name: 'Bathroom caddy', defaults: BATHCADDY_DEFAULTS, generator: '/bath-caddies' },
   spoolrack: { name: 'Thread spool rack', defaults: SPOOLRACK_DEFAULTS, generator: '/thread-racks' },
+  propagator: { name: 'Propagation station', defaults: PROPAGATOR_DEFAULTS, generator: '/propagation-stations' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };

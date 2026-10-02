@@ -44,6 +44,7 @@ const LAZY = {
   routershelf: () => import('./geometry/routershelf.js').then((m) => (p) => m.generateRouterShelf(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   remotecaddy: () => import('./geometry/remotecaddy.js').then((m) => (p) => m.generateRemoteCaddy(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   tabletholder: () => import('./geometry/tabletholder.js').then((m) => (p) => m.generateTabletHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  propagator: () => import('./geometry/propagator.js').then((m) => (p) => m.generatePropagator(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   spoolrack: () => import('./geometry/spoolrack.js').then((m) => (p) => m.generateSpoolRack(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   bathcaddy: () => import('./geometry/bathcaddy.js').then((m) => (p) => m.generateBathCaddy(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   shoehorn: () => import('./geometry/shoehorn.js').then((m) => (p) => m.generateShoeHorn(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
