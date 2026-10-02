@@ -3,6 +3,7 @@
 ## 1.6.0 · unreleased
 
 ### Added
+- **Pot lid racks** (`lidrack`): lids on their edges between scooped dividers.
 - **Hair tool holders** (`hairholder`): a dryer ring, straightener sleeve, brush cup and cord hook on one plate.
 - **Family charging stations** (`familycharger`): a named slot for every device over a hidden charger. Engine synced from VERTEX (slabs build a third faster, same meshes).
 - `shoerack`: shoe and boot wall racks (a tilted shelf with a lip and a brace; a taller back for boots) and `petbowl`: raised pet bowl stands (sized to the bowls, a name on top, bolt-together modules when too wide for the bed) `routershelf`: router and modem wall shelves, `remotecaddy`: remote control caddies, `tabletholder`: wall tablet holders and `glassesrack`: glasses wall racks. `serverrack` gains fan panels (`fans`, `fanSize`, `fanCount`), cable panels (`cable`) and devices `switch8`, `flexmini` and `zima`. 50 model kinds. Engine 1.61.0.
