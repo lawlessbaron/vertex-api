@@ -91,6 +91,7 @@ import { DOORSTOP_DEFAULTS } from '../engine/geometry/doorstop.js';
 import { TUBESQUEEZER_DEFAULTS } from '../engine/geometry/tubesqueezer.js';
 import { CLOTHESPEG_DEFAULTS } from '../engine/geometry/clothespeg.js';
 import { TOWELHOLDER_DEFAULTS } from '../engine/geometry/towelholder.js';
+import { SINKTIDY_DEFAULTS } from '../engine/geometry/sinktidy.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -149,11 +150,11 @@ export const API_KINDS = {
   glassesrack: { name: 'Glasses wall rack', defaults: GLASSESRACK_DEFAULTS, generator: '/glasses-racks' },
   familycharger: { name: 'Family charging station', defaults: FAMILYCHARGER_DEFAULTS, generator: '/family-chargers' },
   hairholder: { name: 'Hair tool holder', defaults: HAIRHOLDER_DEFAULTS, generator: '/hair-tool-holders' },
-  lidrack: { name: 'Pot lid rack', defaults: LIDRACK_DEFAULTS, generator: '/pot-lid-racks' },
-  mughooks: { name: 'Under-shelf mug hooks', defaults: MUGHOOKS_DEFAULTS, generator: '/mug-hooks' },
-  wraprack: { name: 'Wrap and foil dispenser', defaults: WRAPRACK_DEFAULTS, generator: '/wrap-dispensers' },
+  lidrack: { name: 'Pot lid rack', defaults: LIDRACK_DEFAULTS, generator: '/kitchen?type=lidrack' },
+  mughooks: { name: 'Under-shelf mug hooks', defaults: MUGHOOKS_DEFAULTS, generator: '/kitchen?type=mughooks' },
+  wraprack: { name: 'Wrap and foil dispenser', defaults: WRAPRACK_DEFAULTS, generator: '/kitchen?type=wraprack' },
   glassrail: { name: 'Wine glass rail', defaults: GLASSRAIL_DEFAULTS, generator: '/glass-rails' },
-  cutlerytray: { name: 'Cutlery drawer organiser', defaults: CUTLERYTRAY_DEFAULTS, generator: '/cutlery-trays' },
+  cutlerytray: { name: 'Cutlery drawer organiser', defaults: CUTLERYTRAY_DEFAULTS, generator: '/kitchen?type=cutlerytray' },
   hallhooks: { name: 'Hallway hooks', defaults: HALLHOOKS_DEFAULTS, generator: '/hall-hooks' },
   toytray: { name: 'Toy sorting tray', defaults: TOYTRAY_DEFAULTS, generator: '/toy-trays' },
   shoehorn: { name: 'Shoe horn and boot hooks', defaults: SHOEHORN_DEFAULTS, generator: '/shoe-horns' },
@@ -165,14 +166,15 @@ export const API_KINDS = {
   cardholder: { name: 'Card holder', defaults: CARDHOLDER_DEFAULTS, generator: '/card-holders' },
   pillbox: { name: 'Pill organiser', defaults: PILLBOX_DEFAULTS, generator: '/pill-organisers' },
   dateclip: { name: 'Dated bag clip', defaults: DATECLIP_DEFAULTS, generator: '/date-clips' },
-  magnetholder: { name: 'Fridge magnet holder', defaults: MAGNETHOLDER_DEFAULTS, generator: '/fridge-holders' },
+  magnetholder: { name: 'Fridge magnet holder', defaults: MAGNETHOLDER_DEFAULTS, generator: '/kitchen?type=magnetholder' },
   jewellerystand: { name: 'Jewellery stand', defaults: JEWELLERYSTAND_DEFAULTS, generator: '/jewellery-stands' },
   tierack: { name: 'Tie and belt rack', defaults: TIERACK_DEFAULTS, generator: '/tie-racks' },
-  capsuleholder: { name: 'Coffee capsule holder', defaults: CAPSULEHOLDER_DEFAULTS, generator: '/capsule-holders' },
+  capsuleholder: { name: 'Coffee capsule holder', defaults: CAPSULEHOLDER_DEFAULTS, generator: '/kitchen?type=capsuleholder' },
   doorstop: { name: 'Door wedge and stop', defaults: DOORSTOP_DEFAULTS, generator: '/door-stops' },
   tubesqueezer: { name: 'Tube squeezer', defaults: TUBESQUEEZER_DEFAULTS, generator: '/tube-squeezers' },
   clothespeg: { name: 'Clothes pegs', defaults: CLOTHESPEG_DEFAULTS, generator: '/clothes-pegs' },
-  towelholder: { name: 'Paper towel holder', defaults: TOWELHOLDER_DEFAULTS, generator: '/towel-holders' },
+  towelholder: { name: 'Paper towel holder', defaults: TOWELHOLDER_DEFAULTS, generator: '/kitchen?type=towelholder' },
+  sinktidy: { name: 'Sink tidy', defaults: SINKTIDY_DEFAULTS, generator: '/kitchen?type=sinktidy' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };

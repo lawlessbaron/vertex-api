@@ -215,9 +215,15 @@ function frontPanel(p, u, kind) {
   }, 0.12, 0.1);
   if (kind === 'device') m.append(deviceFloor(p, h, ft));
   if (kind === 'shelf') {
-    const sw = p.ex - 1, st = 3, lip = Math.min(15, h - 4);
+    // A 4 mm floor and side lips, braced to the panel by gussets: the shelf hangs off its ears, so the
+    // floor's joint with the panel takes all the load. Each gusset is a 45° triangle standing on the floor
+    // against the panel (it rises straight off the panel as it prints face down, so it needs no support).
+    const sw = p.ex - 1, st = 4, lip = Math.min(15, h - 4), G = Math.min(12, h - st - 4), gt = 3;
     m.append(extrudePolygon([[-sw, 0], [sw, 0], [sw, st], [-sw, st]], [], ft - 0.01, ft + p.shelfDepth));
     for (const s of [-1, 1]) { const x0 = s > 0 ? sw - st : -sw, x1 = x0 + st; m.append(extrudePolygon([[x0, st - 0.01], [x1, st - 0.01], [x1, lip], [x0, lip]], [], ft - 0.01, ft + p.shelfDepth)); }
+    // In (y, z), stood across x: (a, b, c) → (c, a, b), a rotation.
+    const tri = [[st - 0.01, ft - 0.01], [st + G, ft - 0.01], [st - 0.01, ft + G]];
+    for (const gx of [-sw + st, -sw / 2, sw / 2 - gt, sw - st - gt]) m.append(turn(extrudePolygon(tri, [], gx, gx + gt), (a, b, c) => [c, a, b]));
   }
   if (kind === 'drawer') {
     const w = 2, ring = [[-dw, 1], [dw, 1], [dw, dh], [-dw, dh]], hole = [[-dw + w, 1 + w], [-dw + w, dh - w], [dw - w, dh - w], [dw - w, 1 + w]];
@@ -318,6 +324,8 @@ const handleSpan = (p) => Math.min(p.D - 32, 256 - 44 - 2); // the handle's hand
 const frameXo = (p) => p.hx + 9.65; // the uprights' outside face: 127.9 mm out, so an end frame is 255.8 mm wide
 const flangeXs = (L) => [...new Set([10, L - 10, ...(L >= 80 ? [30, L - 30] : []), ...(L >= 140 || L < 80 ? [L / 2] : [])])].sort((a, b) => a - b);
 const tear = (d, x, y, r) => { d.disc(x, y, r, 0); d.off([[x - r * Math.SQRT1_2, y + r * Math.SQRT1_2], [x + r * Math.SQRT1_2, y + r * Math.SQRT1_2], [x, y + r * Math.SQRT2]]); };
+// A mirrored copy's faces point inward: flip them back by reversing each triangle.
+const flip = (m) => { const ix = m.indices; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } return m; };
 const turn = (mesh, f) => { const m = new Mesh(); m.append(mesh); const q = m.positions; for (let i = 0; i < q.length; i += 3) { const [a, b, c] = f(q[i], q[i + 1], q[i + 2]); q[i] = a; q[i + 1] = b; q[i + 2] = c; } return m; };
 
 // An upright as it prints, rail face down: x along it (0..L), y across the
@@ -343,7 +351,7 @@ function upright(p, u) {
 // bolts through the upright's flange (its end hole). The top frame is the
 // same part turned over; its outside carries MINT MOTIVE across the front.
 function endFrame(p, top) {
-  const xo = frameXo(p), { ft, ff, bk, hy } = FR, D = p.D, band = 24, x0 = xo - ff - 4, x1 = xo - ff - 0.2;
+  const xo = frameXo(p), { ft, ff, bk, hy } = FR, D = p.D, band = 24, x0 = xo - ff - 5, x1 = xo - ff - 0.2; // 4.8 mm brackets
   const hh = []; if (top && p.handle) for (const sx of [-1, 1]) for (const y of [D / 2 - handleSpan(p) / 2 - 4, D / 2 + handleSpan(p) / 2 + 4]) hh.push([sx * (xo - 12), y]); // under the handle's feet
   const m = sections([-xo, 0, xo, D], top ? [0, 0.6, ft] : [0, 0.4, ft], (z, d) => {
     const f = z < 0.4 ? 0.4 : 0;
@@ -359,6 +367,14 @@ function endFrame(p, top) {
   }, 0.1, 0.06);
   m.append(turn(br, (a, b, c) => [c, a, ft - 0.01 + b])); // (a, b, c) → (c, a, b): a rotation
   m.append(turn(br, (a, b, c) => [-c, D - a, ft - 0.01 + b])); // and half a turn about z
+  // A 45° gusset inside each bracket, so it can't fold over when the rack is pushed sideways. Kept within
+  // 7 mm of the bracket, clear of a shelf or drawer in the bottom unit. Drawn in (x, height), stood across y.
+  const G = 7, gt = 3, gus = extrudePolygon([[x0 - G, 0], [x0 + 0.01, 0], [x0 + 0.01, G]], [], 0, gt);
+  for (const yc of [(11 + band) / 2, D - (11 + band) / 2]) {
+    const g = turn(gus, (a, b, c) => [a, yc - gt / 2 + c, ft - 0.01 + b]); // (a, b, c) → (a, c, b) is a mirror: so turn, then flip the faces back
+    m.append(flip(g));
+    m.append(flip(turn(gus, (a, b, c) => [-a, D - (yc - gt / 2 + c), ft - 0.01 + b])));
+  }
   return m;
 }
 
@@ -492,6 +508,7 @@ export function generateServerRack(options = {}) {
     framed
       ? `${p.boxes.length * 4} uprights${p.boxes.length > 1 ? `, ${(p.boxes.length - 1) * 4} splice plates` : ''}, 2 end frames${p.panels ? `, ${p.boxes.length * 2} side panels` : ''}${p.handle ? ', 2 handles' : ''}${gear ? `; plus ${gear}` : ''}. M3 bolts and nuts. All flat, no supports, 256 mm bed.`
       : `Per box: 2 side panels, 2 plates, 12 M3 × 12 self-tapping screws${gear ? `; plus ${gear}` : ''}. All flat, no supports, 256 mm bed.`,
+    'For a rack that carries real gear: print the uprights, end frames and shelves in PETG or ASA with 4 walls and 25% infill (gyroid or cubic), and tighten the bolts snug, not hard. Keep the heaviest gear low.',
     ...(want > room ? [`That’s ${want}U of gear for ${room}U of rack: the preview shows what fits.`] : []),
   ];
   // The framed rack in its colours: mint frames, splices and handles; charcoal rails and gear; eggshell panels.

@@ -14,6 +14,7 @@
 - **Tube squeezers** (`tubesqueezer`): a slide-on squeezer and a winding key, sized to the tube.
 - **Clothes pegs** (`clothespeg`): one-piece pegs with a printed spring, a plate at a time.
 - **Paper towel holders** (`towelholder`): brackets and a rod for a kitchen roll, wall or under a cupboard.
+- **Sink tidies** (`sinktidy`): a sponge and brush caddy on drain ribs, with a drip tray.
 - **Faster builds**: parts made in layers build about 30% faster, with exactly the same files out.
 - **Card holders** (`cardholder`): a curved block that fans a hand of cards.
 - **Dice towers** (`dicetower`): two mirror halves with baffles and a tray.
