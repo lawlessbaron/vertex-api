@@ -2,9 +2,11 @@
 .st { padding-top: 40px; }
 .st-hero { display: grid; gap: 8px; margin-bottom: 22px; }
 .st-hero h1 { margin: 0; display: flex; align-items: center; gap: 14px; font: 700 clamp(30px, 4.2vw, 48px)/1.08 var(--font-ui); letter-spacing: -.03em; }
-.st-hero h1 i { width: 18px; height: 18px; border-radius: 50%; flex: none; background: var(--st, #5fe07a); box-shadow: 0 0 0 6px color-mix(in srgb, var(--st, #5fe07a) 20%, transparent), 0 0 22px var(--st, #5fe07a); animation: st-pulse 2.4s ease-in-out infinite; }
-@keyframes st-pulse { 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--st, #5fe07a) 6%, transparent), 0 0 30px var(--st, #5fe07a); } }
-@media (prefers-reduced-motion: reduce) { .st-hero h1 i { animation: none; } }
+.st-hero h1 i { position: relative; width: 18px; height: 18px; border-radius: 50%; flex: none; background: var(--st, #5fe07a); box-shadow: 0 0 0 6px color-mix(in srgb, var(--st, #5fe07a) 20%, transparent), 0 0 22px var(--st, #5fe07a); }
+/* The pulse: a wider glow on ::after that fades in and out (opacity only). */
+.st-hero h1 i::after { content: ''; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 10px color-mix(in srgb, var(--st, #5fe07a) 6%, transparent), 0 0 30px var(--st, #5fe07a); opacity: 0; animation: st-pulse 2.4s ease-in-out infinite; will-change: opacity; transform: translateZ(0); }
+@keyframes st-pulse { 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .st-hero h1 i::after { animation: none; } }
 .st-card { margin-bottom: 14px; }
 .st-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; color: var(--mute); }
 .st-key i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: -6px; }

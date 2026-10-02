@@ -65,7 +65,7 @@ quick();
 const NAMES = { bin: 'Bin', baseplate: 'Baseplate', holder: 'Holder', labels: 'Label clips', skadis: 'Skådis', morph: 'Deck Foundry' };
 const typeOf = (v) => (Array.isArray(v) ? 'array' : v === null ? '—' : typeof v === 'object' ? 'object' : typeof v);
 const show = (v) => (typeof v === 'string' ? `"${v}"` : JSON.stringify(v));
-fetch('/api/engine/v1/kinds').then((r) => r.json()).then(({ kinds }) => {
+function renderKinds({ kinds }) {
   const tabs = $('[data-kindtabs]'), box = $('[data-kindtable]');
   const pick = (k) => {
     const d = kinds[k], rows = Object.entries(d.defaults || {});
@@ -74,10 +74,16 @@ fetch('/api/engine/v1/kinds').then((r) => r.json()).then(({ kinds }) => {
       <p class="ax-tile-s">${rows.length} settings. Send any of them in <code>params</code>; leave the rest out.</p>
       <div class="cx-table-wrap"><table class="dx-table dx-settings"><thead><tr><th>Setting</th><th>Type</th><th>Default</th></tr></thead><tbody>${rows.map(([n, v]) => `<tr><td><code>${esc(n)}</code></td><td>${typeOf(v)}</td><td class="ax-mono">${esc(show(v)).slice(0, 80)}</td></tr>`).join('')}</tbody></table></div>`;
   };
-  tabs.innerHTML = Object.keys(kinds).map((k) => `<button type="button" data-kind="${k}">${esc(NAMES[k] || k)}</button>`).join('');
-  tabs.addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) pick(b.dataset.kind); });
-  pick(Object.keys(kinds)[0]);
-}).catch(() => { $('[data-kindtable]').innerHTML = '<p class="cx-empty">Couldn’t reach the engine. GET /engine/v1/kinds lists them.</p>'; });
+  tabs.innerHTML = Object.keys(kinds).map((k) => `<button type="button" data-kind="${k}">${esc(NAMES[k] || kinds[k].name || k)}</button>`).join('');
+  // Keep the kind that's open when the list refreshes.
+  const open = tabs.dataset.open && kinds[tabs.dataset.open] ? tabs.dataset.open : Object.keys(kinds)[0];
+  tabs.onclick = (e) => { const b = e.target.closest('[data-kind]'); if (b) { tabs.dataset.open = b.dataset.kind; pick(b.dataset.kind); } };
+  pick(open);
+  const count = $('[data-docs-kinds]'); if (count) count.textContent = String(Object.keys(kinds).length);
+}
+// Straight from the engine, and refreshed in place when it changes (api-portal.js's live updater).
+document.addEventListener('ax-kinds', (e) => renderKinds(e.detail));
+fetch('/api/engine/v1/kinds').then((r) => r.json()).then(renderKinds).catch(() => { $('[data-kindtable]').innerHTML = '<p class="cx-empty">Couldn’t reach the engine. GET /engine/v1/kinds lists them.</p>'; });
 
 // Recent engine changes.
 import('/js/engine.js').then(({ ENGINE_HISTORY }) => {

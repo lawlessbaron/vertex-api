@@ -31,6 +31,40 @@ if (!still) {
 let lastScroll = 0;
 addEventListener('scroll', () => { lastScroll = performance.now(); }, { passive: true });
 
+// ---------- visibility culling ----------
+// Every animated part is marked .ax-cull and watched: its CSS animations are
+// paused (api-portal.css) and its script loops wait until it is on screen, so
+// the pricing tiers, code blocks and feature cards further down do no work,
+// not even DOM updates, until they are scrolled into view.
+const liveSet = new WeakSet(), waiting = new WeakMap();
+const cullIO = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    e.target.classList.toggle('is-live', e.isIntersecting);
+    if (e.isIntersecting) {
+      liveSet.add(e.target);
+      (waiting.get(e.target) || []).forEach((f) => f());
+      waiting.delete(e.target);
+    } else liveSet.delete(e.target);
+  }
+}, { rootMargin: '80px 0px' });
+function cull(el) {
+  if (el && !el.classList.contains('ax-cull')) { el.classList.add('ax-cull'); cullIO.observe(el); }
+  return el;
+}
+const isLive = (el) => !el || (liveSet.has(el) && !document.hidden);
+/** Resolves once el is on screen and the tab is showing. */
+function whenLive(el) {
+  if (isLive(el)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const go = () => (document.hidden ? document.addEventListener('visibilitychange', go, { once: true }) : resolve());
+    if (liveSet.has(el)) return go();
+    const list = waiting.get(el) || [];
+    list.push(go);
+    waiting.set(el, list);
+  });
+}
+$$('section, .ax-hero, .ax-tile, .ax-console, .ax-float, .ax-plan, .ax-pill, .ax-reveal, pre, .st-hero').forEach(cull);
+
 // ---------- syntax colours ----------
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 const KW = {
@@ -181,8 +215,10 @@ async function console_() {
     const ex = EXAMPLES[n];
     const body = { kind: ex.kind, params: ex.params };
     const cmd = `$ curl -X POST ${BASE}/engine/v1/generate \\\n    -H "Authorization: Bearer $MINT_KEY" \\\n    -d '${JSON.stringify(body)}' \\\n    -o ${ex.kind}.3mf`;
+    const zone = out.closest('.ax-console') || out;
+    await whenLive(zone);
     if (still) out.innerHTML = highlight(cmd, 'curl');
-    else for (let i = 0; i <= cmd.length; i += 2) { out.innerHTML = highlight(cmd.slice(0, i), 'curl'); await sleep(14); }
+    else for (let i = 0; i <= cmd.length; i += 2) { if (!isLive(zone)) await whenLive(zone); out.innerHTML = highlight(cmd.slice(0, i), 'curl'); await sleep(14); }
     const { list, ms, tris } = timedBuild(ex.kind, ex.params);
     await sleep(still ? 0 : 260);
     const head = [
@@ -213,7 +249,8 @@ function codeTile() {
   const show = (l) => { lang = l; el.innerHTML = highlight(callFor(body, l), l); $$('[data-lang]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.lang === l))); };
   $$('[data-lang]').forEach((b) => b.addEventListener('click', () => { auto = false; show(b.dataset.lang); }));
   show('curl');
-  setInterval(() => { if (auto && !document.hidden) show({ curl: 'js', js: 'py', py: 'curl' }[lang]); }, 5200);
+  const tile = cull(el.closest('.ax-tile') || el);
+  setInterval(() => { if (auto && isLive(tile)) show({ curl: 'js', js: 'py', py: 'curl' }[lang]); }, 5200);
 }
 function serials() {
   const ul = $('[data-serials]');
@@ -226,7 +263,8 @@ function serials() {
     while (ul.children.length > 4) ul.lastElementChild.remove();
   };
   for (let i = 0; i < 4; i++) add();
-  if (!still) setInterval(() => { if (!document.hidden) add(); }, 1700);
+  const tile = cull(ul.closest('.ax-tile') || ul);
+  if (!still) setInterval(() => { if (isLive(tile)) add(); }, 1700);
 }
 function countUp(el) {
   const to = Number(el.dataset.count);
@@ -241,6 +279,7 @@ function reveal() {
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) if (e.isIntersecting) {
       e.target.classList.add('is-in');
+      e.target.addEventListener('transitionend', () => e.target.classList.add('is-done'), { once: true });
       e.target.querySelectorAll('[data-count]').forEach(countUp);
       io.unobserve(e.target);
     }
@@ -312,7 +351,7 @@ async function playground() {
 }
 
 // ---------- engine status ----------
-fetch('/api/engine/v1').then((r) => r.json()).then((info) => {
+function applyEngine(info) {
   engineVersion = info.engine || '';
   const text = info.enabled ? 'Live' : 'Opening soon';
   const set = (sel, t) => { const el = $(sel); if (el) el.textContent = t; };
@@ -320,7 +359,8 @@ fetch('/api/engine/v1').then((r) => r.json()).then((info) => {
   set('[data-state2]', info.enabled ? 'Live: keys work now' : 'Opening soon: make a key now');
   set('[data-ver]', `v${info.engine}`);
   for (const d of $$('[data-dot], [data-dot2]')) d.classList.toggle('is-on', Boolean(info.enabled));
-}).catch(() => { const el = $('[data-state]'); if (el) el.textContent = 'Engine status unavailable'; });
+}
+fetch('/api/engine/v1').then((r) => r.json()).then(applyEngine).catch(() => { const el = $('[data-state]'); if (el) el.textContent = 'Engine status unavailable'; });
 
 
 // ---------- the living background ----------
@@ -331,20 +371,47 @@ function background() {
   const cv = $('[data-net]');
   if (!cv) return;
   const ctx = cv.getContext('2d');
-  const dpr = Math.min(2, devicePixelRatio || 1);
+  const pixelRatio = Math.min(window.devicePixelRatio, 1.5);
   let W = 0, H = 0, nodes = [], streams = [], pulses = [];
   const mouse = { x: -1e4, y: -1e4 };
   const WORDS = ['POST /engine/v1/generate', '"gridX": 3', '"heightUnits": 6', 'mesh.triangles', 'x-vertex-serial', 'epoch++', 'loss.backward()', 'weights.update()', 'outline → mm', 'grad ∇ 0.0031', 'buildParts(kind)', 'toSTL(mesh)', 'serial: VX-2610', '"kind": "bin"', 'learn(correction)', 'fit(photo, paper)', 'return file', 'tiles.map(clip)', 'pocket.grow(0.4)', 'accuracy ↑'];
   const COLS = ['--c-fn', '--c-str', '--c-prop', '--c-kw', '--c-num'];
   const col = (name, fb) => getComputedStyle(document.body).getPropertyValue(name).trim() || fb;
   let pal = {};
-  const readPal = () => { pal = { a: col('--mint', '#9ec4b5'), b: col('--accent-3', '#49d8ff'), code: COLS.map((c) => col(c, '#888')) }; };
+  const readPal = () => { pal = { a: col('--mint', '#9ec4b5'), b: col('--accent-3', '#49d8ff'), code: COLS.map((c) => col(c, '#888')), aurora: [col('--aurora-1', '#2a6b5a'), col('--aurora-2', '#28406e'), col('--aurora-3', '#6b2a4a')] }; };
+  // The aurora drifts here, in the canvas (capped size, 30 fps, paused off screen),
+  // rather than as three 2,000-pixel layers moving on their own every frame.
+  const aurora = $('.ax-aurora');
+  if (aurora) aurora.hidden = true;
+  // Where the CSS put them (60vmax discs): centre x, y in vmax from the left or
+  // top, or from the right or bottom edge when the flag says so.
+  const BLOBS = [
+    { x: 20, y: 0, period: 26, alpha: .26 },                      // top left
+    { x: 5, y: 5, fromRight: true, period: 32, alpha: .16 },     // top right
+    { x: 60, y: 10, fromBottom: true, period: 38, alpha: .1 },   // bottom
+  ];
+  function drawAurora(t) {
+    if (!aurora) return;
+    const v = Math.max(W, H) / 100, r = 30 * v;
+    BLOBS.forEach((b, i) => {
+      // ease-in-out there and back, as the CSS drift did: 8vmax, 6vmax and 10% bigger
+      const k = (1 - Math.cos((t / 1000 / b.period) * Math.PI)) / 2;
+      const cx = (b.fromRight ? W - b.x * v : b.x * v) + 8 * v * k;
+      const cy = (b.fromBottom ? H + b.y * v : b.y * v) + 6 * v * k;
+      const rr = r * (1 + .1 * k);
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
+      g.addColorStop(0, pal.aurora[i]); g.addColorStop(1, 'transparent');
+      ctx.globalAlpha = b.alpha; ctx.fillStyle = g;
+      ctx.fillRect(cx - rr, cy - rr, rr * 2, rr * 2);
+    });
+    ctx.globalAlpha = 1;
+  }
   // The backing store is capped near a million pixels and stretched to fit: it's
   // a faint background, and drawing 5–20 million pixels a frame on a big or
   // ultra-wide screen was what made the page lag (phones were always fine).
   function size() {
     W = innerWidth; H = innerHeight;
-    const k = Math.min(dpr, Math.sqrt(1.1e6 / (W * H)));
+    const k = Math.min(pixelRatio, Math.sqrt(1.1e6 / (W * H)));
     cv.width = Math.round(W * k); cv.height = Math.round(H * k);
     ctx.setTransform(k, 0, 0, k, 0, 0);
     const n = Math.round(Math.min(90, (W * H) / 16000));
@@ -355,6 +422,7 @@ function background() {
   const LINK = 150;
   function frame(still) {
     ctx.clearRect(0, 0, W, H);
+    drawAurora(still ? 0 : performance.now());
     // Code, drifting up
     ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
     for (const s of streams) {
@@ -431,14 +499,19 @@ function background() {
   document.addEventListener('ax-palette', () => { readPal(); if (still) frame(true); });
   if (still) { frame(true); return; }
   // 30 frames a second is plenty for a slow drift, and it rests while the page
-  // scrolls so scrolling gets the whole frame.
-  // Past the first screen it holds still: the reading is below, and a moving
-  // full-screen layer behind it is what costs on big monitors.
+  // scrolls so scrolling gets the whole frame. The network moves where it's seen: the hero on the front page (the canvas
+  // itself elsewhere). Out of view the loop stops entirely, no frames at all,
+  // and starts again when it comes back.
+  const zone = cull($('[data-hero]') || cv);
   let lastDraw = 0;
   const loop = (t) => {
     if (quality.level === 0) return; // stays as the last frame drawn
+    if (!isLive(zone)) { whenLive(zone).then(() => requestAnimationFrame(loop)); return; }
+    // Pages without a hero: the fixed canvas is always "in view", so past the
+    // first screen it sleeps and looks again a few times a second.
+    if (zone === cv && scrollY > innerHeight * .8) { setTimeout(() => requestAnimationFrame(loop), 400); return; }
     const gap = quality.level === 2 ? 32 : 80;
-    if (!document.hidden && scrollY < innerHeight * .8 && t - lastDraw > gap && performance.now() - lastScroll > 180) { lastDraw = t; frame(false); }
+    if (t - lastDraw > gap && performance.now() - lastScroll > 180) { lastDraw = t; frame(false); }
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
@@ -462,13 +535,14 @@ function palettes() {
 palettes();
 background();
 // The number of kinds comes from the engine itself, so it's never out of date.
-fetch('/engine/v1/kinds').then((r) => (r.ok ? r.json() : null)).then((j) => {
+function applyKinds(j) {
   const n = j?.kinds ? Object.keys(j.kinds).length : 0;
   if (!n) return;
   $$('[data-kind-count]').forEach((el) => { el.textContent = String(n); if (el.dataset.count) el.dataset.count = String(n); });
   const more = $('[data-kind-more]');
   if (more) more.textContent = `+${n - 6} more: racks, kitchen, desk and home`;
-}).catch(() => {});
+}
+fetch('/engine/v1/kinds').then((r) => (r.ok ? r.json() : null)).then(applyKinds).catch(() => {});
 $$('.ax-stats [data-count]').forEach(countUp);
 reveal();
 codeTile();
@@ -476,13 +550,18 @@ serials();
 playground();
 console_();
 
-// Pricing: the plans as they're set in the API admin.
-(async () => {
+// Pricing: the plans as they're set in the API admin. They're fetched early
+// (the free tier shows in the hero) but drawn only once the pricing section is
+// on screen, and redrawn by the live updater when admin changes them.
+const fetchPlans = () => fetch('/api/engine/v1/plans', { headers: { Accept: 'application/json' } }).then((r) => r.json());
+let plansShown = '';
+async function applyPlans(r) {
   const box = document.querySelector('[data-plans]');
   if (!box) return;
   try {
-    const r = await (await fetch('/api/engine/v1/plans', { headers: { Accept: 'application/json' } })).json();
     if (!r.plans?.length) return;
+    const key = JSON.stringify(r);
+    if (key === plansShown) return;
     // The free tile follows the free plan as it's set in admin.
     const free = r.plans.find((p) => !p.monthly && !p.invite);
     if (free) {
@@ -492,6 +571,8 @@ console_();
     }
     const e = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     const n = (x) => Number(x).toLocaleString('en-AU');
+    await whenLive(cull(box.closest('section') || box));
+    plansShown = key;
     box.innerHTML = r.plans.map((p, i) => `
       <article class="ax-tile ax-plan${i === 1 ? ' ax-plan-hot' : ''}">
         <h3>${e(p.name)}</h3>
@@ -500,5 +581,53 @@ console_();
         <ul class="ax-ticks">${[`${n(p.perDay)} calls a day`, `${n(p.perMinute)} a minute`, `Up to ${n(p.keys)} keys`, ...p.perks].map((t) => `<li>${e(t)}</li>`).join('')}</ul>
         ${p.invite ? `<a class="ax-btn ax-btn-ghost" href="/education">Apply for ${e(p.name)}</a>` : `<a class="ax-btn ${i === 1 ? 'ax-btn-primary' : 'ax-btn-ghost'}" href="/console">${p.monthly ? (r.paid ? `Choose ${e(p.name)}` : 'Opening soon') : 'Get a free key'}</a>`}
       </article>`).join('');
+    box.querySelectorAll('.ax-tile').forEach(cull);
   } catch { /* the free plan stays on the page */ }
+}
+fetchPlans().then(applyPlans).catch(() => {});
+
+// ---------- inline auto update ----------
+// The site keeps itself current while it's open, with no reload: every minute
+// (while the tab is showing) it asks for the engine's state, its kinds and
+// the plans, and updates the version, the live light, the counts, the pricing
+// and the docs' kinds table in place. When the site itself is redeployed it
+// says so inline, and the next time you come back to the tab it loads the new
+// version by itself (never mid-read, never losing your place).
+(() => {
+  let build = null, engine = null, kinds = null, stale = false;
+  const note = () => {
+    if ($('[data-live-note]')) return;
+    const el = document.createElement('div');
+    el.className = 'ax-live-note';
+    el.dataset.liveNote = '';
+    el.setAttribute('role', 'status');
+    el.innerHTML = 'This page has been updated. <button type="button">Show the new version</button>';
+    el.querySelector('button').addEventListener('click', () => location.reload());
+    document.body.append(el);
+  };
+  async function check() {
+    if (document.hidden) return;
+    try {
+      const [h, info, k, plans] = await Promise.all([
+        fetch('/healthz', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/api/engine/v1', { cache: 'no-store' }).then((r) => r.json()),
+        fetch('/engine/v1/kinds', { cache: 'no-store' }).then((r) => r.json()),
+        fetchPlans(),
+      ]);
+      if (build && h.version !== build) { stale = true; note(); }
+      build ||= h.version;
+      const e = JSON.stringify(info);
+      if (e !== engine) { engine = e; applyEngine(info); }
+      const kk = JSON.stringify(Object.keys(k.kinds || {})) + (info.engine || '');
+      if (kk !== kinds) { const first = kinds === null; kinds = kk; applyKinds(k); if (!first) document.dispatchEvent(new CustomEvent('ax-kinds', { detail: k })); }
+      applyPlans(plans);
+    } catch { /* offline for a moment: try again next time */ }
+  }
+  check();
+  setInterval(check, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    if (stale) location.reload();
+    else check();
+  });
 })();

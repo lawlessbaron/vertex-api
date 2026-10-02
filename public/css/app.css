@@ -216,7 +216,7 @@ pre.code { margin: 0; padding: 14px 16px; border-radius: 10px; background: color
 .toast { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; background: color-mix(in srgb, var(--bg) 85%, #000); border: 1px solid var(--line-2); box-shadow: 0 14px 40px rgba(0,0,0,.45); font-size: 13.5px; animation: toast-in .25s ease; }
 .toast i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
 .toast.bad i { background: var(--bad); }
-@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes toast-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
 
 /* command palette */
 .cmdk { border: 1px solid var(--line-2); border-radius: 16px; padding: 0; width: min(620px, calc(100vw - 32px)); margin-top: 12vh; background: var(--surface); color: var(--ink); box-shadow: 0 40px 100px rgba(0,0,0,.6); }
@@ -230,8 +230,10 @@ pre.code { margin: 0; padding: 14px 16px; border-radius: 10px; background: color
 .cmdk .grp { padding: 10px 12px 4px; font: 600 10.5px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); cursor: default; }
 
 /* loading */
-.skel { border-radius: var(--r); background: linear-gradient(90deg, var(--surface) 0%, color-mix(in srgb, var(--ink) 5%, var(--surface)) 50%, var(--surface) 100%); background-size: 200% 100%; animation: skel 1.3s linear infinite; border: 1px solid var(--line); }
-@keyframes skel { to { background-position: -200% 0; } }
+.skel { position: relative; overflow: hidden; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); }
+/* The shimmer slides across on ::after (transform), not by repainting the background. */
+.skel::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 5%, transparent), transparent); animation: skel 1.3s linear infinite; will-change: transform, opacity; transform: translate3d(-100%, 0, 0); }
+@keyframes skel { to { transform: translate3d(100%, 0, 0); } }
 
 /* sign-in gate */
 .gate { min-height: 100vh; display: grid; place-content: center; padding: 24px; }

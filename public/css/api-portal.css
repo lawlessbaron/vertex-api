@@ -40,14 +40,13 @@
 /* Slow colour in the background */
 .ax-aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 /* Soft-edged gradients, not blurred circles: a 110 px blur over a 60vmax disc
-   was redrawn every frame and made big screens stutter. They stay put: a
-   moving full-screen layer costs a frame's worth of work on a 4K or
-   ultra-wide screen. */
-.ax-aurora i { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; opacity: .26; }
+   was redrawn every frame and made big screens stutter. They drift by
+   transform only, each on its own GPU layer. */
+.ax-aurora i { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; opacity: .26; animation: ax-drift 26s ease-in-out infinite alternate; will-change: transform, opacity; transform: translateZ(0); }
 .ax-aurora i:nth-child(1) { background: radial-gradient(closest-side, var(--aurora-1), transparent); top: -30vmax; left: -10vmax; }
-.ax-aurora i:nth-child(2) { background: radial-gradient(closest-side, var(--aurora-2), transparent); top: -25vmax; right: -25vmax; opacity: .16; }
-.ax-aurora i:nth-child(3) { background: radial-gradient(closest-side, var(--aurora-3), transparent); bottom: -40vmax; left: 30vmax; opacity: .1; }
-@keyframes ax-drift { to { transform: translate(8vmax, 6vmax) scale(1.1); } }
+.ax-aurora i:nth-child(2) { background: radial-gradient(closest-side, var(--aurora-2), transparent); top: -25vmax; right: -25vmax; opacity: .16; animation-duration: 32s; }
+.ax-aurora i:nth-child(3) { background: radial-gradient(closest-side, var(--aurora-3), transparent); bottom: -40vmax; left: 30vmax; opacity: .1; animation-duration: 38s; }
+@keyframes ax-drift { from { transform: translateZ(0); } to { transform: translate3d(8vmax, 6vmax, 0) scale(1.1); } }
 
 /* Header */
 .ax-top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--line); }
@@ -61,10 +60,12 @@
 .ax-nav a:hover { color: var(--ink); }
 
 /* Buttons */
-.ax-btn { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 22px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--tile-2); color: var(--ink); font: 500 15px/1 var(--font-ui); text-decoration: none; cursor: pointer; transition: transform .2s, border-color .2s, box-shadow .2s, background .2s; }
-.ax-btn:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--mint) 55%, var(--line-2)); }
+.ax-btn { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 22px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--tile-2); color: var(--ink); font: 500 15px/1 var(--font-ui); text-decoration: none; cursor: pointer; transition: transform .2s, border-color .2s, background .2s; will-change: transform, opacity; transform: translateZ(0); }
+.ax-btn:hover { transform: translate3d(0, -1px, 0); border-color: color-mix(in srgb, var(--mint) 55%, var(--line-2)); }
 .ax-btn-primary { background: var(--mint); border-color: transparent; color: #08110d; font-weight: 600; box-shadow: none; }
-.ax-btn-primary:hover { background: color-mix(in srgb, var(--mint) 88%, #fff); box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--mint) 60%, transparent); }
+.ax-btn-primary:hover { background: color-mix(in srgb, var(--mint) 88%, #fff); }
+.ax-btn-primary::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--mint) 60%, transparent); opacity: 0; transition: opacity .2s; will-change: opacity; }
+.ax-btn-primary:hover::after { opacity: 1; }
 .ax-btn-ghost { background: transparent; }
 .ax-btn-sm { min-height: 36px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
 
@@ -78,10 +79,12 @@
 .ax-hero-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 64px; align-items: center; }
 .ax-pill { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 24px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--tile) 80%, transparent); font: 500 12.5px/1 var(--font-mono); color: var(--mute); }
 .ax-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c-prop); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-prop) 18%, transparent); vertical-align: middle; }
-.ax-dot.is-on { background: var(--mint); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 20%, transparent); animation: ax-pulse 2s infinite; }
-@keyframes ax-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--mint) 6%, transparent); } }
+.ax-dot { position: relative; }
+.ax-dot.is-on { background: var(--mint); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 20%, transparent); }
+.ax-dot.is-on::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; background: color-mix(in srgb, var(--mint) 14%, transparent); opacity: 0; animation: ax-pulse 2s infinite; will-change: transform, opacity; transform: translateZ(0); }
+@keyframes ax-pulse { 0% { opacity: 0; transform: scale(.6) translateZ(0); } 50% { opacity: 1; transform: scale(1) translateZ(0); } 100% { opacity: 0; transform: scale(1.15) translateZ(0); } }
 .ax-hero h1 { margin: 0; font: 700 clamp(40px, 5.4vw, 68px)/1.03 var(--font-ui); letter-spacing: -.04em; }
-.ax-grad { background: linear-gradient(100deg, var(--mint-2) 0%, var(--mint) 35%, var(--accent-3) 70%, var(--mint-2) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ax-shine 7s linear infinite; }
+.ax-grad { will-change: transform, opacity; transform: translateZ(0); background: linear-gradient(100deg, var(--mint-2) 0%, var(--mint) 35%, var(--accent-3) 70%, var(--mint-2) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ax-shine 7s linear infinite; }
 @keyframes ax-shine { to { background-position: -200% 0; } }
 .ax-lede { margin: 22px 0 32px; max-width: 520px; color: var(--mute); font-size: 18px; }
 .ax-actions { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -96,15 +99,15 @@
 .ax-console-bar i:nth-child(1) { background: #ff5f57; } .ax-console-bar i:nth-child(2) { background: #febc2e; } .ax-console-bar i:nth-child(3) { background: #28c840; }
 .ax-console-bar span { margin-left: 10px; }
 .ax-live { margin-left: auto; font: 600 10.5px/1 var(--font-mono); letter-spacing: .14em; color: var(--c-kw); display: flex; align-items: center; gap: 6px; }
-.ax-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--c-kw); animation: ax-blink 1.2s infinite; }
+.ax-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--c-kw); animation: ax-blink 1.2s infinite; will-change: opacity; transform: translateZ(0); }
 @keyframes ax-blink { 50% { opacity: .25; } }
 .ax-type { margin: 0; padding: 22px 24px 130px; min-height: 330px; font-size: 13.5px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
-.ax-caret { display: inline-block; width: 8px; height: 1.1em; vertical-align: -2px; background: var(--mint); animation: ax-blink 1s steps(1) infinite; }
+.ax-caret { display: inline-block; width: 8px; height: 1.1em; vertical-align: -2px; background: var(--mint); animation: ax-blink 1s steps(1) infinite; will-change: opacity; transform: translateZ(0); }
 /* The model card floats over the console's corner */
-.ax-float { position: absolute; right: -18px; bottom: 0; width: 46%; aspect-ratio: 4 / 3; margin: 0; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--mint) 35%, var(--line-2)); background: radial-gradient(circle at 50% 40%, #2a343e, #141b21e6 75%); box-shadow: 0 30px 60px -20px #000, 0 0 50px -14px color-mix(in srgb, var(--mint) 55%, transparent); overflow: hidden; transform: rotate(-2deg); animation: ax-bob 6s ease-in-out infinite; }
+.ax-float { position: absolute; right: -18px; bottom: 0; width: 46%; aspect-ratio: 4 / 3; margin: 0; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--mint) 35%, var(--line-2)); background: radial-gradient(circle at 50% 40%, #2a343e, #141b21e6 75%); box-shadow: 0 30px 60px -20px #000, 0 0 50px -14px color-mix(in srgb, var(--mint) 55%, transparent); overflow: hidden; transform: rotate(-2deg) translateZ(0); animation: ax-bob 6s ease-in-out infinite; will-change: transform, opacity; }
 .ax-float canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ax-float figcaption { position: absolute; left: 12px; bottom: 10px; padding: 4px 8px; border-radius: 7px; background: #0a0b0dcc; border: 1px solid var(--line-2); font-size: 11.5px; color: var(--mint-2); }
-@keyframes ax-bob { 50% { transform: rotate(-2deg) translateY(-8px); } }
+@keyframes ax-bob { 50% { transform: rotate(-2deg) translate3d(0, -8px, 0); } }
 
 /* Code colours */
 .ax-code { color: #d9dde1; }
@@ -129,6 +132,8 @@
 .ax-tile::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity .3s; background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--mint) 11%, transparent), transparent 60%); }
 .ax-tile::after { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; opacity: 0; transition: opacity .3s; background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--mint) 60%, transparent), transparent 60%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .ax-tile:hover::before, .ax-tile:hover::after { opacity: 1; }
+/* GPU layers for the spotlight only while the pointer is over the tile. */
+.ax-tile:hover::before, .ax-tile:hover::after { will-change: opacity; }
 .ax-tile h3 { margin: 6px 0 16px; font: 600 21px/1.25 var(--font-ui); letter-spacing: -.02em; }
 .ax-tile-k { margin: 0; font: 500 11px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
 .ax-tile-s { margin: 10px 0 0; color: var(--mute); font-size: 14px; }
@@ -136,8 +141,10 @@
 .ax-big small { font-size: 18px; color: var(--mute); margin-left: 4px; letter-spacing: 0; }
 .ax-big.ax-mono { font: 600 34px/1 var(--font-mono); letter-spacing: -.02em; }
 
-.ax-reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+.ax-reveal { opacity: 0; will-change: transform, opacity; transform: translate3d(0, 18px, 0); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
 .ax-reveal.is-in { opacity: 1; transform: none; }
+/* The layer is only needed while it slides in. */
+.ax-reveal.is-done { will-change: auto; }
 
 /* The bento */
 .ax-bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(190px, auto); gap: 16px; }
@@ -147,9 +154,11 @@
 .ax-t-serial { grid-column: span 2; }
 
 .ax-kinds { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.ax-kinds li { display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: 999px; border: 1px solid var(--line-2); font-size: 14px; color: var(--mute); transition: all .35s; }
+.ax-kinds li { display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: 999px; border: 1px solid var(--line-2); font-size: 14px; color: var(--mute); position: relative; transition: color .35s, background-color .35s, border-color .35s; }
 .ax-kinds li i { font-style: normal; color: var(--mint); opacity: .7; }
-.ax-kinds li.is-on { color: #08110d; background: var(--mint); border-color: var(--mint); box-shadow: 0 6px 24px -6px var(--mint); }
+.ax-kinds li.is-on { color: #08110d; background: var(--mint); border-color: var(--mint); }
+.ax-kinds li::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: 0 6px 24px -6px var(--mint); opacity: 0; transition: opacity .35s; will-change: opacity; }
+.ax-kinds li.is-on::after { opacity: 1; }
 .ax-kinds li.is-on i { color: #08110d; opacity: 1; }
 
 .ax-spark { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 44px; }
@@ -190,7 +199,7 @@
 .ax-t-limits .ax-tile-s { text-align: center; }
 
 .ax-serials { list-style: none; margin: 0; padding: 0; height: 96px; overflow: hidden; mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); font-size: 14px; }
-.ax-serials li { display: flex; justify-content: space-between; gap: 12px; height: 32px; align-items: center; color: var(--mute); transition: transform .5s; }
+.ax-serials li { display: flex; justify-content: space-between; gap: 12px; height: 32px; align-items: center; color: var(--mute); transition: transform .5s; will-change: transform, opacity; }
 .ax-serials li b { color: var(--c-str); font-weight: 500; }
 
 /* Playground */
@@ -280,7 +289,7 @@
 .ax-body[data-palette] .ax-btn-primary { color: #0a0b0d; }
 
 .ax-swatches { display: flex; gap: 6px; padding: 4px; border-radius: 999px; border: 1px solid var(--line); background: #ffffff05; }
-.ax-swatches button { width: 20px; height: 20px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: var(--sw); box-shadow: 0 0 0 2px transparent; transition: transform .2s, box-shadow .2s; }
+.ax-swatches button { width: 20px; height: 20px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: var(--sw); box-shadow: 0 0 0 2px transparent; transition: transform .2s; will-change: transform; }
 .ax-swatches button:hover { transform: scale(1.15); }
 .ax-swatches button[aria-pressed=true] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--sw); }
 @media (max-width: 760px) { .ax-swatches button { width: 18px; height: 18px; } .ax-top-row { gap: 10px; } .ax-wordmark { display: none; } .ax-mark { display: block; } }
@@ -303,11 +312,11 @@
 .ax-learn-grid line { stroke: var(--line-2); stroke-dasharray: 3 5; }
 .ax-learn-fill { fill: url(#ax-lg); opacity: 0; transition: opacity 1.2s 1.4s; }
 .ax-learn-line { fill: none; stroke: var(--mint); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 0 6px color-mix(in srgb, var(--mint) 70%, transparent)); vector-effect: non-scaling-stroke; }
-.ax-learn-dot { fill: var(--mint-2); opacity: 0; filter: drop-shadow(0 0 8px var(--mint)); }
+.ax-learn-dot { fill: var(--mint-2); opacity: 0; transform-box: fill-box; transform-origin: center; will-change: transform, opacity; filter: drop-shadow(0 0 8px var(--mint)); }
 .is-in .ax-learn-line { animation: ax-draw 2.6s cubic-bezier(.5,0,.2,1) forwards; }
 .is-in .ax-learn-fill { opacity: 1; }
 .is-in .ax-learn-dot { animation: ax-fade .4s 2.5s forwards, ax-glow 2.4s 3s ease-in-out infinite; }
-@keyframes ax-glow { 50% { r: 6; } }
+@keyframes ax-glow { 50% { transform: scale(1.5) translateZ(0); } }
 .ax-learn-axis { display: flex; justify-content: space-between; margin-top: 10px; font-size: 11px; color: var(--mute); }
 @media (max-width: 760px) { .ax-t-learn { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .ax-learn-line { stroke-dashoffset: 0; animation: none !important; } .ax-learn-fill, .ax-learn-dot { opacity: 1; animation: none !important; } }
@@ -326,3 +335,13 @@
 }
 @media (min-width: 2800px) { html { zoom: 1.15; } }
 .ax-kinds li a { color: inherit; text-decoration: none; } .ax-kinds li:has(a):hover { color: var(--ink); border-color: var(--mint); }
+
+/* Visibility culling: anything marked .ax-cull holds every animation until it
+   is on screen (api-portal.js adds .is-live). Nothing off screen ticks. */
+.ax-cull:not(.is-live), .ax-cull:not(.is-live) *, .ax-cull:not(.is-live)::before, .ax-cull:not(.is-live)::after,
+.ax-cull:not(.is-live) *::before, .ax-cull:not(.is-live) *::after { animation-play-state: paused !important; }
+
+/* The live updater's note: bottom corner, fades in on the GPU. */
+.ax-live-note { position: fixed; right: 18px; bottom: 18px; z-index: 60; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--tile-2, #151c22); color: var(--ink); font-size: 14px; animation: ax-note-in .35s ease-out; will-change: transform, opacity; transform: translateZ(0); }
+.ax-live-note button { margin-left: 8px; border: 0; background: none; color: var(--mint); font: inherit; text-decoration: underline; cursor: pointer; }
+@keyframes ax-note-in { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
