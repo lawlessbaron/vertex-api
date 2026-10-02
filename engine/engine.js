@@ -85,6 +85,7 @@ export const ENGINE_MODULES = {
   propagator: { name: 'Plant propagation stations', version: '1.0.0' },
   gameinsert: { name: 'Board game insert trays', version: '1.0.0' },
   dicetower: { name: 'Dice towers', version: '1.0.0' },
+  cardholder: { name: 'Card holders', version: '1.0.0' },
 };
 
 // Newest first.
@@ -92,6 +93,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'cardholder 1.0.0 (Card holders): plan slabs printed upright: a curved band rising by a sixth of its length, one to three arc slots cut down to a 6 mm base and stopping 6 mm from each end, the top edge chamfered at 45°.',
       'dicetower 1.0.0 (Dice towers): two halves split down the middle, each the side profile drawn as slabs across its half width and printed on its 3 mm outer wall: back and front walls, three 2.6 mm baffles at 35° alternating sides, an exit ramp, a floor that runs on as the tray with an 8 mm lip. The second half is drawn front to back so it too lies on its outer wall.',
       'gameinsert 1.0.0 (Board game insert trays): plan slabs printed upright: card wells 1 mm over the sleeved card with flat floors and a 22 mm finger notch in front of each (round-bottomed, widening as it rises), the rest of the back row and a front row as token compartments with an 8 mm floor curve; 1.6 mm floor and dividers, 2 mm walls.',
       'propagator 1.0.0 (Plant propagation stations): plan slabs printed upright: a block with a hole 0.8 mm over each tube down to a 3 mm floor with a small drain hole, 4 mm between holes, and the top edge chamfered at 45°.',

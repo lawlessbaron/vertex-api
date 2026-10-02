@@ -44,6 +44,7 @@ const LAZY = {
   routershelf: () => import('./geometry/routershelf.js').then((m) => (p) => m.generateRouterShelf(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   remotecaddy: () => import('./geometry/remotecaddy.js').then((m) => (p) => m.generateRemoteCaddy(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   tabletholder: () => import('./geometry/tabletholder.js').then((m) => (p) => m.generateTabletHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  cardholder: () => import('./geometry/cardholder.js').then((m) => (p) => m.generateCardHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   dicetower: () => import('./geometry/dicetower.js').then((m) => (p) => m.generateDiceTower(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   gameinsert: () => import('./geometry/gameinsert.js').then((m) => (p) => m.generateGameInsert(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   propagator: () => import('./geometry/propagator.js').then((m) => (p) => m.generatePropagator(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
