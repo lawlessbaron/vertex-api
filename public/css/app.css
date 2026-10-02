@@ -275,3 +275,4 @@ html:has(body.app) { background: #131a1f; }
 
 /* Wide and ultra-wide screens: the console and admin use the room. */
 @media (min-width: 2200px) { .content { max-width: 2200px; } }
+.toast { will-change: transform, opacity; }

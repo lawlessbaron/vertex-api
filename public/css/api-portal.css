@@ -345,3 +345,5 @@
 .ax-live-note { position: fixed; right: 18px; bottom: 18px; z-index: 60; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--tile-2, #151c22); color: var(--ink); font-size: 14px; animation: ax-note-in .35s ease-out; will-change: transform, opacity; transform: translateZ(0); }
 .ax-live-note button { margin-left: 8px; border: 0; background: none; color: var(--mint); font: inherit; text-decoration: underline; cursor: pointer; }
 @keyframes ax-note-in { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+/* The traced outline, its labels and the learning curve draw on their own layers. */
+.ax-trace, .ax-dims text, .ax-learn-line { will-change: transform, opacity; transform: translateZ(0); }

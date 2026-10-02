@@ -1168,3 +1168,4 @@ html.side-open { overflow: hidden; }
 
 /* Pop-ups and the sidebar slide in on the GPU. */
 .tour-offer, .explore-nudge, .site-side { will-change: transform, opacity; }
+.install-nudge { will-change: transform, opacity; }
