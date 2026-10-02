@@ -44,6 +44,7 @@ const LAZY = {
   routershelf: () => import('./geometry/routershelf.js').then((m) => (p) => m.generateRouterShelf(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   remotecaddy: () => import('./geometry/remotecaddy.js').then((m) => (p) => m.generateRemoteCaddy(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   tabletholder: () => import('./geometry/tabletholder.js').then((m) => (p) => m.generateTabletHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
+  doorstop: () => import('./geometry/doorstop.js').then((m) => (p) => m.generateDoorStop(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   capsuleholder: () => import('./geometry/capsuleholder.js').then((m) => (p) => m.generateCapsuleHolder(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   tierack: () => import('./geometry/tierack.js').then((m) => (p) => m.generateTieRack(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),
   jewellerystand: () => import('./geometry/jewellerystand.js').then((m) => (p) => m.generateJewelleryStand(p).parts.map((x) => ({ mesh: x.mesh, name: x.name }))),

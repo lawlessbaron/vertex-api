@@ -87,6 +87,7 @@ import { MAGNETHOLDER_DEFAULTS } from '../engine/geometry/magnetholder.js';
 import { JEWELLERYSTAND_DEFAULTS } from '../engine/geometry/jewellerystand.js';
 import { TIERACK_DEFAULTS } from '../engine/geometry/tierack.js';
 import { CAPSULEHOLDER_DEFAULTS } from '../engine/geometry/capsuleholder.js';
+import { DOORSTOP_DEFAULTS } from '../engine/geometry/doorstop.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -165,6 +166,7 @@ export const API_KINDS = {
   jewellerystand: { name: 'Jewellery stand', defaults: JEWELLERYSTAND_DEFAULTS, generator: '/jewellery-stands' },
   tierack: { name: 'Tie and belt rack', defaults: TIERACK_DEFAULTS, generator: '/tie-racks' },
   capsuleholder: { name: 'Coffee capsule holder', defaults: CAPSULEHOLDER_DEFAULTS, generator: '/capsule-holders' },
+  doorstop: { name: 'Door wedge and stop', defaults: DOORSTOP_DEFAULTS, generator: '/door-stops' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };
