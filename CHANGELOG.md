@@ -4,6 +4,7 @@
 
 ### Added
 - **Tracer:** grey and silver tools a millimetre or two apart come back as separate outlines (they were merged), and a trace is about 10% faster with the same outlines.
+- **Bathroom caddies** (`bathcaddy`): a draining basket with optional shower-screen hooks.
 - **Shoe horns and boot hooks** (`shoehorn`): a long horn and a wall plate with boot pegs.
 - **Toy sorting trays** (`toytray`): stacking trays with a building-plate lid.
 - **Hallway hooks** (`hallhooks`): umbrella and lead hooks with a poo-bag peg.
