@@ -4,6 +4,7 @@
 
 ### Changed
 - **Server racks** (`serverrack`): any height up to 42U with `height` (split into even sections that fit a 256 mm bed), `strength: "heavy"` for thicker rails, frames and splices, back X-braces (`braces`: `auto`, `true` or `false`), and fan panels for 80, 92, 120 and 140 mm PC fans.
+- **Smooth on big monitors.** The site no longer lags on large, 4K or ultra-wide screens: the background is drawn at a sensible size and pauses once you scroll past the top, the glass panels no longer blur a moving background, the colour glow is drawn without a costly blur, and the page steps its effects down by itself on a computer that can't keep up. On a 3440 × 1440 screen it went from about 5 to over 30 frames a second in our test, with everything still there; phones were already smooth.
 - **Ultra-wide screens:** the site, docs, console and admin use the width of 2560 and 3440 pixel monitors, with slightly larger text above 2800 pixels.
 
 ### Fixed

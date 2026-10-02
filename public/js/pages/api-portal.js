@@ -9,6 +9,28 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ---------- frame budget ----------
+// The page watches its own frame rate. On a computer that can't keep up (a big
+// or ultra-wide monitor, a modest graphics chip) the moving background steps
+// down: 2 full, 1 slower, 0 still. Phones and fast computers keep it all.
+const quality = { level: still ? 0 : 2, on: [] };
+if (!still) {
+  let last = 0, n = 0, sum = 0;
+  const watch = (t) => {
+    const d = t - last;
+    last = t;
+    if (!document.hidden && d > 0 && d < 300 && performance.now() - lastScroll > 300) { sum += d; n++; }
+    if (n >= 45) {
+      if (sum / n > 25) { quality.level--; quality.on.forEach((f) => f(quality.level)); }
+      n = 0; sum = 0;
+    }
+    if (quality.level > 0) requestAnimationFrame(watch);
+  };
+  setTimeout(() => requestAnimationFrame(watch), 1500); // after the page settles
+}
+let lastScroll = 0;
+addEventListener('scroll', () => { lastScroll = performance.now(); }, { passive: true });
+
 // ---------- syntax colours ----------
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 const KW = {
@@ -147,7 +169,14 @@ async function console_() {
   if (!out) return;
   await engineReady();
   const view = Viewer ? makeViewer($('[data-hero-view]'), { interactive: false }) : null;
-  if (view && !still) view.spin(true);
+  if (view && !still) {
+    // Spins only while it's on screen, and stops if the computer is struggling.
+    let visible = true;
+    const set = () => view.spin(visible && quality.level > 0);
+    new IntersectionObserver(([e]) => { visible = e.isIntersecting; set(); }).observe($('[data-hero-view]'));
+    quality.on.push(set);
+    set();
+  }
   for (let n = 0; ; n = (n + 1) % EXAMPLES.length) {
     const ex = EXAMPLES[n];
     const body = { kind: ex.kind, params: ex.params };
@@ -310,13 +339,17 @@ function background() {
   const col = (name, fb) => getComputedStyle(document.body).getPropertyValue(name).trim() || fb;
   let pal = {};
   const readPal = () => { pal = { a: col('--mint', '#9ec4b5'), b: col('--accent-3', '#49d8ff'), code: COLS.map((c) => col(c, '#888')) }; };
+  // The backing store is capped near a million pixels and stretched to fit: it's
+  // a faint background, and drawing 5–20 million pixels a frame on a big or
+  // ultra-wide screen was what made the page lag (phones were always fine).
   function size() {
     W = innerWidth; H = innerHeight;
-    cv.width = W * dpr; cv.height = H * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const k = Math.min(dpr, Math.sqrt(1.1e6 / (W * H)));
+    cv.width = Math.round(W * k); cv.height = Math.round(H * k);
+    ctx.setTransform(k, 0, 0, k, 0, 0);
     const n = Math.round(Math.min(90, (W * H) / 16000));
     nodes = Array.from({ length: n }, () => ({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * .18, vy: (Math.random() - .5) * .18, r: 1 + Math.random() * 1.6, glow: 0 }));
-    const sc = Math.round(W / 150);
+    const sc = Math.min(16, Math.round(W / 150));
     streams = Array.from({ length: sc }, (_, i) => ({ x: (i + .5) * (W / sc) + (Math.random() - .5) * 60, y: Math.random() * H, v: .12 + Math.random() * .22, lines: Array.from({ length: 6 + ((Math.random() * 6) | 0) }, () => ({ t: WORDS[(Math.random() * WORDS.length) | 0], c: (Math.random() * COLS.length) | 0 })) }));
   }
   const LINK = 150;
@@ -397,7 +430,17 @@ function background() {
   addEventListener('pointermove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; }, { passive: true });
   document.addEventListener('ax-palette', () => { readPal(); if (still) frame(true); });
   if (still) { frame(true); return; }
-  const loop = () => { if (!document.hidden) frame(false); requestAnimationFrame(loop); };
+  // 30 frames a second is plenty for a slow drift, and it rests while the page
+  // scrolls so scrolling gets the whole frame.
+  // Past the first screen it holds still: the reading is below, and a moving
+  // full-screen layer behind it is what costs on big monitors.
+  let lastDraw = 0;
+  const loop = (t) => {
+    if (quality.level === 0) return; // stays as the last frame drawn
+    const gap = quality.level === 2 ? 32 : 80;
+    if (!document.hidden && scrollY < innerHeight * .8 && t - lastDraw > gap && performance.now() - lastScroll > 180) { lastDraw = t; frame(false); }
+    requestAnimationFrame(loop);
+  };
   requestAnimationFrame(loop);
 }
 

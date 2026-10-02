@@ -39,15 +39,18 @@
 
 /* Slow colour in the background */
 .ax-aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.ax-aurora i { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(110px); opacity: .26; animation: ax-drift 26s ease-in-out infinite alternate; }
-.ax-aurora i { transition: background 1s; }
-.ax-aurora i:nth-child(1) { background: var(--aurora-1); top: -30vmax; left: -10vmax; }
-.ax-aurora i:nth-child(2) { background: var(--aurora-2); top: -25vmax; right: -25vmax; opacity: .16; animation-duration: 32s; }
-.ax-aurora i:nth-child(3) { background: var(--aurora-3); bottom: -40vmax; left: 30vmax; opacity: .1; animation-duration: 38s; }
+/* Soft-edged gradients, not blurred circles: a 110 px blur over a 60vmax disc
+   was redrawn every frame and made big screens stutter. They stay put: a
+   moving full-screen layer costs a frame's worth of work on a 4K or
+   ultra-wide screen. */
+.ax-aurora i { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; opacity: .26; }
+.ax-aurora i:nth-child(1) { background: radial-gradient(closest-side, var(--aurora-1), transparent); top: -30vmax; left: -10vmax; }
+.ax-aurora i:nth-child(2) { background: radial-gradient(closest-side, var(--aurora-2), transparent); top: -25vmax; right: -25vmax; opacity: .16; }
+.ax-aurora i:nth-child(3) { background: radial-gradient(closest-side, var(--aurora-3), transparent); bottom: -40vmax; left: 30vmax; opacity: .1; }
 @keyframes ax-drift { to { transform: translate(8vmax, 6vmax) scale(1.1); } }
 
 /* Header */
-.ax-top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(16px) saturate(1.4); border-bottom: 1px solid var(--line); }
+.ax-top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--line); }
 .ax-top-row { display: flex; align-items: center; gap: 24px; height: 60px; }
 .ax-logo { display: flex; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; font-weight: 600; }
 .ax-wordmark { display: block; height: 20px; width: auto; }
@@ -87,7 +90,7 @@
 .ax-stats dd { margin: 9px 0 0; font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
 
 .ax-hero-right { position: relative; padding-bottom: 70px; }
-.ax-console { position: relative; border-radius: 18px; border: 1px solid var(--line-2); background: linear-gradient(180deg, #121920f2, #0f151af2); backdrop-filter: blur(6px); box-shadow: 0 40px 120px -30px #000, 0 0 0 1px #ffffff08 inset, 0 0 80px -30px color-mix(in srgb, var(--mint) 45%, transparent); overflow: hidden; }
+.ax-console { position: relative; border-radius: 18px; border: 1px solid var(--line-2); background: linear-gradient(180deg, #121920f2, #0f151af2); box-shadow: 0 40px 120px -30px #000, 0 0 0 1px #ffffff08 inset, 0 0 80px -30px color-mix(in srgb, var(--mint) 45%, transparent); overflow: hidden; }
 .ax-console-bar { display: flex; align-items: center; gap: 8px; padding: 12px 15px; border-bottom: 1px solid var(--line); font: 500 12px/1 var(--font-mono); color: var(--mute); }
 .ax-console-bar i { width: 11px; height: 11px; border-radius: 50%; }
 .ax-console-bar i:nth-child(1) { background: #ff5f57; } .ax-console-bar i:nth-child(2) { background: #febc2e; } .ax-console-bar i:nth-child(3) { background: #28c840; }
@@ -98,7 +101,7 @@
 .ax-type { margin: 0; padding: 22px 24px 130px; min-height: 330px; font-size: 13.5px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
 .ax-caret { display: inline-block; width: 8px; height: 1.1em; vertical-align: -2px; background: var(--mint); animation: ax-blink 1s steps(1) infinite; }
 /* The model card floats over the console's corner */
-.ax-float { position: absolute; right: -18px; bottom: 0; width: 46%; aspect-ratio: 4 / 3; margin: 0; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--mint) 35%, var(--line-2)); background: radial-gradient(circle at 50% 40%, #2a343e, #141b21e6 75%); box-shadow: 0 30px 60px -20px #000, 0 0 50px -14px color-mix(in srgb, var(--mint) 55%, transparent); backdrop-filter: blur(10px); overflow: hidden; transform: rotate(-2deg); animation: ax-bob 6s ease-in-out infinite; }
+.ax-float { position: absolute; right: -18px; bottom: 0; width: 46%; aspect-ratio: 4 / 3; margin: 0; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--mint) 35%, var(--line-2)); background: radial-gradient(circle at 50% 40%, #2a343e, #141b21e6 75%); box-shadow: 0 30px 60px -20px #000, 0 0 50px -14px color-mix(in srgb, var(--mint) 55%, transparent); overflow: hidden; transform: rotate(-2deg); animation: ax-bob 6s ease-in-out infinite; }
 .ax-float canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ax-float figcaption { position: absolute; left: 12px; bottom: 10px; padding: 4px 8px; border-radius: 7px; background: #0a0b0dcc; border: 1px solid var(--line-2); font-size: 11.5px; color: var(--mint-2); }
 @keyframes ax-bob { 50% { transform: rotate(-2deg) translateY(-8px); } }
@@ -122,7 +125,7 @@
 .ax-sub code, .ax-table code, .ax-errs code { background: var(--tile-2); border: 1px solid var(--line-2); padding: 1px 6px; border-radius: 6px; font-size: .86em; color: var(--ink); }
 
 /* Tiles, with a spotlight that follows the cursor */
-.ax-tile { position: relative; border-radius: 22px; border: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--tile-2) 88%, transparent), color-mix(in srgb, var(--tile) 88%, transparent)); backdrop-filter: blur(8px); padding: 26px; overflow: hidden; isolation: isolate; }
+.ax-tile { position: relative; border-radius: 22px; border: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--tile-2) 88%, transparent), color-mix(in srgb, var(--tile) 88%, transparent)); padding: 26px; overflow: hidden; isolation: isolate; }
 .ax-tile::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity .3s; background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--mint) 11%, transparent), transparent 60%); }
 .ax-tile::after { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; opacity: 0; transition: opacity .3s; background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--mint) 60%, transparent), transparent 60%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .ax-tile:hover::before, .ax-tile:hover::after { opacity: 1; }
