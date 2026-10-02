@@ -81,6 +81,7 @@ export const ENGINE_MODULES = {
   toytray: { name: 'Toy sorting trays', version: '1.0.0' },
   shoehorn: { name: 'Shoe horns and boot hooks', version: '1.0.0' },
   bathcaddy: { name: 'Bathroom shelf caddies', version: '1.0.0' },
+  spoolrack: { name: 'Thread and ribbon spool racks', version: '1.0.0' },
 };
 
 // Newest first.
@@ -88,6 +89,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'spoolrack 1.0.0 (Thread and ribbon spool racks): plan slabs printed on its back: a plate with two countersunk screw holes at grid corners and a grid of round pegs 0.8 mm under the spool hole, each ending in a 1.2 mm lip that widens at 45°.',
       'bathcaddy 1.0.0 (Bathroom shelf caddies): a basket in plan slabs printed upright: 2.4 mm walls and floor with 4 mm drain slots, 2 mm dividers, and two full-height 20 × 9 mm back columns with 12.6 × 4.6 mm pockets 30 mm deep, open at the top; two screen hooks, an upside-down U in side profile printed on its side, with a long leg for the pocket and 0.6 mm play over the glass.',
       'shoehorn 1.0.0 (Shoe horns and boot hooks): the horn is a 2.6 mm arc drawn as slabs along its length and printed on its end, its span narrowing from the mouth to 40% at the handle in 2 mm slabs, with a diamond hanging hole; the plate prints on its back with countersunk screw holes, a 28 mm peg for the horn and 110 mm boot pegs whose tips turn up at 45°.',
       'toytray 1.0.0 (Toy sorting trays): plan slabs printed upright: a foot set in by the wall plus 0.4 mm and chamfered out at 45° (so trays stack), a 1.6 mm floor, 2 mm walls, 1.6 mm dividers, an 8 mm floor-to-wall curve in every compartment; a lid with the same foot and 4.8 mm studs, 1.7 mm tall, on the 8 mm brick grid.',
