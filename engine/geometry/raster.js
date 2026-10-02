@@ -271,6 +271,7 @@ export function offsetMask(grid, r) {
 }
 
 export function boxBlur(grid, radius = 1) {
+  if (radius === 1 && grid.width > 1 && grid.height > 1) return boxBlur1(grid);
   const { width: w, height: h } = grid;
   const src = grid.data;
   const tmp = new Float32Array(w * h);
@@ -295,6 +296,26 @@ export function boxBlur(grid, radius = 1) {
       for (let x = 0; x < w; x++) acc[x] += tmp[r0 + x];
     }
     for (let x = 0, o = y * w; x < w; x++) od[o + x] = acc[x] / n;
+  }
+  return out;
+}
+
+// The 3 × 3 blur every slab and trace uses: the same sums in the same order as
+// boxBlur's general loops (so the same bits), in two plain passes that the
+// engine optimises on a part's first build rather than its tenth.
+function boxBlur1(grid) {
+  const { width: w, height: h } = grid;
+  const src = grid.data, tmp = new Float32Array(w * h);
+  const out = new Grid(w, h, grid.x0, grid.y0, grid.res), od = out.data;
+  for (let y = 0; y < h; y++) {
+    const r = y * w, e = r + w - 1;
+    tmp[r] = (src[r] + src[r] + src[r + 1]) / 3;
+    for (let i = r + 1; i < e; i++) tmp[i] = (src[i - 1] + src[i] + src[i + 1]) / 3;
+    tmp[e] = (src[e - 1] + src[e] + src[e]) / 3;
+  }
+  for (let y = 0; y < h; y++) {
+    const a = (y > 0 ? y - 1 : 0) * w, b = y * w, c = (y < h - 1 ? y + 1 : h - 1) * w;
+    for (let x = 0; x < w; x++) od[b + x] = (tmp[a + x] + tmp[b + x] + tmp[c + x]) / 3;
   }
   return out;
 }

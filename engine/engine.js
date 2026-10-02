@@ -70,6 +70,7 @@ export const ENGINE_MODULES = {
   remotecaddy: { name: 'Remote control caddies', version: '1.0.0' },
   tabletholder: { name: 'Wall tablet holders', version: '1.0.0' },
   glassesrack: { name: 'Glasses wall racks', version: '1.0.0' },
+  familycharger: { name: 'Family charging stations', version: '1.0.0' },
 };
 
 // Newest first.
@@ -77,6 +78,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'familycharger 1.0.0 (Family charging stations): two parts drawn in plan as slabs and printed upright. A tray round the charger (2.4 mm floor and walls, a 3 mm ledge inside up to the plate, an 18 × 14 mm cord notch at the back, 4 mm vents through both sides) and a rack that drops onto the ledge flush with the rim (a 3 mm plate 0.3 mm clear of the walls, 3 mm dividers, a rounded opening in each slot for the plug, names raised 0.8 mm on a 14 mm strip in front, sized to fit the slot or listed in the notes if they cannot). Slabs blur and trace only the box each drawing reached, with a faster 3 × 3 blur: the same meshes, a third faster.',
       'glassesrack 1.0.0 (Glasses wall racks): a side profile drawn as slabs across a narrow strip and printed on its side: a 5 mm strip, a 7 mm peg per pair with a 7 mm turned-up tip and a fillet under it, pegs at the spacing given, two square 4 mm screw slots.',
       'tabletholder 1.0.0 (Wall tablet holders): four corner pieces, each a side profile drawn as slabs along the edge and printed on its side: a 48 mm plate with two square screw slots, a 5 mm ledge (cradles) or hook (clips) reaching the tablet plus 0.6 mm, a lip over the screen and a 3 mm side stop 26 mm high at the outer end; the notes give the spacing on the wall.',
       'remotecaddy 1.0.0 (Remote control caddies): drawn in plan as slabs and printed upright: a 2.4 mm floor, slots 3 mm over the remote in one row or two (the back row taller by the step), an 82 mm phone slot, a tray across any width a shorter row leaves, and a scoop down the front wall of each slot over its top 40% (at most 22 mm).',

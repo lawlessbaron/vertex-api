@@ -65,6 +65,7 @@ import { ROUTERSHELF_DEFAULTS } from '../engine/geometry/routershelf.js';
 import { REMOTECADDY_DEFAULTS } from '../engine/geometry/remotecaddy.js';
 import { TABLETHOLDER_DEFAULTS } from '../engine/geometry/tabletholder.js';
 import { GLASSESRACK_DEFAULTS } from '../engine/geometry/glassesrack.js';
+import { FAMILYCHARGER_DEFAULTS } from '../engine/geometry/familycharger.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -121,6 +122,7 @@ export const API_KINDS = {
   remotecaddy: { name: 'Remote control caddy', defaults: REMOTECADDY_DEFAULTS, generator: '/remote-caddies' },
   tabletholder: { name: 'Wall tablet holder', defaults: TABLETHOLDER_DEFAULTS, generator: '/tablet-holders' },
   glassesrack: { name: 'Glasses wall rack', defaults: GLASSESRACK_DEFAULTS, generator: '/glasses-racks' },
+  familycharger: { name: 'Family charging station', defaults: FAMILYCHARGER_DEFAULTS, generator: '/family-chargers' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };
