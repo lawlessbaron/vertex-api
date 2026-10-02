@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1 · 2 October 2026
+
+### Changed
+- **Server racks** (`serverrack`): any height up to 42U with `height` (split into even sections that fit a 256 mm bed), `strength: "heavy"` for thicker rails, frames and splices, back X-braces (`braces`: `auto`, `true` or `false`), and fan panels for 80, 92, 120 and 140 mm PC fans.
+
 ## 1.6.0 · 2 October 2026
 
 ### Added

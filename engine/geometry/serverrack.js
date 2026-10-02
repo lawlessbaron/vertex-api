@@ -23,6 +23,9 @@ function letters(d, text, cx, cy, h) {
 }
 
 export const SERVERRACK_DEFAULTS = {
+  height: 0, // framed: the whole rack in U (up to 42), split into sections that fit the bed; 0 to set the sections yourself
+  strength: 'standard', // standard | heavy: thicker rails, end frames, panels and splices, for tall racks and heavy gear
+  braces: 'auto', // framed: an X-brace on the back rails of each section (auto: racks of 10U and more)
   units: 5, // the first box
   units2: 0, // a second box on top (0 for none)
   units3: 0,
@@ -43,7 +46,7 @@ export const SERVERRACK_DEFAULTS = {
   panels: true, // side panels (framed racks)
   badge: 'VERTEX', // raised on each side panel; empty for none
   fans: 0, // fan panels: blow air through the rack
-  fanSize: 80, // 40 mm fans on 1U panels, 80 mm on 2U
+  fanSize: 80, // 40 mm fans on 1U panels, 80 mm on 2U, 92 and 120 mm on 3U, 140 mm on 4U
   fanCount: 2, // fans across each panel
   cable: 0, // 1U cable pass-through panels
   device: 'none', // device panels: none | pi | tiny | nuc | macmini | switch8 | flexmini | zima | hdd35 | ssd25 | custom
@@ -71,9 +74,20 @@ export const RACK_DEVICES = {
 const num = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
 export const RACK10 = { U: 44.45, ears: 254, holes: 236.5, clear: 222.25, unitHoles: [6.35, 22.225, 38.1] };
 
+// A height in U as sections of at most 5U, as even as possible (12U: 4 + 4 + 4).
+export function rackSections(total) {
+  const n = Math.ceil(total / 5), base = Math.floor(total / n), extra = total % n;
+  return Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+}
+// Fans: the hole pattern (screw spacing) of each size, and the panel height it needs.
+export const FANS = { 40: 32, 60: 50, 80: 71.5, 92: 82.5, 120: 105, 140: 124.5 };
+export const fanUnits = (size) => (size <= 40 ? 1 : Math.ceil((size + 6) / RACK10.U));
+
 export function serverRackPlan(options = {}) {
   const o = { ...SERVERRACK_DEFAULTS, ...options };
-  const boxes = [Math.round(num(o.units, 1, 5, 5)), Math.round(num(o.units2, 0, 5, 0)), Math.round(num(o.units3, 0, 5, 0))].filter((u) => u > 0);
+  const style = o.style === 'box' ? 'box' : 'frame', height = Math.round(num(o.height, 0, 42, 0));
+  const boxes = style === 'frame' && height > 0 ? rackSections(height) : [Math.round(num(o.units, 1, 5, 5)), Math.round(num(o.units2, 0, 5, 0)), Math.round(num(o.units3, 0, 5, 0))].filter((u) => u > 0);
+  const heavy = o.strength === 'heavy', total = boxes.reduce((a, u) => a + u, 0);
   const D = num(o.depth, 120, 250, 200), hole = num(o.railHole, 4, 9, 6.4);
   const t = 4, pt = 8, fe = 5; // panel, plate and rail thickness
   const hx = RACK10.holes / 2, ex = RACK10.clear / 2; // a rail hole's x, the rails' inner edge
@@ -86,9 +100,11 @@ export function serverRackPlan(options = {}) {
     device: RACK_DEVICES[o.device] || o.device === 'custom' ? o.device : 'none',
     devCount: Math.round(num(o.devCount, 0, 4, 1)), devices: Math.round(num(o.devices, 1, 4, 2)),
     dev: o.device === 'custom' ? { name: 'your device', w: num(o.devW, 20, 215, 120) + 2, h: num(o.devH, 10, 125, 38) + 2, d: num(o.devD, 30, 240, 120), lift: 0 } : RACK_DEVICES[o.device] || null,
-    fans: Math.round(num(o.fans, 0, 4, 0)), fanSize: Number(o.fanSize) === 40 ? 40 : 80, fanCount: Math.round(num(o.fanCount, 1, 4, 2)), cable: Math.round(num(o.cable, 0, 4, 0)),
+    fans: Math.round(num(o.fans, 0, 4, 0)), fanSize: FANS[Number(o.fanSize)] ? Number(o.fanSize) : 80, fanCount: Math.round(num(o.fanCount, 1, 4, 2)), cable: Math.round(num(o.cable, 0, 4, 0)),
     drawers: Math.round(num(o.drawers, 0, 4, 0)), drawerU: Math.round(num(o.drawerU, 1, 3, 2)), handle: o.handle !== false && o.handle !== 'false',
-    style: o.style === 'box' ? 'box' : 'frame', panels: o.panels !== false && o.panels !== 'false', badge: String(o.badge ?? 'VERTEX').toUpperCase().replace(/[^A-Z0-9 .\-]/g, '').slice(0, 14).trim(),
+    style, heavy, fr: heavy ? FR_HEAVY : FR,
+    braces: style === 'frame' && (o.braces === true || o.braces === 'true' || ((o.braces === 'auto' || o.braces === undefined) && (total >= 10 || heavy))),
+    panels: o.panels !== false && o.panels !== 'false', badge: String(o.badge ?? 'VERTEX').toUpperCase().replace(/[^A-Z0-9 .\-]/g, '').slice(0, 14).trim(),
   };
 }
 
@@ -181,7 +197,7 @@ function plate(p, kind) {
 //   fan    — a guarded opening for each fan, with its four screw holes (40 mm fans: 32 mm apart, M3; 80 mm: 71.5 mm, fan screws);
 //   cable  — a long rounded slot for cables to pass through, with tie slots above and below it.
 function frontPanel(p, u, kind) {
-  const h = u * RACK10.U - 0.8, hw = RACK10.ears / 2, ft = 4;
+  const h = u * RACK10.U - 0.8, hw = RACK10.ears / 2, ft = kind === 'brace' ? (p.heavy ? 6 : 5) : 4;
   const ks = keystones(p), kw = p.keyW, kh = p.keyH;
   const dw = p.ex - 1.5, dh = h - 2; // the drawer sleeve, outside
   const m = sections([-hw, 0, hw, h], kind === 'patch' ? [0, 0.4, 2, ft] : [0, 0.4, ft], (z, d) => {
@@ -192,6 +208,7 @@ function frontPanel(p, u, kind) {
       d.off(rr(s * p.hx - 3.3, y - 4, s * p.hx + 3.3, y + 4, 3.3)); // slotted, so a panel lines up with any print
     }
     if (kind === 'blank') vents(p, d, -p.ex + 10, 5, p.ex - 10, h - 5, 5, 2.6);
+    if (kind === 'brace') for (const tri of braceHoles(p, h)) d.off(tri);
     if (kind === 'shelf') d.off(rr(-30, h - 12, 30, h - 4, 4)); // a finger pull
     if (kind === 'patch') for (const x of ks) {
       d.off(rr(x - kw / 2, h / 2 - kh / 2, x + kw / 2, h / 2 + kh / 2)); // the jack's hole
@@ -199,7 +216,7 @@ function frontPanel(p, u, kind) {
     }
     if (kind === 'drawer') d.off(rr(-dw + 2, 3, dw - 2, dh - 1, 2)); // the opening
     if (kind === 'fan') for (const x of fanXs(p)) {
-      const R = p.fanSize / 2 - 2, y = h / 2, sp = p.fanSize === 40 ? 16 : 35.75, sr = p.fanSize === 40 ? 1.7 : 2.25;
+      const R = p.fanSize / 2 - 2, y = h / 2, sp = FANS[p.fanSize] / 2, sr = p.fanSize <= 40 ? 1.7 : 2.25;
       d.disc(x, y, R, 0);
       for (let r = R - 5; r > 7; r -= 7) { d.disc(x, y, r + 0.9); d.disc(x, y, r - 0.9, 0); } // the guard: rings…
       for (const a of [0, 60, 120]) { const c = Math.cos((a * Math.PI) / 180), s = Math.sin((a * Math.PI) / 180), w = 0.9; d.on([[x - R * c - w * s, y - R * s + w * c], [x + R * c - w * s, y + R * s + w * c], [x + R * c + w * s, y + R * s - w * c], [x - R * c + w * s, y - R * s - w * c]]); } // …and spokes
@@ -231,6 +248,20 @@ function frontPanel(p, u, kind) {
   }
   return m;
 }
+// A back brace: a frame with an X across it, bolted to the back rails. It
+// stops the rack leaning sideways (the side panels stop it leaning back and
+// forth). The holes are the four triangles the X leaves.
+function braceHoles(p, h) {
+  const x1 = p.ex - 9, x0 = -x1, y0 = 8, y1 = h - 8, yc = h / 2, b = 5; // 10 mm wide diagonals
+  const th = Math.atan2(y1 - y0, x1 - x0), a = b / Math.sin(th), e = b / Math.cos(th);
+  return [
+    [[x0 + a, y1], [0, yc + e], [x1 - a, y1]],
+    [[x0 + a, y0], [x1 - a, y0], [0, yc - e]],
+    [[x0, y0 + e], [x0, y1 - e], [-a, yc]],
+    [[x1, y0 + e], [a, yc], [x1, y1 - e]],
+  ].map((t) => t.map(([x, y]) => [x, y]));
+}
+
 // Fan panels: how many fans fit across, and where.
 function fanXs(p) {
   const pitch = p.fanSize + 6, n = Math.max(1, Math.min(p.fanCount, Math.floor((2 * p.ex - 10) / pitch)));
@@ -319,7 +350,9 @@ function handle(p, len = 2 * (p.ex - 30)) {
 // the EIA holes, and a side flange), stacked sections joined by splice plates
 // so the units run on unbroken, a mint end frame top and bottom, removable
 // side panels with a badge, and carry handles. Every piece fits a 256 mm bed.
-const FR = { rt: 5, fl: 24, ff: 4, ft: 8, pt: 3, hy: 14, bk: 20 }; // rail face, flange depth and thickness, frame, panel; the flange holes' line; bracket height
+const FR = { rt: 5, fl: 24, ff: 4, ft: 8, pt: 3, hy: 14, bk: 20, sp: 3, G: 7 }; // rail face, flange depth and thickness, frame, panel; the flange holes' line; bracket height; splice; gusset
+// Heavy: everything that bends gets thicker. The flange stays 4 mm, so an M6 nut behind each rail hole still clears it.
+const FR_HEAVY = { rt: 7, fl: 30, ff: 4, ft: 11, pt: 4, hy: 17, bk: 26, sp: 5, G: 9 };
 const handleSpan = (p) => Math.min(p.D - 32, 256 - 44 - 2); // the handle's hand hole, so the whole handle fits the bed
 const frameXo = (p) => p.hx + 9.65; // the uprights' outside face: 127.9 mm out, so an end frame is 255.8 mm wide
 const flangeXs = (L) => [...new Set([10, L - 10, ...(L >= 80 ? [30, L - 30] : []), ...(L >= 140 || L < 80 ? [L / 2] : [])])].sort((a, b) => a - b);
@@ -332,7 +365,7 @@ const turn = (mesh, f) => { const m = new Mesh(); m.append(mesh); const q = m.po
 // face from the rail's inner edge, z off the bed (the flange stands up). The
 // flange is far enough out that an M6 nut behind each rail hole clears it.
 function upright(p, u) {
-  const L = u * RACK10.U, w = frameXo(p) - p.ex, { rt, fl, ff, hy } = FR, m = new Mesh();
+  const L = u * RACK10.U, w = frameXo(p) - p.ex, { rt, fl, ff, hy } = p.fr, m = new Mesh();
   m.append(sections([0, 0, L, w], [0, 0.4, rt], (z, d) => {
     const f = z < 0.4 ? 0.4 : 0;
     d.on(rr(0, f, L, w - f, 1));
@@ -351,7 +384,7 @@ function upright(p, u) {
 // bolts through the upright's flange (its end hole). The top frame is the
 // same part turned over; its outside carries MINT MOTIVE across the front.
 function endFrame(p, top) {
-  const xo = frameXo(p), { ft, ff, bk, hy } = FR, D = p.D, band = 24, x0 = xo - ff - 5, x1 = xo - ff - 0.2; // 4.8 mm brackets
+  const xo = frameXo(p), { ft, ff, bk, hy, G } = p.fr, D = p.D, band = 24, x0 = xo - ff - 5, x1 = xo - ff - 0.2; // 4.8 mm brackets
   const hh = []; if (top && p.handle) for (const sx of [-1, 1]) for (const y of [D / 2 - handleSpan(p) / 2 - 4, D / 2 + handleSpan(p) / 2 + 4]) hh.push([sx * (xo - 12), y]); // under the handle's feet
   const m = sections([-xo, 0, xo, D], top ? [0, 0.6, ft] : [0, 0.4, ft], (z, d) => {
     const f = z < 0.4 ? 0.4 : 0;
@@ -363,13 +396,13 @@ function endFrame(p, top) {
   }, 0.15, 0.1);
   // The corner brackets, drawn in (y, height) and stood at x0..x1, mirrored for the far side.
   const br = sections([0, 0, D, bk], [x0, x1], (x, d) => {
-    for (const [y0, y1] of [[11, band], [D - band, D - 11]]) { d.on(rr(y0, 0, y1, bk, 1)); tear(d, y0 < D / 2 ? hy : D - hy, 10, 1.7); }
+    for (const [y0, y1] of [[11, band], [D - band, D - 11]]) { d.on(rr(y0, 0, y1, bk, 1)); tear(d, y0 < D / 2 ? hy : D - hy, bk / 2, 1.7); }
   }, 0.1, 0.06);
   m.append(turn(br, (a, b, c) => [c, a, ft - 0.01 + b])); // (a, b, c) → (c, a, b): a rotation
   m.append(turn(br, (a, b, c) => [-c, D - a, ft - 0.01 + b])); // and half a turn about z
   // A 45° gusset inside each bracket, so it can't fold over when the rack is pushed sideways. Kept within
   // 7 mm of the bracket, clear of a shelf or drawer in the bottom unit. Drawn in (x, height), stood across y.
-  const G = 7, gt = 3, gus = extrudePolygon([[x0 - G, 0], [x0 + 0.01, 0], [x0 + 0.01, G]], [], 0, gt);
+  const gt = 3, gus = extrudePolygon([[x0 - G, 0], [x0 + 0.01, 0], [x0 + 0.01, G]], [], 0, gt);
   for (const yc of [(11 + band) / 2, D - (11 + band) / 2]) {
     const g = turn(gus, (a, b, c) => [a, yc - gt / 2 + c, ft - 0.01 + b]); // (a, b, c) → (a, c, b) is a mirror: so turn, then flip the faces back
     m.append(flip(g));
@@ -381,7 +414,7 @@ function endFrame(p, top) {
 // A side panel, flat, its outside up: x along the depth, y up the section.
 // Its corners are cut back round the end frames' brackets.
 function sidePanel2(p, u) {
-  const L = u * RACK10.U, Dp = p.D - 10.4, { pt, bk } = FR, inset = FR.hy - 5.2, nb = 24 - 5.2 + 0.4;
+  const L = u * RACK10.U, Dp = p.D - 10.4, { pt, bk } = p.fr, inset = p.fr.hy - 5.2, nb = 24 - 5.2 + 0.4;
   const bw = Math.min(150, Dp - 50), bh = Math.min(24, L * 0.3), by = L - 24 - bh / 2, badge = p.badge && L >= 80;
   return sections([0, 0, Dp, L], badge ? [0, 0.4, pt, pt + 1.2] : [0, 0.4, pt], (z, d) => {
     const f = z < 0.4 ? 0.4 : 0;
@@ -395,7 +428,7 @@ function sidePanel2(p, u) {
 
 // A splice plate across a joint, flat: holes on the flanges' line.
 function splice(p, s) {
-  return sections([0, 0, 20, 2 * s], [0, 0.4, 3], (z, d) => {
+  return sections([0, 0, 20, 2 * s], [0, 0.4, p.fr.sp], (z, d) => {
     const f = z < 0.4 ? 0.4 : 0;
     d.on(rr(f, f, 20 - f, 2 * s - f, 3));
     for (const y of s > 25 ? [s - 30, s - 10, s + 10, s + 30] : [s - 10, s + 10]) d.disc(10, y, 1.7, 0);
@@ -403,8 +436,8 @@ function splice(p, s) {
 }
 
 function framedRack(p, place, roles) {
-  const xo = frameXo(p), { ft, fl } = FR, D = p.D, total = p.boxes.reduce((a, u) => a + u, 0);
-  const k = `${D}|${p.hole}|${p.vents}|${p.badge}`;
+  const xo = frameXo(p), { ft, hy } = p.fr, D = p.D, total = p.boxes.reduce((a, u) => a + u, 0);
+  const k = `${D}|${p.hole}|${p.vents}|${p.badge}|${p.heavy}`;
   const bottom = memo(`fb|${k}`, () => endFrame(p, false)), top = memo(`ft|${k}|${p.handle}`, () => endFrame(p, true));
   place(bottom, 'end-frame-bottom'); place(top, 'end-frame-top');
   const topUse = turn(top, (x, y, zz) => [x, p.D - y, -zz]); // turned over: brackets down, MINT MOTIVE up
@@ -422,15 +455,22 @@ function framedRack(p, place, roles) {
     roles.rail.append(turn(up, (x, y, zz) => [-(p.ex + y), zz, z + L - x]));
     roles.rail.append(turn(up, (x, y, zz) => [p.ex + y, D - zz, z + L - x]));
     if (panel) {
-      roles.panel.append(turn(panel, (x, y, zz) => [xo - FR.ff - FR.pt + zz, 5.2 + x, z + y]));
-      roles.panel.append(turn(panel, (x, y, zz) => [-(xo - FR.ff - FR.pt + zz), D - 5.2 - x, z + y]));
+      roles.panel.append(turn(panel, (x, y, zz) => [xo - p.fr.ff - p.fr.pt + zz, 5.2 + x, z + y]));
+      roles.panel.append(turn(panel, (x, y, zz) => [-(xo - p.fr.ff - p.fr.pt + zz), D - 5.2 - x, z + y]));
     }
     slots.push([z, u]);
+    if (p.braces) {
+      const bu = Math.min(u, 2), br = memo(`brace|${p.vents}|${bu}|${p.heavy}`, () => frontPanel(p, bu, 'brace'));
+      place(br, `back-brace${tag}`);
+      const z0 = z + Math.floor((u - bu) / 2) * RACK10.U + 0.4;
+      // Face down → on the back rails, facing out: (x, y, z) → (x, D + 4 − z, y + z0), half a turn from the front panels.
+      roles.accent.append(turn(br, (x, y, zz) => [x, D + 4 - zz, y + z0]));
+    }
     z += L;
     if (i < p.boxes.length - 1) {
-      const s = Math.min(L, p.boxes[i + 1] * RACK10.U) >= 80 ? 40 : 20, sp = memo(`spl|${s}`, () => splice(p, s));
+      const s = Math.min(L, p.boxes[i + 1] * RACK10.U) >= 80 ? 40 : 20, sp = memo(`spl|${s}|${p.heavy}`, () => splice(p, s));
       for (let j = 0; j < 4; j++) place(sp, `splice-${i + 1}-${j + 1}`);
-      for (const [sx, front] of [[1, true], [-1, true], [1, false], [-1, false]]) roles.accent.append(turn(sp, (x, y, zz) => [sx * (xo + zz), sx > 0 ? (front ? 4 + x : D - 24 + x) : (front ? 24 - x : D - 4 - x), z - s + y])); // the far side half-turned, so none is mirrored
+      for (const [sx, front] of [[1, true], [-1, true], [1, false], [-1, false]]) roles.accent.append(turn(sp, (x, y, zz) => [sx * (xo + zz), sx > 0 ? (front ? hy - 10 + x : D - hy - 10 + x) : (front ? hy + 10 - x : D - hy + 10 - x), z - s + y])); // the far side half-turned, so none is mirrored
     }
   });
   roles.accent.append(new Mesh().append(topUse).translate(0, 0, z + ft));
@@ -466,7 +506,7 @@ export function generateServerRack(options = {}) {
     z += H;
   });
   // Gear, filled into the boxes from the bottom: shelves, drawers, patch panels, blanks.
-  const kinds = [['shelf', 1, p.shelves], ...(p.dev ? [['device', devUnits(p), p.devCount]] : []), ['drawer', p.drawerU, p.drawers], ['patch', 1, p.patch], ['cable', 1, p.cable], ['fan', p.fanSize === 40 ? 1 : 2, p.fans], ['blank', 1, p.blanks]];
+  const kinds = [['shelf', 1, p.shelves], ...(p.dev ? [['device', devUnits(p), p.devCount]] : []), ['drawer', p.drawerU, p.drawers], ['patch', 1, p.patch], ['cable', 1, p.cable], ['fan', fanUnits(p.fanSize), p.fans], ['blank', 1, p.blanks]];
   const fill = [];
   for (const [kind, u, n] of kinds) {
     if (!n) continue;
@@ -506,9 +546,13 @@ export function generateServerRack(options = {}) {
   const notes = [
     `10-inch rack, ${total}U${p.boxes.length > 1 ? ` (${p.boxes.map((u) => `${u}U`).join(' + ')})` : ''}: ${p.D} × ${Math.round(2 * (framed ? frameXo(p) : p.outer))} × ${Math.round(z)} mm. Rail holes ${p.hole} mm (${p.hole >= 6 ? 'M6 bolts and nuts' : 'tap M6 in'}).`,
     framed
-      ? `${p.boxes.length * 4} uprights${p.boxes.length > 1 ? `, ${(p.boxes.length - 1) * 4} splice plates` : ''}, 2 end frames${p.panels ? `, ${p.boxes.length * 2} side panels` : ''}${p.handle ? ', 2 handles' : ''}${gear ? `; plus ${gear}` : ''}. M3 bolts and nuts. All flat, no supports, 256 mm bed.`
+      ? `${p.boxes.length * 4} uprights${p.boxes.length > 1 ? `, ${(p.boxes.length - 1) * 4} splice plates` : ''}, 2 end frames${p.panels ? `, ${p.boxes.length * 2} side panels` : ''}${p.braces ? `, ${p.boxes.length} back brace${p.boxes.length > 1 ? 's' : ''}` : ''}${p.handle ? ', 2 handles' : ''}${gear ? `; plus ${gear}` : ''}. M3 bolts and nuts. All flat, no supports, 256 mm bed.`
       : `Per box: 2 side panels, 2 plates, 12 M3 × 12 self-tapping screws${gear ? `; plus ${gear}` : ''}. All flat, no supports, 256 mm bed.`,
     'For a rack that carries real gear: print the uprights, end frames and shelves in PETG or ASA with 4 walls and 25% infill (gyroid or cubic), and tighten the bolts snug, not hard. Keep the heaviest gear low.',
+    ...(framed ? [
+      `Putting it together: bottom frame, uprights${p.boxes.length > 1 ? ', splices' : ''}, top frame${p.braces ? ', back braces' : ''}, side panels, then the gear. Every part is named.`,
+      ...(p.boxes.reduce((a, u) => a + u, 0) >= 20 ? ['A tall rack: fix the top frame to the wall.'] : []),
+    ] : []),
     ...(want > room ? [`That’s ${want}U of gear for ${room}U of rack: the preview shows what fits.`] : []),
   ];
   // The framed rack in its colours: mint frames, splices and handles; charcoal rails and gear; eggshell panels.
