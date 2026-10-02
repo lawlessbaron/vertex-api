@@ -39,6 +39,7 @@ export function sections(bounds, cuts, draw, res = 0.1, tol = res * 0.3) {
   const disc = (x, y, r, v = 1) => { if (v) reach(x - r, y - r, x + r, y + r); fillCircle(g, x, y, r, v); };
   const tools = { on, off, disc, get g() { all = true; return g; } };
   const seen = new Map(); // drawings already traced, by a hash of their pixels
+  let kept = 0; // bytes of drawings kept in it
   let dirty = null; // the box the last drawing touched: only that needs clearing
   for (let i = 0; i < zs.length - 1; i++) {
     const za = zs[i], zb = zs[i + 1];
@@ -85,8 +86,12 @@ export function sections(bounds, cuts, draw, res = 0.1, tol = res * 0.3) {
       }
       const loops = raw.filter((l) => Math.abs(signedArea(l)) > 6 * res * res).map((l) => simplifyClosed(l, tol));
       groups = groupLoops(loops);
-      if (!seen.has(h)) seen.set(h, []);
-      seen.get(h).push({ i0, j0, i1, j1, bits, groups });
+      // (Kept to reuse while the cache is under 64 MB: a part whose every slab differs gains nothing from more.)
+      if (kept + bits.length <= 1 << 26) {
+        kept += bits.length;
+        if (!seen.has(h)) seen.set(h, []);
+        seen.get(h).push({ i0, j0, i1, j1, bits, groups });
+      }
     }
     for (const q of groups) mesh.append(extrudePolygon(q.outer, q.holes, za, zb));
   }

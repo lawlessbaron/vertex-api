@@ -354,7 +354,7 @@ export function traceBinary(grid, ox = 0, oy = 0) {
 /** traceBinary for pixels already read out as 0s and 1s (w and h 3 or more); `at` gives x0, y0, res and toWorld. */
 export function traceBits(bits, w, h, at, ox = 0, oy = 0) {
   // Across: each pixel and its two neighbours (the edge pixel standing in for the one past it).
-  const across = new Uint8Array(w * h);
+  const across = scratch(0, w * h);
   for (let j = 0; j < h; j++) {
     const r = j * w, e = r + w - 1;
     across[r] = 2 * bits[r] + bits[r + 1];
@@ -362,7 +362,8 @@ export function traceBits(bits, w, h, at, ox = 0, oy = 0) {
     across[e] = bits[e - 1] + 2 * bits[e];
   }
   const W = stride(w);
-  const ins = new Uint8Array(W * (h + 2));
+  const ins = scratch(1, W * (h + 2));
+  ins.fill(0);
   for (let j = 0; j < h; j++) {
     const a = (j > 0 ? j - 1 : 0) * w, b = j * w, c = (j < h - 1 ? j + 1 : h - 1) * w;
     for (let i = 0, o = (j + 1) * W + 1; i < w; i++) if (across[a + i] + across[b + i] + across[c + i] >= 5) ins[o + i] = 1;
@@ -375,6 +376,17 @@ export function traceBits(bits, w, h, at, ox = 0, oy = 0) {
     return f((row(a, i) + row(b, i) + row(c, i)) / 3) - 0.5;
   };
   return march(ins, w, h, val, at, ox, oy);
+}
+
+// Working buffers kept between traces (a slab part traces dozens of drawings
+// the same size): fresh ones each time were most of the garbage collector's work.
+// Only buffers up to 4 MB are kept; bigger ones are made for the one trace.
+const SCRATCH = [new Uint8Array(0), new Uint8Array(0)];
+function scratch(k, n) {
+  if (SCRATCH[k].length >= n) return SCRATCH[k].length === n ? SCRATCH[k] : SCRATCH[k].subarray(0, n);
+  const b = new Uint8Array(n);
+  if (n <= 1 << 22) SCRATCH[k] = b;
+  return b;
 }
 
 // Rows of inside flags: the grid's width, a border each side, rounded up to

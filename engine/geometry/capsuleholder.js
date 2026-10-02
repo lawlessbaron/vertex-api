@@ -36,10 +36,12 @@ export function generateCapsuleHolder(options = {}) {
   const pitch = c.rim + GAP, depth = Math.max(4, c.height - PROUD), H = FLOOR + depth;
   const W = cols * pitch + 2 * EDGE - GAP, D = rows * pitch + 2 * EDGE - GAP;
   if (W > 250 || D > 250) throw new Error(`${cols} × ${rows} capsules make a tray ${Math.ceil(W)} × ${Math.ceil(D)} mm: more than a 250 mm bed. Fewer rows or columns.`);
-  const centres = [];
+  const centres = [], xs = [], ys = [];
+  for (let i = 0; i < cols; i++) xs.push(-W / 2 + EDGE + c.rim / 2 + i * pitch);
+  for (let j = 0; j < rows; j++) ys.push(-D / 2 + EDGE + c.rim / 2 + j * pitch);
   for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) centres.push([-W / 2 + EDGE + c.rim / 2 + i * pitch, -D / 2 + EDGE + c.rim / 2 + j * pitch]);
   const cuts = [0, 0.4, FLOOR, H];
-  for (let z = FLOOR; z < H; z += 0.5) cuts.push(z);
+  for (let z = FLOOR; z < H; z += 1) cuts.push(z); // the taper in 1 mm steps: each step 0.15 mm or so
   const mesh = sections([-W / 2 - 1, -D / 2 - 1, W / 2 + 1, D / 2 + 1], cuts, (z, d) => {
     const f = z < 0.4 ? 0.4 : 0;
     d.on(rr(-W / 2 + f, -D / 2 + f, W / 2 - f, D / 2 - f, 4));
@@ -49,9 +51,10 @@ export function generateCapsuleHolder(options = {}) {
     // Each pocket follows the capsule's taper from its bottom up to the tray's top.
     const t = Math.min(1, (z - FLOOR) / c.height), r = rb + (rt - rb) * t;
     for (const [x, y] of centres) d.disc(x, y, r + WALL);
-    for (const [x, y] of centres) { d.on(rr(x - RIB / 2, -D / 2 + 1, x + RIB / 2, D / 2 - 1)); d.on(rr(-W / 2 + 1, y - RIB / 2, W / 2 - 1, y + RIB / 2)); }
+    for (const x of xs) d.on(rr(x - RIB / 2, -D / 2 + 1, x + RIB / 2, D / 2 - 1)); // a rib down each column
+    for (const y of ys) d.on(rr(-W / 2 + 1, y - RIB / 2, W / 2 - 1, y + RIB / 2)); // and along each row
     for (const [x, y] of centres) d.disc(x, y, r, 0);
-  }, 0.12, 0.06);
+  }, 0.2, 0.1);
   const notes = [
     `${cols * rows} pockets for ${c.name} capsules in a tray ${Math.round(W)} × ${Math.round(D)} × ${Math.round(H)} mm. Each capsule's rim stands ${PROUD} mm proud of the top to lift it out by.`,
     'Measure your drawer and pick rows and columns to fill it; the tray is the pockets plus 3 mm all round. For other capsules choose Custom and measure one: the rim across, the body across just under the rim and at the bottom, and its height under the rim.',

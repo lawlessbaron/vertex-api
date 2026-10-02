@@ -30,7 +30,7 @@ export function generateMagnetHolder(options = {}) {
   const pockets = [];
   for (const k of rows) for (let i = 0; i < across; i++) pockets.push({ x: (W * (i + 0.5)) / across, z: Math.max(FLOOR + r + 2, Math.min(H - r * 1.5 - 3, H * k)) });
   const cuts = [0, 0.4, FLOOR, F, H];
-  for (const p of pockets) for (let z = p.z - r; z <= p.z + r * Math.SQRT2 + 0.25; z += 0.25) cuts.push(z);
+  for (const p of pockets) for (let z = p.z - r; z <= p.z + r * Math.SQRT2 + 0.4; z += 0.4) cuts.push(z);
   if (H > F) for (let z = F; z <= H; z += 0.5) cuts.push(z);
   const mesh = sections([-1, -1, W + 1, D + 1], cuts, (z, d) => {
     const f = z < 0.4 ? 0.4 : 0;
