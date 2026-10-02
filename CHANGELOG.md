@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.2 · 2 October 2026
+
+### Fixed
+- **Sharp moving text on big screens.** The drifting code in the background is drawn at full resolution again (it was drawn small and stretched, so it looked blurry on large monitors); the soft colour glow has its own small layer, so it stays fast. Headings and labels no longer sit on graphics-card layers that blurred them.
+- **The background keeps moving.** On a busy computer it slows down a little instead of stopping for good.
+
 ## 1.6.1 · 2 October 2026
 
 ### Changed
