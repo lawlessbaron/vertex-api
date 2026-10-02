@@ -90,6 +90,7 @@ import { CAPSULEHOLDER_DEFAULTS } from '../engine/geometry/capsuleholder.js';
 import { DOORSTOP_DEFAULTS } from '../engine/geometry/doorstop.js';
 import { TUBESQUEEZER_DEFAULTS } from '../engine/geometry/tubesqueezer.js';
 import { CLOTHESPEG_DEFAULTS } from '../engine/geometry/clothespeg.js';
+import { TOWELHOLDER_DEFAULTS } from '../engine/geometry/towelholder.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -171,6 +172,7 @@ export const API_KINDS = {
   doorstop: { name: 'Door wedge and stop', defaults: DOORSTOP_DEFAULTS, generator: '/door-stops' },
   tubesqueezer: { name: 'Tube squeezer', defaults: TUBESQUEEZER_DEFAULTS, generator: '/tube-squeezers' },
   clothespeg: { name: 'Clothes pegs', defaults: CLOTHESPEG_DEFAULTS, generator: '/clothes-pegs' },
+  towelholder: { name: 'Paper towel holder', defaults: TOWELHOLDER_DEFAULTS, generator: '/towel-holders' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };

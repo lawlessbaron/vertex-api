@@ -95,6 +95,7 @@ export const ENGINE_MODULES = {
   doorstop: { name: 'Door wedges and stops', version: '1.0.0' },
   tubesqueezer: { name: 'Tube squeezers', version: '1.0.0' },
   clothespeg: { name: 'Clothes pegs', version: '1.0.0' },
+  towelholder: { name: 'Paper towel holders', version: '1.0.0' },
 };
 
 // Newest first.
@@ -102,6 +103,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'towelholder 1.0.0 (Paper towel holders): two brackets printed on their sides (a 6 mm plate, an arm with a gusset, a U slot on the wall or a closed hole under a cupboard, 4.8 mm diamond screw holes) and an octagon rod printed lying on a flat face, in two halves on a diamond peg when it is longer than 240 mm.',
       'clothespeg 1.0.0 (Clothes pegs): one outline per peg printed flat, up to 12 to a plate: a C spring (4.5 mm inside, 3.5 mm band) and two 3 mm jaws converging to the grip gap 8 mm from the tips, flaring to a V lead-in; a line notch on the middle line placed where it bites at most 1.8 mm into each jaw.',
       'tubesqueezer 1.0.0 (Tube squeezers): a plate (tube + 18 by 24 mm) with a slot the gap wide and tube + 2 long, grip notches at the ends, its top edge chamfered 1.2 mm at 45°; a 9 mm bar 4 mm thick with a slot 0.4 mm wider, a neck and an 18 mm ring. Both printed flat.',
       'doorstop 1.0.0 (Door wedges and stops): a wedge printed on its side, rising from 2 mm to max(gap + 8, 1.6 × gap) with 1.2 mm sawtooth grip teeth every 4 mm underneath and a hanging hole; a round wall stop printed face down with a 2 mm 45° chamfer and a 4.4 mm screw hole counterbored 9.2 mm wide, 6 mm deep.',
