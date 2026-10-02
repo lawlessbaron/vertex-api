@@ -3,6 +3,7 @@
 ## 1.6.0 · unreleased
 
 ### Added
+- **Wrap and foil dispensers** (`wraprack`): two mirror door pieces for wrap, foil and paper boxes.
 - **Under-shelf mug hooks** (`mughooks`): a slide-on shelf clip with hooks for mugs.
 - **Pot lid racks** (`lidrack`): lids on their edges between scooped dividers.
 - **Hair tool holders** (`hairholder`): a dryer ring, straightener sleeve, brush cup and cord hook on one plate.

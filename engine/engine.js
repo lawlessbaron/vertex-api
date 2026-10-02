@@ -74,6 +74,7 @@ export const ENGINE_MODULES = {
   hairholder: { name: 'Hair tool holders', version: '1.0.0' },
   lidrack: { name: 'Pot lid racks', version: '1.0.0' },
   mughooks: { name: 'Under-shelf mug hooks', version: '1.0.0' },
+  wraprack: { name: 'Wrap and foil dispensers', version: '1.0.0' },
 };
 
 // Newest first.
@@ -81,6 +82,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'wraprack 1.0.0 (Wrap and foil dispensers): two end pieces, each a side profile drawn as slabs across its reach and printed on its side with its 2.4 mm end wall on the bed: a plate on the door, and per box a floor, a lip and a 12 mm fillet under the floor, two square screw slots. The left piece is the right one mirrored, drawn upside down in profile so its end wall is on the bed too.',
       'mughooks 1.0.0 (Under-shelf mug hooks): a side profile drawn as slabs across the clip and printed on its side: a C over the shelf (3.2 mm arms and spine, the slot 0.4 mm over the shelf, a 1.7 mm grip bump at the back of the top arm) and J hooks under it (4.5 mm stem and bar, a 9 mm turned-up tip, a 6 mm fillet at the arm), spaced so the next hook\'s mouth always clears.',
       'lidrack 1.0.0 (Pot lid racks): drawn in plan as slabs and printed upright: a 3 mm base, 4 mm dividers with an 8 mm foot for the first 12 mm, the space between them as asked, and a round-bottomed scoop half the rack wide in each divider top (cut in 1 mm slabs, widening as it rises, so nothing overhangs); screw holes in the base if asked.',
       'hairholder 1.0.0 (Hair tool holders): drawn in plan as slabs and printed upright, the way it hangs: a plate, a ring for the dryer barrel (6 mm wall, 8 mm thick) on a 45° corbel built in 1 mm slabs, a straightener sleeve and a round brush cup standing on the bed with 2.4 mm floors, a cord hook on its own 45° corbel with a 7 mm turned-up tip, and two 6 mm diamond screw holes (no sag across the print).',
