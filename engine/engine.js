@@ -87,6 +87,7 @@ export const ENGINE_MODULES = {
   dicetower: { name: 'Dice towers', version: '1.0.0' },
   cardholder: { name: 'Card holders', version: '1.0.0' },
   pillbox: { name: 'Pill organisers', version: '1.0.0' },
+  dateclip: { name: 'Bag clips with a date dial', version: '1.0.0' },
 };
 
 // Newest first.
@@ -94,6 +95,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'dateclip 1.0.0 (Bag clips with a date dial): a flat spring clip (two 6 mm arms 0.8 mm apart joined by a hollow loop) with a 6 mm peg on the top arm and a pointer notch; a 26 mm dial with the days cut 0.6 mm into its top round the edge and a press-fit hole 0.1 mm under the peg.',
       'pillbox 1.0.0 (Pill organisers): a box of compartments with 1.8 mm walls and a 6 mm floor curve, printed upright; lids printed top down, each a 1.6 mm cap with a hollow plug 0.25 mm under the hole rising 3 mm, and its day letter cut 0.6 mm into the bed face, mirrored.',
       'cardholder 1.0.0 (Card holders): plan slabs printed upright: a curved band rising by a sixth of its length, one to three arc slots cut down to a 6 mm base and stopping 6 mm from each end, the top edge chamfered at 45°.',
       'dicetower 1.0.0 (Dice towers): two halves split down the middle, each the side profile drawn as slabs across its half width and printed on its 3 mm outer wall: back and front walls, three 2.6 mm baffles at 35° alternating sides, an exit ramp, a floor that runs on as the tray with an 8 mm lip. The second half is drawn front to back so it too lies on its outer wall.',
