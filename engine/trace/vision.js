@@ -3,7 +3,7 @@
 import { Grid, boxBlur, components, distanceToForeground, fillHoles, offsetMask, traceContours } from '../geometry/raster.js';
 import { partByNecks } from './split.js';
 import { backgroundToPaper } from './background.js';
-import { separateNeighbours } from './separate.js';
+import { separateNeighbours, splitByColour } from './separate.js';
 import { boxMean, canny, gaussian, greyscale, paperLevel, preprocess, PREP_DEFAULTS } from './prep.js';
 import { watershed } from './watershed.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
@@ -615,6 +615,7 @@ export function toolMask(sheet, options = {}) {
   const o = { ...TRACE_DEFAULTS, ...options };
   const k = sheet.pxPerMm;
   // On a cutting mat, a desk or coloured card, the photo is first redrawn as dark tools on white.
+  const photo = sheet.image; // as taken: telling touching tools apart needs their real colours
   const image = o.background === false ? sheet.image : backgroundToPaper(sheet.image, o.margin * k);
   if (image !== sheet.image) sheet = { ...sheet, image };
   // Over 1.5 mm, blur wipes out the edges and greys the steel (MAX_BLUR).
@@ -670,7 +671,8 @@ export function toolMask(sheet, options = {}) {
     if (o.separate === false) return mask;
     const found = g.clone();
     for (let i = 0; i < found.data.length; i++) if (pale && pale[i] === 2) found.data[i] = 1;
-    return separateNeighbours(mask, found, k, { minArea: o.minArea, image });
+    const parted = separateNeighbours(mask, found, k, { minArea: o.minArea, image });
+    return o.colourSplit === false ? parted : splitByColour(parted, photo, k, { minArea: o.minArea });
   };
   if (o.veto === false) return apart(finish(c));
   // Always some: with none, a hard shadow joins the tool and breaks it up.

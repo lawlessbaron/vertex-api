@@ -62,6 +62,7 @@ import { BIKEHOOK_DEFAULTS } from '../engine/geometry/bikehook.js';
 import { SHOERACK_DEFAULTS } from '../engine/geometry/shoerack.js';
 import { PETBOWL_DEFAULTS } from '../engine/geometry/petbowl.js';
 import { ROUTERSHELF_DEFAULTS } from '../engine/geometry/routershelf.js';
+import { REMOTECADDY_DEFAULTS } from '../engine/geometry/remotecaddy.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -115,6 +116,7 @@ export const API_KINDS = {
   shoerack: { name: 'Shoe and boot wall rack', defaults: SHOERACK_DEFAULTS, generator: '/shoe-racks' },
   petbowl: { name: 'Raised pet bowl stand', defaults: PETBOWL_DEFAULTS, generator: '/pet-bowl-stands' },
   routershelf: { name: 'Router and modem wall shelf', defaults: ROUTERSHELF_DEFAULTS, generator: '/router-shelves' },
+  remotecaddy: { name: 'Remote control caddy', defaults: REMOTECADDY_DEFAULTS, generator: '/remote-caddies' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };
