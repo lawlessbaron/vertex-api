@@ -1,6 +1,6 @@
 // Photo → tool outlines. Works on plain {width, height, data: RGBA} images so it
 // runs in the browser (ImageData) and in tests.
-import { Grid, boxBlur, components, distanceToForeground, fillHoles, offsetMask, traceContours } from '../geometry/raster.js';
+import { Grid, boxBlur, components, distanceToForeground, fillHoles, offsetMask, traceBinary } from '../geometry/raster.js';
 import { partByNecks } from './split.js';
 import { backgroundToPaper } from './background.js';
 import { separateNeighbours, splitByColour } from './separate.js';
@@ -1141,7 +1141,7 @@ export function traceTools(sheet, options = {}) {
     fillHoles(one);
     for (const part of touching(one, [bx0[k] - X0, by0[k] - Y0, bx1[k] - X0, by1[k] - Y0], o)) {
       const grown = o.clearance > 0 ? offsetMask(part.mask, o.clearance * pxPerMm) : part.mask;
-      const loops = traceContours(boxBlur(grown, 1), 0.5, X0, Y0);
+      const loops = traceBinary(grown, X0, Y0);
       if (!loops.length) continue;
       // Keep the outer outline (largest area).
       let outline = loops[0];

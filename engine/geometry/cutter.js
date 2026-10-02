@@ -4,7 +4,7 @@
 // cookie comes out the size and shape of the outline. Printed flange down.
 import { Mesh } from './mesh.js';
 import { extrudePolygon, groupLoops, signedArea, simplifyClosed } from './polygon.js';
-import { Grid, boxBlur, fillHoles, fillPolygon, offsetMask, traceContours } from './raster.js';
+import { Grid, fillHoles, fillPolygon, offsetMask, traceBinary } from './raster.js';
 
 export const CUTTER_DEFAULTS = {
   shape: 'heart', // circle | heart | star | square | hexagon | cloud | drawing
@@ -61,7 +61,7 @@ export function generateCutter(options = {}) {
   const ring = (r) => {
     const grown = offsetMask(shape, r / res), g = grown.clone();
     for (let i = 0; i < g.data.length; i++) g.data[i] = grown.data[i] && !shape.data[i] ? 1 : 0;
-    const loops = traceContours(boxBlur(g, 1), 0.5).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
+    const loops = traceBinary(g).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
     return groupLoops(loops);
   };
   const mesh = new Mesh();

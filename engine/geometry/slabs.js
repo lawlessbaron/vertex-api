@@ -5,7 +5,7 @@
 import { Mesh } from './mesh.js';
 import { extrudePolygon, groupLoops, signedArea, simplifyClosed } from './polygon.js';
 import { roundedRect } from './primitives.js';
-import { Grid, boxBlur, fillCircle, fillPolygon, traceContours } from './raster.js';
+import { Grid, boxBlur, fillCircle, fillPolygon, traceBits, traceContours } from './raster.js';
 
 export function rr(x0, y0, x1, y1, r = 0) {
   const w = x1 - x0, d = y1 - y0;
@@ -55,25 +55,35 @@ export function sections(bounds, cuts, draw, res = 0.1, tol = res * 0.3) {
     // A drawing traced before (side profiles repeat: every vent slab, every slab
     // between them) gives the same outlines: they're reused, not traced again.
     // The pixels are compared exactly, so a reuse is never a near miss.
-    const cw = i1 - i0, data = g.data, W = g.width;
-    let h = 2166136261 ^ i0 ^ (j0 << 8) ^ (i1 << 16) ^ (j1 << 24);
-    for (let j = j0, o = 0; j < j1; j++) for (let i = i0, r = j * W; i < i1; i++, o++) if (data[r + i] >= 0.5) h = Math.imul(h ^ o, 16777619);
+    // One pass reads the drawing out as 0s and 1s, hashes it and notes whether
+    // it's a plain drawing (only 0s and 1s, so it can be traced from the bits).
+    const cw = i1 - i0, ch = j1 - j0, data = g.data, W = g.width;
+    const bits = new Uint8Array(cw * ch);
+    let h = 2166136261 ^ i0 ^ (j0 << 8) ^ (i1 << 16) ^ (j1 << 24), plain = true;
+    for (let j = j0, o = 0; j < j1; j++) for (let i = i0, r = j * W; i < i1; i++, o++) {
+      const v = data[r + i];
+      if (v >= 0.5) { bits[o] = 1; h = Math.imul(h ^ o, 16777619); }
+      if (v !== 0 && v !== 1) plain = false;
+    }
     let groups = null;
     for (const c of seen.get(h) || []) {
       if (c.i0 !== i0 || c.j0 !== j0 || c.i1 !== i1 || c.j1 !== j1) continue;
       let same = true;
-      for (let j = j0, o = 0; j < j1 && same; j++) for (let i = i0, r = j * W; i < i1; i++, o++) if ((data[r + i] >= 0.5 ? 1 : 0) !== c.bits[o]) { same = false; break; }
+      for (let o = 0; o < bits.length; o++) if (bits[o] !== c.bits[o]) { same = false; break; }
       if (same) { groups = c.groups; break; }
     }
     if (!groups) {
-      let crop = g;
-      if (i0 > 0 || j0 > 0 || i1 < g.width || j1 < g.height) {
-        crop = new Grid(cw, j1 - j0, g.x0, g.y0, res);
-        for (let j = j0; j < j1; j++) crop.data.set(data.subarray(j * W + i0, j * W + i1), (j - j0) * cw);
+      let raw;
+      if (plain && cw >= 3 && ch >= 3) raw = traceBits(bits, cw, ch, g, i0, j0);
+      else {
+        let crop = g;
+        if (i0 > 0 || j0 > 0 || i1 < g.width || j1 < g.height) {
+          crop = new Grid(cw, ch, g.x0, g.y0, res);
+          for (let j = j0; j < j1; j++) crop.data.set(data.subarray(j * W + i0, j * W + i1), (j - j0) * cw);
+        }
+        raw = traceContours(boxBlur(crop, 1), 0.5, i0, j0);
       }
-      const bits = new Uint8Array(cw * (j1 - j0));
-      for (let o = 0; o < bits.length; o++) bits[o] = crop === g ? (data[o] >= 0.5 ? 1 : 0) : (crop.data[o] >= 0.5 ? 1 : 0);
-      const loops = traceContours(boxBlur(crop, 1), 0.5, i0, j0).filter((l) => Math.abs(signedArea(l)) > 6 * res * res).map((l) => simplifyClosed(l, tol));
+      const loops = raw.filter((l) => Math.abs(signedArea(l)) > 6 * res * res).map((l) => simplifyClosed(l, tol));
       groups = groupLoops(loops);
       if (!seen.has(h)) seen.set(h, []);
       seen.get(h).push({ i0, j0, i1, j1, bits, groups });

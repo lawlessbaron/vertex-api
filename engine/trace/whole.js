@@ -3,7 +3,7 @@
 // pocket in a bin has to fit the whole object, so: the AI's outlines, plus
 // the dark silhouette on the paper wherever it touches them, closed over small
 // gaps, and outlined once around the outside.
-import { Grid, boxBlur, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, polygonIndices, traceContours } from '../geometry/raster.js';
+import { Grid, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, polygonIndices, traceBinary } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
 /**
@@ -202,7 +202,7 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
         }
         const rr = added ? close : r;
         const shape = fillHoles(offsetMask(offsetMask(one, rr), -rr));
-        const loops = traceContours(boxBlur(shape, 1), 0.5, X0, Y0);
+        const loops = traceBinary(shape, X0, Y0);
         let outer = loops[0];
         for (const l of loops) if (Math.abs(signedArea(l)) > Math.abs(signedArea(outer))) outer = l;
         out.push({ polygon: outer ? simplifyClosed(outer, smoothing) : shapes[pi].polygon, label: shapes[pi].label || '', parts: 1 });
@@ -211,7 +211,7 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
     }
     const one = new Grid(W, H, 0, 0, res);
     for (let i = 0; i < W * H; i++) if (labels[i] === c) one.data[i] = 1;
-    const loops = traceContours(boxBlur(one, 1), 0.5);
+    const loops = traceBinary(one);
     if (!loops.length) continue;
     let outer = loops[0];
     for (const l of loops) if (Math.abs(signedArea(l)) > Math.abs(signedArea(outer))) outer = l;

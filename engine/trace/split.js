@@ -3,7 +3,7 @@
 // outline is filled on a fine grid, a thin band along the line is cleared,
 // and each piece left is traced on its own. Works on any shape, however
 // hooked or hollow-sided (pliers, cutters).
-import { Grid, fillPolygon, components, distanceToForeground, traceContours, boxBlur, offsetMask } from '../geometry/raster.js';
+import { Grid, fillPolygon, components, distanceToForeground, offsetMask, traceBinary } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 // A pixel's neighbours, written into one reused buffer (a fresh array per pixel kept the garbage collector busy).
 const NB4 = new Int32Array(4);
@@ -54,7 +54,7 @@ export function splitOutline(poly, a, b, { gap = 1.5, res = 0.25, minArea = 25 }
   const pieces = keep.map((c) => {
     const one = new Grid(W, H, grid.x0, grid.y0, res);
     for (let k = 0; k < labels.length; k++) if (labels[k] === c) one.data[k] = 1;
-    const loops = traceContours(boxBlur(one, 1), 0.5);
+    const loops = traceBinary(one);
     let outer = loops[0];
     for (const l of loops) if (Math.abs(signedArea(l)) > Math.abs(signedArea(outer))) outer = l;
     return simplifyClosed(outer, 0.15);

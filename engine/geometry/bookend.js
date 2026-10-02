@@ -7,7 +7,7 @@
 // x > t, the brace at x < 0, y up.
 import { Mesh } from './mesh.js';
 import { extrudePolygon, groupLoops, signedArea, simplifyClosed } from './polygon.js';
-import { Grid, boxBlur, fillCircle, fillPolygon, traceContours } from './raster.js';
+import { Grid, fillCircle, fillPolygon, traceBinary } from './raster.js';
 import { textPolygons, textUnits } from './font.js';
 import { cleanName } from './keychain.js';
 
@@ -72,7 +72,7 @@ export function bookendProfile(p, res = 0.25) {
 export function generateBookend(options = {}) {
   const p = bookendPlan(options);
   const res = 0.25, g = bookendProfile(p, res);
-  const loops = traceContours(boxBlur(g, 1), 0.5).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
+  const loops = traceBinary(g).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
   const one = new Mesh();
   for (const q of groupLoops(loops)) one.append(extrudePolygon(q.outer, q.holes, 0, p.W));
   const parts = [{ mesh: one, name: `bookend-${p.o.style}${p.text ? '-' + p.text.toLowerCase() : ''}` }];

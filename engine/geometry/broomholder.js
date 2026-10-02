@@ -7,7 +7,7 @@
 // height up z.
 import { Mesh } from './mesh.js';
 import { extrudePolygon, groupLoops, signedArea, simplifyClosed } from './polygon.js';
-import { Grid, boxBlur, fillCircle, fillPolygon, traceContours } from './raster.js';
+import { Grid, fillCircle, fillPolygon, traceBinary } from './raster.js';
 
 export const BROOMHOLDER_DEFAULTS = {
   handle: 25, // the handle's diameter, mm
@@ -57,7 +57,7 @@ export function generateBroomHolder(options = {}) {
     const x = g.x0 + (i + 0.5) * res, y = g.y0 + (j + 0.5) * res;
     for (const cx of p.centres) if (Math.hypot(x - cx, y - cy) < r) g.data[j * g.width + i] = 0;
   }
-  const loops = traceContours(boxBlur(g, 1), 0.5).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
+  const loops = traceBinary(g).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
   const mesh = new Mesh();
   for (const q of groupLoops(loops)) mesh.append(extrudePolygon(q.outer, q.holes, 0, H));
   // The strip: an outline in (z, x) extruded along y through its thickness, with

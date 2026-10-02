@@ -7,7 +7,7 @@
 // Profile in (y, z): y from the front (0) to the back, z up.
 import { Mesh } from './mesh.js';
 import { extrudePolygon, groupLoops, signedArea, simplifyClosed } from './polygon.js';
-import { Grid, boxBlur, fillPolygon, offsetMask, traceContours } from './raster.js';
+import { Grid, fillPolygon, offsetMask, traceBinary } from './raster.js';
 
 export const SPICERACK_DEFAULTS = {
   style: 'shelf', // shelf | drawer
@@ -37,7 +37,7 @@ export function spiceProfile(options = {}) {
 
 // Outlines (outer + holes) of a mask, traced.
 function traced(g, res) {
-  const loops = traceContours(boxBlur(g, 1), 0.5).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
+  const loops = traceBinary(g).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
   return groupLoops(loops);
 }
 

@@ -9,7 +9,7 @@
 // Each piece's profile is in (x, y), y up, unioned on a raster and traced.
 import { Mesh } from './mesh.js';
 import { circlePolygon, extrudePolygon, groupLoops, signedArea, simplifyClosed } from './polygon.js';
-import { Grid, boxBlur, fillPolygon, traceContours } from './raster.js';
+import { Grid, fillPolygon, traceBinary } from './raster.js';
 
 export const HEADPHONE_DEFAULTS = {
   height: 250, // to the top of the cradle
@@ -25,7 +25,7 @@ export const HEADPHONE_DEFAULTS = {
 const rect = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 
 function traced(grid, res) {
-  const loops = traceContours(boxBlur(grid, 1), 0.5).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
+  const loops = traceBinary(grid).filter((l) => Math.abs(signedArea(l)) > 4 * res * res).map((l) => simplifyClosed(l, res * 0.25));
   return groupLoops(loops);
 }
 

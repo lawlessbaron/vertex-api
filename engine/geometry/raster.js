@@ -327,19 +327,85 @@ function boxBlur1(grid) {
 // points then come out exactly as tracing the bigger grid would give them.
 export function traceContours(grid, level = 0.5, ox = 0, oy = 0) {
   const { width: w, height: h, data } = grid;
-  const val = (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? -Infinity : data[j * w + i] - level);
   // Inside flags with a border of outside all round, so a cell's corners are
   // four plain reads. Cell (i, j) for i, j from -1 has its corner at p = (j + 1) * W + i + 1.
-  const W = w + 2;
+  const W = stride(w);
   const ins = new Uint8Array(W * (h + 2));
   for (let j = 0; j < h; j++) for (let i = 0, r = j * w, o = (j + 1) * W + 1; i < w; i++) if (data[r + i] - level > 0) ins[o + i] = 1;
+  return march(ins, w, h, (i, j) => data[j * w + i] - level, grid, ox, oy);
+}
+
+/**
+ * traceContours(boxBlur(grid, 1), 0.5, ox, oy), point for point, for a grid of
+ * plain 0s and 1s (a drawing), without blurring it: a pixel of the blur is
+ * above 0.5 exactly when 5 or more of the 9 pixels round it are on, and the
+ * blurred value itself is only needed where an outline crosses a cell edge,
+ * where it's worked out with the blur's own sums. Any other grid is blurred
+ * and traced as before.
+ */
+export function traceBinary(grid, ox = 0, oy = 0) {
+  const { width: w, height: h, data } = grid;
+  if (w < 3 || h < 3) return traceContours(boxBlur(grid, 1), 0.5, ox, oy);
+  const bits = new Uint8Array(w * h);
+  for (let i = 0; i < bits.length; i++) { const v = data[i]; if (v === 1) bits[i] = 1; else if (v !== 0) return traceContours(boxBlur(grid, 1), 0.5, ox, oy); }
+  return traceBits(bits, w, h, grid, ox, oy);
+}
+
+/** traceBinary for pixels already read out as 0s and 1s (w and h 3 or more); `at` gives x0, y0, res and toWorld. */
+export function traceBits(bits, w, h, at, ox = 0, oy = 0) {
+  // Across: each pixel and its two neighbours (the edge pixel standing in for the one past it).
+  const across = new Uint8Array(w * h);
+  for (let j = 0; j < h; j++) {
+    const r = j * w, e = r + w - 1;
+    across[r] = 2 * bits[r] + bits[r + 1];
+    for (let i = r + 1; i < e; i++) across[i] = bits[i - 1] + bits[i] + bits[i + 1];
+    across[e] = bits[e - 1] + 2 * bits[e];
+  }
+  const W = stride(w);
+  const ins = new Uint8Array(W * (h + 2));
+  for (let j = 0; j < h; j++) {
+    const a = (j > 0 ? j - 1 : 0) * w, b = j * w, c = (j < h - 1 ? j + 1 : h - 1) * w;
+    for (let i = 0, o = (j + 1) * W + 1; i < w; i++) if (across[a + i] + across[b + i] + across[c + i] >= 5) ins[o + i] = 1;
+  }
+  // The blur at one pixel, with boxBlur1's sums in its order, rounded where it stores them.
+  const f = Math.fround;
+  const row = (r, i) => f((bits[r + (i > 0 ? i - 1 : 0)] + bits[r + i] + bits[r + (i < w - 1 ? i + 1 : w - 1)]) / 3);
+  const val = (i, j) => {
+    const a = (j > 0 ? j - 1 : 0) * w, b = j * w, c = (j < h - 1 ? j + 1 : h - 1) * w;
+    return f((row(a, i) + row(b, i) + row(c, i)) / 3) - 0.5;
+  };
+  return march(ins, w, h, val, at, ox, oy);
+}
+
+// Rows of inside flags: the grid's width, a border each side, rounded up to
+// whole words so four cells can be passed over at a time.
+const stride = (w) => (w + 2 + 3) & ~3;
+
+// The edge links, kept between traces: every one a trace sets is cleared again
+// as its loop is walked, so the next trace starts from a clean buffer without
+// filling a new one.
+let NEXT = new Int32Array(0);
+
+// Marching squares over inside flags (with their border); v(i, j) is the value
+// less the level at a pixel inside the grid, read only where an outline crosses.
+function march(ins, w, h, v, grid, ox, oy) {
+  const W = stride(w), words = new Uint32Array(ins.buffer, ins.byteOffset, ins.length >> 2), ONES = 0x01010101;
+  const val = (i, j) => (i < 0 || j < 0 || i >= w || j >= h ? -Infinity : v(i, j));
   // Edge ids: 2p is the horizontal edge from corner p to p + 1, 2p + 1 the vertical
   // one from p to p + W. next[b] = a: the walk goes a → b keeping the inside on the left.
-  const next = new Int32Array(2 * W * (h + 2)).fill(-1);
+  // (A very big grid, a photo's, gets a buffer of its own rather than keeping one that size.)
+  const size = 2 * W * (h + 2);
+  if (NEXT.length < size && size <= 1 << 22) NEXT = new Int32Array(size).fill(-1);
+  const next = NEXT.length >= size ? NEXT : new Int32Array(size).fill(-1);
   const order = [];
   const seg = (a, b) => { if (next[b] < 0) order.push(b); next[b] = a; };
   for (let j = -1; j < h; j++) {
     for (let i = -1, p = (j + 1) * W; i < w; i++, p++) {
+      // Four cells whose corners are all outside (or all inside), and the corner past them too: nothing to trace.
+      if ((p & 3) === 0 && i + 4 < w) {
+        const lo = words[p >> 2], hi = words[(p + W) >> 2];
+        if (lo === hi && (lo === 0 || lo === ONES) && ins[p + 4] === (lo & 1) && ins[p + W + 4] === (lo & 1)) { i += 3; p += 3; continue; }
+      }
       const code = ins[p] | (ins[p + 1] << 1) | (ins[p + W + 1] << 2) | (ins[p + W] << 3);
       if (code === 0 || code === 15) continue;
       const B = 2 * p, T = 2 * (p + W), L = 2 * p + 1, R = 2 * (p + 1) + 1;
@@ -384,5 +450,6 @@ export function traceContours(grid, level = 0.5, ox = 0, oy = 0) {
     }
     if (loop.length >= 3) loops.push(loop);
   }
+  for (const b of order) next[b] = -1; // (all walked already; this only makes sure)
   return loops;
 }
