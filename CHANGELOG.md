@@ -11,6 +11,7 @@
 - **Tie and belt racks** (`tierack`): hooks over the wardrobe rail, sized to the rail.
 - **Coffee capsule holders** (`capsuleholder`): drawer trays for Nespresso, Dolce Gusto, K-Cup, Vertuo or custom capsules.
 - **Door wedges and stops** (`doorstop`): a wedge sized to the gap under the door, and a wall stop.
+- **Tube squeezers** (`tubesqueezer`): a slide-on squeezer and a winding key, sized to the tube.
 - **Faster builds**: parts made in layers build about 30% faster, with exactly the same files out.
 - **Card holders** (`cardholder`): a curved block that fans a hand of cards.
 - **Dice towers** (`dicetower`): two mirror halves with baffles and a tray.

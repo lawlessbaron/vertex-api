@@ -93,6 +93,7 @@ export const ENGINE_MODULES = {
   tierack: { name: 'Tie and belt racks', version: '1.0.0' },
   capsuleholder: { name: 'Coffee capsule holders', version: '1.0.0' },
   doorstop: { name: 'Door wedges and stops', version: '1.0.0' },
+  tubesqueezer: { name: 'Tube squeezers', version: '1.0.0' },
 };
 
 // Newest first.
@@ -100,6 +101,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'tubesqueezer 1.0.0 (Tube squeezers): a plate (tube + 18 by 24 mm) with a slot the gap wide and tube + 2 long, grip notches at the ends, its top edge chamfered 1.2 mm at 45°; a 9 mm bar 4 mm thick with a slot 0.4 mm wider, a neck and an 18 mm ring. Both printed flat.',
       'doorstop 1.0.0 (Door wedges and stops): a wedge printed on its side, rising from 2 mm to max(gap + 8, 1.6 × gap) with 1.2 mm sawtooth grip teeth every 4 mm underneath and a hanging hole; a round wall stop printed face down with a 2 mm 45° chamfer and a 4.4 mm screw hole counterbored 9.2 mm wide, 6 mm deep.',
       'capsuleholder 1.0.0 (Coffee capsule holders): a tray of pockets on a pitch of the rim plus 2.5 mm, each tapering from the capsule body\'s bottom to its top (+0.5 mm) in 0.5 mm slabs, 5 mm shallower than the capsule so the rim stands proud; Nespresso, Dolce Gusto, K-Cup, Vertuo or custom sizes.',
       'tierack 1.0.0 (Tie and belt racks): one outline printed flat: a 10 mm spine, a 5 mm hook band round the rail (rail/2 + 1 mm inside) from level on the left over the top to level on the right, tie arms 6 mm wide alternating sides 12 mm apart with 4 mm upturned tips, a belt bar with 10 mm pegs.',
