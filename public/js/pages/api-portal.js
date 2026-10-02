@@ -12,7 +12,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------- frame budget ----------
 // The page watches its own frame rate. On a computer that can't keep up (a big
 // or ultra-wide monitor, a modest graphics chip) the moving background steps
-// down: 2 full, 1 slower, 0 still. Phones and fast computers keep it all.
+// down: 2 full, 1 slower. It never stops: 0 (still) is only for people who ask
+// for less motion. Phones and fast computers keep it all.
 const quality = { level: still ? 0 : 2, on: [] };
 if (!still) {
   let last = 0, n = 0, sum = 0;
@@ -21,10 +22,10 @@ if (!still) {
     last = t;
     if (!document.hidden && d > 0 && d < 300 && performance.now() - lastScroll > 300) { sum += d; n++; }
     if (n >= 45) {
-      if (sum / n > 25) { quality.level--; quality.on.forEach((f) => f(quality.level)); }
+      if (sum / n > 25 && quality.level > 1) { quality.level--; quality.on.forEach((f) => f(quality.level)); }
       n = 0; sum = 0;
     }
-    if (quality.level > 0) requestAnimationFrame(watch);
+    if (quality.level > 1) requestAnimationFrame(watch);
   };
   setTimeout(() => requestAnimationFrame(watch), 1500); // after the page settles
 }
@@ -383,6 +384,11 @@ function background() {
   // rather than as three 2,000-pixel layers moving on their own every frame.
   const aurora = $('.ax-aurora');
   if (aurora) aurora.hidden = true;
+  // Its own small canvas, stretched (soft glows lose nothing), redrawn a few times a second. The
+  // network and the code text get the main canvas at full sharpness: stretched, the text went blurry.
+  const ac = aurora ? document.createElement('canvas') : null, actx = ac?.getContext('2d');
+  if (ac) { ac.className = cv.className; ac.setAttribute('aria-hidden', 'true'); cv.before(ac); }
+  let lastAurora = -1e9;
   // Where the CSS put them (60vmax discs): centre x, y in vmax from the left or
   // top, or from the right or bottom edge when the flag says so.
   const BLOBS = [
@@ -390,8 +396,10 @@ function background() {
     { x: 5, y: 5, fromRight: true, period: 32, alpha: .16 },     // top right
     { x: 60, y: 10, fromBottom: true, period: 38, alpha: .1 },   // bottom
   ];
-  function drawAurora(t) {
-    if (!aurora) return;
+  function drawAurora(t, force) {
+    if (!aurora || (!force && t - lastAurora < 120)) return;
+    lastAurora = t;
+    const ctx = actx; ctx.clearRect(0, 0, W, H);
     const v = Math.max(W, H) / 100, r = 30 * v;
     BLOBS.forEach((b, i) => {
       // ease-in-out there and back, as the CSS drift did: 8vmax, 6vmax and 10% bigger
@@ -410,10 +418,14 @@ function background() {
   // a faint background, and drawing 5–20 million pixels a frame on a big or
   // ultra-wide screen was what made the page lag (phones were always fine).
   function size() {
-    W = innerWidth; H = innerHeight;
-    const k = Math.min(pixelRatio, Math.sqrt(1.1e6 / (W * H)));
+    const z = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    W = cv.clientWidth || innerWidth; H = cv.clientHeight || innerHeight;
+    // One canvas pixel per screen pixel on big screens (sharp text, and the drawing is light now the
+    // glows are elsewhere), up to 1.5 on small high-density ones.
+    const k = (W * H * z * z > 2.5e6 ? 1 : pixelRatio) * z;
     cv.width = Math.round(W * k); cv.height = Math.round(H * k);
     ctx.setTransform(k, 0, 0, k, 0, 0);
+    if (ac) { const ka = Math.min(1, Math.sqrt(2.5e5 / (W * H))); ac.width = Math.round(W * ka); ac.height = Math.round(H * ka); actx.setTransform(ka, 0, 0, ka, 0, 0); lastAurora = -1e9; }
     const n = Math.round(Math.min(90, (W * H) / 16000));
     nodes = Array.from({ length: n }, () => ({ x: Math.random() * W, y: Math.random() * H, vx: (Math.random() - .5) * .18, vy: (Math.random() - .5) * .18, r: 1 + Math.random() * 1.6, glow: 0 }));
     const sc = Math.min(16, Math.round(W / 150));
@@ -422,7 +434,7 @@ function background() {
   const LINK = 150;
   function frame(still) {
     ctx.clearRect(0, 0, W, H);
-    drawAurora(still ? 0 : performance.now());
+    drawAurora(still ? 0 : performance.now(), still);
     // Code, drifting up
     ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
     for (const s of streams) {
@@ -510,7 +522,7 @@ function background() {
     // Pages without a hero: the fixed canvas is always "in view", so past the
     // first screen it sleeps and looks again a few times a second.
     if (zone === cv && scrollY > innerHeight * .8) { setTimeout(() => requestAnimationFrame(loop), 400); return; }
-    const gap = quality.level === 2 ? 32 : 80;
+    const gap = quality.level === 2 ? 32 : 50;
     if (t - lastDraw > gap && performance.now() - lastScroll > 180) { lastDraw = t; frame(false); }
     requestAnimationFrame(loop);
   };

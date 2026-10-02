@@ -84,7 +84,7 @@
 .ax-dot.is-on::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; background: color-mix(in srgb, var(--mint) 14%, transparent); opacity: 0; animation: ax-pulse 2s infinite; will-change: transform, opacity; transform: translateZ(0); }
 @keyframes ax-pulse { 0% { opacity: 0; transform: scale(.6) translateZ(0); } 50% { opacity: 1; transform: scale(1) translateZ(0); } 100% { opacity: 0; transform: scale(1.15) translateZ(0); } }
 .ax-hero h1 { margin: 0; font: 700 clamp(40px, 5.4vw, 68px)/1.03 var(--font-ui); letter-spacing: -.04em; }
-.ax-grad { will-change: transform, opacity; transform: translateZ(0); background: linear-gradient(100deg, var(--mint-2) 0%, var(--mint) 35%, var(--accent-3) 70%, var(--mint-2) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ax-shine 7s linear infinite; }
+.ax-grad { background: linear-gradient(100deg, var(--mint-2) 0%, var(--mint) 35%, var(--accent-3) 70%, var(--mint-2) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ax-shine 7s linear infinite; }
 @keyframes ax-shine { to { background-position: -200% 0; } }
 .ax-lede { margin: 22px 0 32px; max-width: 520px; color: var(--mute); font-size: 18px; }
 .ax-actions { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -141,10 +141,8 @@
 .ax-big small { font-size: 18px; color: var(--mute); margin-left: 4px; letter-spacing: 0; }
 .ax-big.ax-mono { font: 600 34px/1 var(--font-mono); letter-spacing: -.02em; }
 
-.ax-reveal { opacity: 0; will-change: transform, opacity; transform: translate3d(0, 18px, 0); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+.ax-reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
 .ax-reveal.is-in { opacity: 1; transform: none; }
-/* The layer is only needed while it slides in. */
-.ax-reveal.is-done { will-change: auto; }
 
 /* The bento */
 .ax-bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(190px, auto); gap: 16px; }
@@ -199,7 +197,7 @@
 .ax-t-limits .ax-tile-s { text-align: center; }
 
 .ax-serials { list-style: none; margin: 0; padding: 0; height: 96px; overflow: hidden; mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); font-size: 14px; }
-.ax-serials li { display: flex; justify-content: space-between; gap: 12px; height: 32px; align-items: center; color: var(--mute); transition: transform .5s; will-change: transform, opacity; }
+.ax-serials li { display: flex; justify-content: space-between; gap: 12px; height: 32px; align-items: center; color: var(--mute); transition: transform .5s; }
 .ax-serials li b { color: var(--c-str); font-weight: 500; }
 
 /* Playground */
@@ -342,8 +340,9 @@
 .ax-cull:not(.is-live) *::before, .ax-cull:not(.is-live) *::after { animation-play-state: paused !important; }
 
 /* The live updater's note: bottom corner, fades in on the GPU. */
-.ax-live-note { position: fixed; right: 18px; bottom: 18px; z-index: 60; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--tile-2, #151c22); color: var(--ink); font-size: 14px; animation: ax-note-in .35s ease-out; will-change: transform, opacity; transform: translateZ(0); }
+.ax-live-note { position: fixed; right: 18px; bottom: 18px; z-index: 60; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--tile-2, #151c22); color: var(--ink); font-size: 14px; animation: ax-note-in .35s ease-out; }
 .ax-live-note button { margin-left: 8px; border: 0; background: none; color: var(--mint); font: inherit; text-decoration: underline; cursor: pointer; }
 @keyframes ax-note-in { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
-/* The traced outline, its labels and the learning curve draw on their own layers. */
-.ax-trace, .ax-dims text, .ax-learn-line { will-change: transform, opacity; transform: translateZ(0); }
+/* The traced outline and the learning curve draw on their own layers. Text never does: a layered text is
+   painted once as a picture and goes soft when it moves or the page is zoomed. */
+.ax-trace, .ax-learn-line { will-change: transform, opacity; transform: translateZ(0); }
