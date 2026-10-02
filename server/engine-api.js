@@ -79,6 +79,7 @@ import { BATHCADDY_DEFAULTS } from '../engine/geometry/bathcaddy.js';
 import { SPOOLRACK_DEFAULTS } from '../engine/geometry/spoolrack.js';
 import { PROPAGATOR_DEFAULTS } from '../engine/geometry/propagator.js';
 import { GAMEINSERT_DEFAULTS } from '../engine/geometry/gameinsert.js';
+import { DICETOWER_DEFAULTS } from '../engine/geometry/dicetower.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -149,6 +150,7 @@ export const API_KINDS = {
   spoolrack: { name: 'Thread spool rack', defaults: SPOOLRACK_DEFAULTS, generator: '/thread-racks' },
   propagator: { name: 'Propagation station', defaults: PROPAGATOR_DEFAULTS, generator: '/propagation-stations' },
   gameinsert: { name: 'Board game insert', defaults: GAMEINSERT_DEFAULTS, generator: '/game-inserts' },
+  dicetower: { name: 'Dice tower', defaults: DICETOWER_DEFAULTS, generator: '/dice-towers' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };
