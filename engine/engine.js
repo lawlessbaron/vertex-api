@@ -90,6 +90,7 @@ export const ENGINE_MODULES = {
   dateclip: { name: 'Bag clips with a date dial', version: '1.0.0' },
   magnetholder: { name: 'Fridge magnet holders', version: '1.0.0' },
   jewellerystand: { name: 'Jewellery stands', version: '1.0.0' },
+  tierack: { name: 'Tie and belt racks', version: '1.0.0' },
 };
 
 // Newest first.
@@ -97,6 +98,7 @@ export const ENGINE_HISTORY = [
   {
     version: '1.61.0', date: '2026-10-02',
     notes: [
+      'tierack 1.0.0 (Tie and belt racks): one outline printed flat: a 10 mm spine, a 5 mm hook band round the rail (rail/2 + 1 mm inside) from level on the left over the top to level on the right, tie arms 6 mm wide alternating sides 12 mm apart with 4 mm upturned tips, a belt bar with 10 mm pegs.',
       'jewellerystand 1.0.0 (Jewellery stands): a 70 mm deep tray (4 mm base, 5 mm rim) with ring cones (22 to 8 mm across, 45 mm tall), a 4 mm panel braced by 45° ribs, diamond earring holes on an 8 × 12 mm grid and V notches along the top.',
       'magnetholder 1.0.0 (Fridge magnet holders): an upright open box (2 mm walls and floor) with teardrop magnet pockets (round below, a 45° point above) cut into the back face, one every 60 mm across in one or two rows; a lower front cuts the sides away as they rise.',
       'dateclip 1.0.0 (Bag clips with a date dial): a flat spring clip (two 6 mm arms 0.8 mm apart joined by a hollow loop) with a 6 mm peg on the top arm and a pointer notch; a 26 mm dial with the days cut 0.6 mm into its top round the edge and a press-fit hole 0.1 mm under the peg.',
