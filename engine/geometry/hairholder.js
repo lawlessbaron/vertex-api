@@ -74,7 +74,7 @@ export function generateHairHolder(options = {}) {
       }
     }
     for (const [x, zc] of screws) if (Math.abs(z - zc) < 3) { const r = 3 - Math.abs(z - zc); d.off(rr(x - r, -1, x + r, t + 1)); } // diamond screw holes, 6 mm
-  }, 0.25, 0.15);
+  }, 0.3, 0.15);
   const notes = [
     `A ring for a dryer barrel ${dd} mm across, a sleeve for a straightener ${sw} × ${st} mm${brush ? `, a cup for a brush ${bd} mm across` : ''}${hook ? ' and a hook for the cords' : ''}. ${Math.round(W)} × ${Math.round(H)} mm on the wall.`,
     'Hang the dryer nozzle-down through the ring. Let a hot straightener cool before it goes in the sleeve, or print it in PETG or ASA.',

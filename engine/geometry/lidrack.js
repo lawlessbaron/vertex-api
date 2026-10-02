@@ -49,7 +49,7 @@ export function generateLidRack(options = {}) {
       const h = scoopHalf(z);
       if (h > 0.2) d.off(rr(-h, y0 - 1, h, y1 + 1));
     }
-  }, 0.2, 0.1);
+  }, 0.3, 0.15);
   const notes = [
     `${n} lid${n > 1 ? 's' : ''}, ${gap} mm apart (a lid and its knob), on a rack ${Math.round(L)} × ${Math.round(W)} mm and ${Math.round(H + BASE)} mm tall.`,
     'Stand each lid on its rim, knob facing the same way. The scoops let you reach round a lid and lift it out.',

@@ -38,23 +38,47 @@ export function sections(bounds, cuts, draw, res = 0.1, tol = res * 0.3) {
   const off = (p) => { if (p) fillPolygon(g, p, 0); };
   const disc = (x, y, r, v = 1) => { if (v) reach(x - r, y - r, x + r, y + r); fillCircle(g, x, y, r, v); };
   const tools = { on, off, disc, get g() { all = true; return g; } };
+  const seen = new Map(); // drawings already traced, by a hash of their pixels
+  let dirty = null; // the box the last drawing touched: only that needs clearing
   for (let i = 0; i < zs.length - 1; i++) {
     const za = zs[i], zb = zs[i + 1];
     if (zb - za < 1e-6) continue;
-    g.data.fill(0);
+    if (!dirty) g.data.fill(0);
+    else for (let j = dirty[1]; j < dirty[3]; j++) g.data.fill(0, j * g.width + dirty[0], j * g.width + dirty[2]);
     bx0 = by0 = Infinity; bx1 = by1 = -Infinity; all = false;
     draw((za + zb) / 2, tools);
-    if (!all && bx1 < bx0) continue; // nothing drawn
+    if (all) { dirty = null; } else if (bx1 < bx0) { dirty = [0, 0, 0, 0]; continue; } // nothing drawn
     const M = 4; // empty pixels round the drawing: the blur (radius 1) never reaches the crop's edge
     const i0 = all ? 0 : Math.max(0, bx0 - M), j0 = all ? 0 : Math.max(0, by0 - M);
     const i1 = all ? g.width : Math.min(g.width, bx1 + M), j1 = all ? g.height : Math.min(g.height, by1 + M);
-    let crop = g;
-    if (i0 > 0 || j0 > 0 || i1 < g.width || j1 < g.height) {
-      crop = new Grid(i1 - i0, j1 - j0, g.x0, g.y0, res);
-      for (let j = j0; j < j1; j++) crop.data.set(g.data.subarray(j * g.width + i0, j * g.width + i1), (j - j0) * crop.width);
+    if (!all) dirty = [i0, j0, i1, j1];
+    // A drawing traced before (side profiles repeat: every vent slab, every slab
+    // between them) gives the same outlines: they're reused, not traced again.
+    // The pixels are compared exactly, so a reuse is never a near miss.
+    const cw = i1 - i0, data = g.data, W = g.width;
+    let h = 2166136261 ^ i0 ^ (j0 << 8) ^ (i1 << 16) ^ (j1 << 24);
+    for (let j = j0, o = 0; j < j1; j++) for (let i = i0, r = j * W; i < i1; i++, o++) if (data[r + i] >= 0.5) h = Math.imul(h ^ o, 16777619);
+    let groups = null;
+    for (const c of seen.get(h) || []) {
+      if (c.i0 !== i0 || c.j0 !== j0 || c.i1 !== i1 || c.j1 !== j1) continue;
+      let same = true;
+      for (let j = j0, o = 0; j < j1 && same; j++) for (let i = i0, r = j * W; i < i1; i++, o++) if ((data[r + i] >= 0.5 ? 1 : 0) !== c.bits[o]) { same = false; break; }
+      if (same) { groups = c.groups; break; }
     }
-    const loops = traceContours(boxBlur(crop, 1), 0.5, i0, j0).filter((l) => Math.abs(signedArea(l)) > 6 * res * res).map((l) => simplifyClosed(l, tol));
-    for (const q of groupLoops(loops)) mesh.append(extrudePolygon(q.outer, q.holes, za, zb));
+    if (!groups) {
+      let crop = g;
+      if (i0 > 0 || j0 > 0 || i1 < g.width || j1 < g.height) {
+        crop = new Grid(cw, j1 - j0, g.x0, g.y0, res);
+        for (let j = j0; j < j1; j++) crop.data.set(data.subarray(j * W + i0, j * W + i1), (j - j0) * cw);
+      }
+      const bits = new Uint8Array(cw * (j1 - j0));
+      for (let o = 0; o < bits.length; o++) bits[o] = crop === g ? (data[o] >= 0.5 ? 1 : 0) : (crop.data[o] >= 0.5 ? 1 : 0);
+      const loops = traceContours(boxBlur(crop, 1), 0.5, i0, j0).filter((l) => Math.abs(signedArea(l)) > 6 * res * res).map((l) => simplifyClosed(l, tol));
+      groups = groupLoops(loops);
+      if (!seen.has(h)) seen.set(h, []);
+      seen.get(h).push({ i0, j0, i1, j1, bits, groups });
+    }
+    for (const q of groups) mesh.append(extrudePolygon(q.outer, q.holes, za, zb));
   }
   return mesh;
 }
