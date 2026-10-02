@@ -149,12 +149,68 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
   for (let i = 0; i < W * H; i++) { const l = labels[i]; if (!l) continue; if (cover[i]) covered[l]++; if (base.data[i] >= 0.5) baseSize[l]++; }
   // One outline mostly inside another (a key inside its holder's outline) makes them one thing.
   const nested = (idx) => idx.some((a) => idx.some((b) => a !== b && share(a, b) >= 0.6));
+  // Each outline's shape: its size, middle, and long axis (from the spread of its pixels).
+  const form = own.map((px) => {
+    let sx = 0, sy = 0;
+    for (const i of px) { sx += i % W; sy += (i / W) | 0; }
+    const n = px.length || 1, mx = sx / n, my = sy / n;
+    let xx = 0, yy = 0, xy = 0;
+    for (const i of px) { const dx = (i % W) - mx, dy = ((i / W) | 0) - my; xx += dx * dx; yy += dy * dy; xy += dx * dy; }
+    xx /= n; yy /= n; xy /= n;
+    const t = (xx + yy) / 2, s = Math.sqrt(Math.max(0, ((xx - yy) / 2) ** 2 + xy * xy));
+    const a = Math.atan2(2 * xy, xx - yy) / 2; // the long axis
+    // Half the length and half the width of a bar with this spread (a bar's variance is length² / 12).
+    return { n: px.length, mx, my, ux: Math.cos(a), uy: Math.sin(a), hl: Math.sqrt(3 * (t + s)), hw: Math.sqrt(3 * Math.max(0, t - s)) };
+  });
+  // How long a stretch of a's edge lies within `t` pixels of b, and how long a's edge is.
+  const touching = (a, b) => {
+    const t = Math.max(1, Math.round(1.5 * k)), set = sets[a], other = sets[b];
+    let edge = 0, met = 0;
+    for (const i of own[a]) {
+      const x = i % W;
+      if (x > 0 && x < W - 1 && set.has(i - 1) && set.has(i + 1) && set.has(i - W) && set.has(i + W)) continue;
+      edge++;
+      for (let d = 1; d <= t; d++) if (other.has(i + d) || other.has(i - d) || other.has(i + d * W) || other.has(i - d * W)) { met++; break; }
+    }
+    return { edge, met };
+  };
+  // The AI often outlines an object's parts as if they were tools of their own:
+  // a marker's cap and its body, a device and the black feet under it. Two
+  // outlines touching are one object when they lie end to end along a long
+  // axis (a cap on a pen, the head on a brush), or when one is a small part
+  // stuck on a much bigger one along a good stretch of its edge (a foot, a
+  // knob, a plug). Side by side along their length (two knives), or both
+  // about as wide as long (two tape measures), they stay two tools.
+  const oneObjects = (idx) => {
+    const parent = new Map(idx.map((i) => [i, i]));
+    const find = (i) => { while (parent.get(i) !== i) i = parent.get(i); return i; };
+    for (const p of idx) for (const q of idx) {
+      if (p >= q || find(p) === find(q) || !meet(p, q)) continue;
+      const [a, b] = form[p].n >= form[q].n ? [p, q] : [q, p], A = form[a], B = form[b];
+      const { edge, met } = touching(b, a);
+      if (met < 3) continue;
+      const small = B.n <= 0.12 * A.n && met >= 0.25 * edge;
+      const dx = B.mx - A.mx, dy = B.my - A.my, along = Math.abs(dx * A.ux + dy * A.uy), across = Math.abs(dx * A.uy - dy * A.ux);
+      const lined = A.hl >= 2.2 * A.hw && Math.abs(A.ux * B.ux + A.uy * B.uy) > Math.cos(0.45) || B.hl < 1.6 * B.hw;
+      const endToEnd = A.hl >= 2.2 * A.hw && lined && across <= 0.8 * Math.max(A.hw, B.hw) && along >= 0.6 * (A.hl + B.hl);
+      if (small || endToEnd) parent.set(find(b), find(a));
+    }
+    const groups = new Map();
+    for (const i of idx) { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(i); }
+    return [...groups.values()].map((members) => {
+      const big = members.reduce((m, i) => (form[i].n > form[m].n ? i : m), members[0]);
+      if (members.length === 1) return { own: own[big], set: sets[big], polygon: shapes[big].polygon, label: shapes[big].label || '', n: 1 };
+      const set = new Set(); for (const i of members) for (const j of own[i]) set.add(j);
+      return { own: [...set], set, polygon: shapes[big].polygon, label: shapes[big].label || '', n: members.length };
+    });
+  };
   const out = [];
   for (let c = 1; c <= count; c++) {
     if (sizes[c] * res * res < minArea) continue;
     const idx = shapes.map((_, i) => i).filter((i) => owner[i] === c), parts = idx.map((i) => shapes[i]);
     if (!parts.length) continue; // only silhouette: not something the AI saw
-    if (parts.length > 1 && covered[c] >= separate * (baseSize[c] || sizes[c]) && !nested(idx)) {
+    const units = parts.length > 1 ? oneObjects(idx) : null;
+    if (units && units.length > 1 && covered[c] >= separate * (baseSize[c] || sizes[c]) && !nested(idx)) {
       // Each tool on its own, snapped to its real edge: its outline plus the
       // silhouette round it, out to `reach` mm. That takes in what the AI left
       // off, like the clear plastic rim of a spool of wire, which shows only as
@@ -166,7 +222,7 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
       // a window `far` wider still, which is as far as one could be nearer.
       const far = Math.max(1, Math.round(reach * k));
       const close = Math.max(r, Math.round((reach / 2) * k));
-      const box = idx.map((pi) => { let x0 = W, y0 = H, x1 = -1, y1 = -1; for (const i of own[pi]) { const x = i % W, y = (i / W) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } return [x0, y0, x1, y1]; });
+      const box = units.map((u) => { let x0 = W, y0 = H, x1 = -1, y1 = -1; for (const i of u.own) { const x = i % W, y = (i / W) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } return [x0, y0, x1, y1]; });
       // Each tool's distance from its own pixels, measured once in its box plus
       // `far` (a pixel further off is further than `far` from it, which is all
       // the tests below need to know): Infinity outside that.
@@ -174,20 +230,20 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
         if (x1 < 0) return null;
         const DX0 = Math.max(0, x0 - far - 1), DY0 = Math.max(0, y0 - far - 1), DX1 = Math.min(W - 1, x1 + far + 1), DY1 = Math.min(H - 1, y1 + far + 1), dw = DX1 - DX0 + 1;
         const g2 = new Grid(dw, DY1 - DY0 + 1, 0, 0, res);
-        for (const i of own[idx[m]]) g2.data[(((i / W) | 0) - DY0) * dw + (i % W) - DX0] = 1;
+        for (const i of units[m].own) g2.data[(((i / W) | 0) - DY0) * dw + (i % W) - DX0] = 1;
         return { DX0, DY0, DX1, DY1, dw, d: distanceToForeground(g2) };
       });
       const distAt = (m, x, y) => { const t = dist[m]; return t && x >= t.DX0 && x <= t.DX1 && y >= t.DY0 && y <= t.DY1 ? t.d[(y - t.DY0) * t.dw + x - t.DX0] : Infinity; };
-      idx.forEach((pi, m) => {
+      units.forEach((u, m) => {
         const [bx0, by0, bx1, by1] = box[m];
-        if (bx1 < 0) { out.push({ polygon: shapes[pi].polygon, label: shapes[pi].label || '', parts: 1 }); return; }
+        if (bx1 < 0) { out.push({ polygon: u.polygon, label: u.label, parts: u.n }); return; }
         const pad = far + close + 3;
         const X0 = Math.max(0, bx0 - pad), Y0 = Math.max(0, by0 - pad), X1 = Math.min(W - 1, bx1 + pad), Y1 = Math.min(H - 1, by1 + pad), w = X1 - X0 + 1, h = Y1 - Y0 + 1;
         const QX0 = Math.max(0, X0 - far), QY0 = Math.max(0, Y0 - far), QX1 = Math.min(W - 1, X1 + far), QY1 = Math.min(H - 1, Y1 + far), qw = QX1 - QX0 + 1, qh = QY1 - QY0 + 1;
         const near = [];
-        idx.forEach((o, n) => { if (n !== m && box[n][0] <= QX1 && box[n][2] >= QX0 && box[n][1] <= QY1 && box[n][3] >= QY0) near.push({ o, n }); });
+        units.forEach((v, n) => { if (n !== m && box[n][0] <= QX1 && box[n][2] >= QX0 && box[n][1] <= QY1 && box[n][3] >= QY0) near.push({ v, n }); });
         const one = new Grid(w, h, 0, 0, res);
-        for (const i of own[pi]) one.data[((i / W) | 0) - Y0 >= 0 ? (((i / W) | 0) - Y0) * w + (i % W) - X0 : 0] = 1;
+        for (const i of u.own) one.data[((i / W) | 0) - Y0 >= 0 ? (((i / W) | 0) - Y0) * w + (i % W) - X0 : 0] = 1;
         let added = false;
         if (solid && solid.width === W) {
           for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) {
@@ -196,7 +252,7 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
             const dmq = distAt(m, x, y);
             if (dmq > far) continue;
             if (!(solid.data[i] || (edge && edge.data[i]))) continue;
-            if (near.some(({ o, n }) => sets[o].has(i) || distAt(n, x, y) < dmq)) continue;
+            if (near.some(({ v, n }) => v.set.has(i) || distAt(n, x, y) < dmq)) continue;
             one.data[j] = 1; added = true;
           }
         }
@@ -205,7 +261,7 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
         const loops = traceBinary(shape, X0, Y0);
         let outer = loops[0];
         for (const l of loops) if (Math.abs(signedArea(l)) > Math.abs(signedArea(outer))) outer = l;
-        out.push({ polygon: outer ? simplifyClosed(outer, smoothing) : shapes[pi].polygon, label: shapes[pi].label || '', parts: 1 });
+        out.push({ polygon: outer ? simplifyClosed(outer, smoothing) : u.polygon, label: u.label, parts: u.n });
       });
       continue;
     }
