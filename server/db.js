@@ -315,7 +315,9 @@ export const MIGRATIONS = [
      calls INTEGER NOT NULL DEFAULT 0,
      over_calls INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (key_id, day)
-   );`
+   );`,
+  // Test keys (vx_test_…): checked like real calls, answered with test files, never counted.
+  `ALTER TABLE engine_keys ADD COLUMN sandbox INTEGER NOT NULL DEFAULT 0;`
 ];
 
 export function openDatabase(path) {

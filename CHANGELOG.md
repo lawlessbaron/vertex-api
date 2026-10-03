@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.0 · 3 October 2026
+
+### Added
+- **Test keys.** Tick "Test key" in the console to make a `vx_test_…` key.
+  - Every call is checked exactly like a real one, so your code meets the real errors.
+  - Files come back as a 20 mm test cube, and photo diagnosis returns a sample report.
+  - Nothing counts against your plan, and test keys work even before an API is switched on.
+
 ## 1.9.0 · 3 October 2026
 
 ### Added

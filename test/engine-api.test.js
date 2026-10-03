@@ -103,3 +103,25 @@ test('switched on: files come back with a serial, STL wants one part, bad settin
   app.controls.saveRemote({ generators: {} });
   app.controls.setSwitch('engineApi', false);
 });
+
+test('test keys: checked like real calls, answered with a test cube, never counted, work while off', async () => {
+  const { openDatabase } = await import('../server/db.js');
+  const { createEngineApi } = await import('../server/engine-api.js');
+  const db = openDatabase(':memory:');
+  db.prepare("INSERT INTO users (id, email, name, handle, role, created_at, synced_at) VALUES (1, 'a@b.c', 'A', 'a', 'user', 1, 1)").run();
+  const controls = { isOff: (k) => k === 'engineApi', controls: { limits: {} }, generatorBlock: () => null };
+  let taken = 0;
+  const api = createEngineApi({ db, controls, isStaff: () => false, newSerial: () => 'S', plans: { planFor: () => ({ keys: 3 }), take: () => { taken++; return { plan: { id: 'free' } }; } } });
+  const made = api.makeKey({ id: 1 }, 'try', true);
+  assert.match(made.key, /^vx_test_/);
+  assert.equal(made.test, true);
+  let status = 0, headers = {}, body = null;
+  const req = { headers: { authorization: `Bearer ${made.key}`, 'content-type': 'application/json' }, [Symbol.asyncIterator]: async function* () { yield Buffer.from(JSON.stringify({ kind: 'bin', format: 'stl', params: { gridX: 1, gridY: 1 } })); } };
+  const res = { writeHead: (s, h) => { status = s; headers = h; }, end: (b) => { body = b; } };
+  await api.handle(req, res, '/api/engine/v1/generate', 'POST', { ip: '1.1.1.1' }, () => {}, () => {});
+  assert.equal(status, 200);
+  assert.equal(headers['X-Mint-Test'], '1');
+  assert.match(headers['Content-Disposition'], /bin-test\.stl/);
+  assert.equal(taken, 0, 'not counted against the plan');
+  assert.equal(body.length, 84 + 12 * 50, 'a 12-triangle cube');
+});

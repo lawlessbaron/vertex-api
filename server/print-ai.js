@@ -149,9 +149,10 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
 
   function requireKey(req, ctx) {
     const auth = String(req.headers?.authorization || '');
-    const k = auth.startsWith('Bearer vx_') ? db.prepare('SELECT k.id AS key_id, k.allow_ips, u.id, u.handle, u.role FROM engine_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ? AND k.revoked_at IS NULL AND u.role != \'banned\'').get(hashToken(auth.slice(7).trim())) : null;
+    const k = auth.startsWith('Bearer vx_') ? db.prepare('SELECT k.id AS key_id, k.allow_ips, k.sandbox, u.id, u.handle, u.role FROM engine_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ? AND k.revoked_at IS NULL AND u.role != \'banned\'').get(hashToken(auth.slice(7).trim())) : null;
     if (!k) throw new HttpError(401, 'Send your key as “Authorization: Bearer vx_…”. Make one in your console.');
     if (!ipAllowed(ctx.ip, k.allow_ips)) throw new HttpError(403, `That key only works from its allowed addresses, and ${ctx.ip || 'this address'} isn’t one of them.`);
+    if (k.sandbox) { if (!minute.take(`t:${k.key_id}`)) throw new HttpError(429, 'Slow down: 60 calls a minute per key.'); return k; } // test keys: checks run, nothing counted
     if (!state().on && !isStaff(k)) throw new HttpError(503, SAY.off);
     if (plans) k.plan = plans.take(k.id, k.key_id);
     else if (!minute.take(`a:${k.key_id}`)) throw new HttpError(429, 'Slow down: 60 calls a minute per key.');
@@ -240,6 +241,10 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
   }
 
   async function diagnose(req, k, ctx) {
+    if (k.sandbox) { // a test key: a fixed sample report, so integrations can be built without a vision key or a bill
+      for await (const _ of req) { /* drain */ }
+      return { findings: [{ code: 'stringing', severity: 'warn', message: 'Sample: thin hairs between the towers, from ooze while travelling.', confidence: 0.9, box: [0.3, 0.2, 0.4, 0.3], fixes: [{ id: 'nozzle_temperature:215', setting: 'nozzle_temperature', from: 230, to: 215, unit: '°C', why: 'Less ooze.' }], test: 'Print a two-tower stringing test.' }], summary: 'Sample report from a test key.', model: PHOTO_VERSION, test: true };
+    }
     if (!photosReady()) throw new HttpError(503, SAY.photoOff);
     if (!photoMinute.take(`p:${k.key_id}`)) throw new HttpError(429, `Slow down: ${AI_LIMITS.photosPerMinute} photos a minute per key.`);
     if (!photoDay.take(`p:${k.key_id}`)) throw new HttpError(429, `That key has sent ${AI_LIMITS.photosPerDay} photos today. Tomorrow, then.`);

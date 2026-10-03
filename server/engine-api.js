@@ -14,6 +14,7 @@ import { ipAllowed, parseAllow } from './api-guard.js';
 import { buildParts, loadKind, LAZY_KINDS } from '../engine/models.js';
 import { toSTL, to3MF, toOBJ } from '../engine/export.js';
 import { setSerial } from '../engine/serial.js';
+import { Mesh } from '../engine/geometry/mesh.js';
 import { ENGINE } from '../engine/engine.js';
 import { BIN_DEFAULTS } from '../engine/geometry/bin.js';
 import { PLATE_DEFAULTS } from '../engine/geometry/plates.js';
@@ -179,21 +180,30 @@ export const API_KINDS = {
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };
 
+// The file a test key gets: a 20 mm cube.
+function testCube() {
+  const m = new Mesh(), v = [[0, 0, 0], [20, 0, 0], [20, 20, 0], [0, 20, 0], [0, 0, 20], [20, 0, 20], [20, 20, 20], [0, 20, 20]].map(([x, y, z]) => m.addVertex(x, y, z));
+  for (const [a, b, c, d] of [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]) m.addQuad(v[a], v[b], v[c], v[d]);
+  return m;
+}
+
 export function createEngineApi({ db, controls, analytics, isStaff, newSerial, onKey = () => {}, plans = null }) {
   const minute = new RateLimiter(API_LIMITS.perMinute, 60e3);
   const day = new RateLimiter(API_LIMITS.perDay, 86400e3);
+  const testMinute = new RateLimiter(20, 60e3);
   const off = () => controls.isOff('engineApi');
   const str = (v, n) => String(v ?? '').trim().slice(0, n);
 
   // ---------- keys ----------
-  const keyOut = (k) => ({ id: k.id, name: k.name, hint: k.key_hint || null, allowIps: k.allow_ips || '', dayCap: k.day_cap ?? null, monthCap: k.month_cap_cents == null ? null : k.month_cap_cents / 100, calls: k.calls, createdAt: k.created_at, lastUsedAt: k.last_used_at, revoked: Boolean(k.revoked_at), revokedAt: k.revoked_at || null });
+  const keyOut = (k) => ({ id: k.id, name: k.name, test: Boolean(k.sandbox), hint: k.key_hint || null, allowIps: k.allow_ips || '', dayCap: k.day_cap ?? null, monthCap: k.month_cap_cents == null ? null : k.month_cap_cents / 100, calls: k.calls, createdAt: k.created_at, lastUsedAt: k.last_used_at, revoked: Boolean(k.revoked_at), revokedAt: k.revoked_at || null });
   // Revoked keys stay listed (greyed), so old calls still name their key.
   const keysOf = (userId) => db.prepare('SELECT * FROM engine_keys WHERE user_id = ? ORDER BY revoked_at IS NOT NULL, id').all(userId).map(keyOut);
-  function makeKey(user, name) {
-    const maxKeys = plans ? plans.planFor(user.id).keys : API_LIMITS.keys;
-    if (db.prepare('SELECT COUNT(*) AS n FROM engine_keys WHERE user_id = ? AND revoked_at IS NULL').get(user.id).n >= maxKeys) throw new HttpError(400, `You can have ${maxKeys} keys on your plan. Revoke one to make another.`);
-    const key = `vx_${randomBytes(24).toString('base64url')}`;
-    const info = db.prepare('INSERT INTO engine_keys (user_id, name, key_hash, key_hint, created_at) VALUES (?, ?, ?, ?, ?)').run(user.id, str(name, 60) || 'My key', hashToken(key), keyHint(key), Date.now());
+  function makeKey(user, name, test = false) {
+    // Test keys don't use up the plan's key count (two at a time).
+    const maxKeys = test ? 2 : plans ? plans.planFor(user.id).keys : API_LIMITS.keys;
+    if (db.prepare('SELECT COUNT(*) AS n FROM engine_keys WHERE user_id = ? AND revoked_at IS NULL AND sandbox = ?').get(user.id, test ? 1 : 0).n >= maxKeys) throw new HttpError(400, test ? 'You can have 2 test keys. Revoke one to make another.' : `You can have ${maxKeys} keys on your plan. Revoke one to make another.`);
+    const key = `vx_${test ? 'test_' : ''}${randomBytes(24).toString('base64url')}`;
+    const info = db.prepare('INSERT INTO engine_keys (user_id, name, key_hash, key_hint, created_at, sandbox) VALUES (?, ?, ?, ?, ?, ?)').run(user.id, str(name, 60) || (test ? 'Test key' : 'My key'), hashToken(key), keyHint(key), Date.now(), test ? 1 : 0);
     const made = keyOut(db.prepare('SELECT * FROM engine_keys WHERE id = ?').get(Number(info.lastInsertRowid)));
     onKey(user.id, 'key.created', { key: { id: made.id, name: made.name, hint: made.hint } });
     return { key, ...made };
@@ -202,13 +212,15 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
   function keyUser(req) {
     const auth = String(req.headers.authorization || '');
     if (!auth.startsWith('Bearer vx_')) return null;
-    const k = db.prepare('SELECT k.id AS key_id, k.allow_ips, u.id, u.handle, u.role FROM engine_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ? AND k.revoked_at IS NULL AND u.role != \'banned\'').get(hashToken(auth.slice(7).trim()));
+    const k = db.prepare('SELECT k.id AS key_id, k.allow_ips, k.sandbox, u.id, u.handle, u.role FROM engine_keys k JOIN users u ON u.id = k.user_id WHERE k.key_hash = ? AND k.revoked_at IS NULL AND u.role != \'banned\'').get(hashToken(auth.slice(7).trim()));
     return k || null;
   }
   function requireKey(req, ctx = {}) {
     const k = keyUser(req);
     if (!k) throw new HttpError(401, 'Send your key as “Authorization: Bearer vx_…”. Make one in your console.');
     if (!ipAllowed(ctx.ip, k.allow_ips)) throw new HttpError(403, `That key only works from its allowed addresses, and ${ctx.ip || 'this address'} isn’t one of them.`);
+    // Test keys: work while the API is off, never count against the plan, 20 calls a minute.
+    if (k.sandbox) { if (!testMinute.take(`t:${k.key_id}`)) throw new HttpError(429, 'Slow down: 20 calls a minute on a test key.'); return k; }
     if (off() && !isStaff(k)) throw new HttpError(503, 'The engine API isn’t switched on yet. Watch the roadmap.');
     // The account's plan sets the limits (and whether use past the day's allowance is billed).
     if (plans) { k.plan = plans.take(k.id, k.key_id); return k; }
@@ -246,6 +258,12 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
     if (ctx.apiMeta) Object.assign(ctx.apiMeta, { kind, format, params: body.params || {} });
     const list = parts(kind, body.params);
     const name = str(body.name, 60).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || kind;
+    // A test key: the request was checked like a real one; the file is a 20 mm test cube, not the model.
+    if (k.sandbox) {
+      if (format === 'stl' && list.length > 1 && !list.some((p) => p.name === str(body.part, 60))) throw new HttpError(400, `This model has ${list.length} parts; STL takes one at a time. Pass "part" as one of: ${list.map((p) => p.name).join(', ')}. Or ask for 3mf to get them all.`);
+      const cube = testCube(), bytes = format === 'stl' ? toSTL(cube, `${name}-test`) : format === 'obj' ? toOBJ([{ mesh: cube, name: `${name}-test` }], `${name}-test`) : to3MF([{ mesh: cube, name: `${name}-test` }], `${name}-test`);
+      return { bytes: Buffer.from(bytes.buffer ? bytes : new Uint8Array(bytes)), name: `${name}-test.${format}`, type: API_FORMATS[format], serial: 'TEST', parts: list.map((p) => p.name), test: true };
+    }
     let chosen = list;
     if (format === 'stl' && list.length > 1) {
       const part = str(body.part, 60);
@@ -278,7 +296,7 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
     if (path === '/api/engine/v1/kinds' && m === 'GET') return json(res, 200, { kinds: kinds() }, { 'Cache-Control': 'public, max-age=300' }), true;
     // Keys: yours, made and revoked while signed in on the site.
     if (path === '/api/engine/v1/keys' && m === 'GET') { const me = requireUser(ctx, 'Sign in to see your keys.'); return json(res, 200, { keys: keysOf(me.id), enabled: !off(), staff: isStaff(me) }), true; }
-    if (path === '/api/engine/v1/keys' && m === 'POST') { const me = requireUser(ctx, 'Sign in to make a key.'); const body = await readJson(req, 4 * 1024); return json(res, 201, makeKey(me, body.name)), true; }
+    if (path === '/api/engine/v1/keys' && m === 'POST') { const me = requireUser(ctx, 'Sign in to make a key.'); const body = await readJson(req, 4 * 1024); return json(res, 201, makeKey(me, body.name, Boolean(body.test))), true; }
     const km = path.match(/^\/api\/engine\/v1\/keys\/(\d+)$/);
     if (km && m === 'PATCH') {
       const me = requireUser(ctx, 'Sign in first.');
@@ -319,7 +337,7 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
       const file = generate(k, body, ctx);
       res.writeHead(200, {
         'Content-Type': file.type, 'Content-Length': file.bytes.length, 'Content-Disposition': `attachment; filename="${file.name}"`,
-        'X-Vertex-Serial': file.serial, 'X-Vertex-Engine': ENGINE.version, 'X-Vertex-Parts': file.parts.join(','), 'Cache-Control': 'no-store',
+        'X-Vertex-Serial': file.serial, 'X-Vertex-Engine': ENGINE.version, 'X-Vertex-Parts': file.parts.join(','), 'Cache-Control': 'no-store', ...(file.test ? { 'X-Mint-Test': '1' } : {}),
         ...(k.plan ? { 'X-Mint-Plan': k.plan.plan.id, ...(k.plan.over ? { 'X-Mint-Extra-Use': '1' } : {}) } : {}),
       });
       res.end(file.bytes);

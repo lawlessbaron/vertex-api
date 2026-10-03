@@ -78,12 +78,12 @@ function overview() {
 function keysTab() {
   const live = data.keys.filter((k) => !k.revoked), cur = data.plan?.plan;
   pane().innerHTML = (ro() ? '' : card('Make a key', `
-      <form class="toolbar" data-newkey><input name="name" maxlength="60" placeholder="What it's for, e.g. Shop orders" aria-label="Key name" required style="flex:1 1 260px" /><button class="btn primary">${icon('plus')}Make a key</button></form>
+      <form class="toolbar" data-newkey><input name="name" maxlength="60" placeholder="What it's for, e.g. Shop orders" aria-label="Key name" required style="flex:1 1 260px" /><label class="switch" style="align-self:center"><input type="checkbox" name="test" /><span>Test key</span></label><button class="btn primary">${icon('plus')}Make a key</button></form>
       <div data-fresh></div>
       <p class="lede" style="margin:12px 0 0">${cur ? `On ${esc(cur.name)}: up to ${num(cur.keys)} keys, ${num(cur.perDay)} calls a day for your whole account, and ${num(cur.perMinute)} a minute per key.` : ''} <b>Lock</b> a key to your server's addresses and it won't work from anywhere else.</p>`))
     + card('Your keys', table(['Key', 'Made', 'Last used', { t: 'Calls', c: 'n' }, 'Today', ''], data.keys.map((k) => `
       <tr class="${k.revoked ? 'off' : ''}">
-        <td><b data-name="${k.id}">${esc(k.name)}</b> <span class="hint">${esc(k.hint || 'vx_…')}</span>${k.revoked ? ' <span class="pill bad">revoked</span>' : ''}<div style="margin-top:5px">${k.allowIps ? `<span class="pill info" title="${esc(k.allowIps)}">locked to ${k.allowIps.split(',').length} address${k.allowIps.split(',').length > 1 ? 'es' : ''}</span>` : '<span class="pill plain">any address</span>'}${k.dayCap || k.monthCap ? ` <span class="pill info">${[k.dayCap ? `${k.dayCap.toLocaleString()} a day` : '', k.monthCap ? `$${k.monthCap} extra a month` : ''].filter(Boolean).join(' · ')}</span>` : ''}</div></td>
+        <td><b data-name="${k.id}">${esc(k.name)}</b> <span class="hint">${esc(k.hint || 'vx_…')}</span>${k.revoked ? ' <span class="pill bad">revoked</span>' : ''}${k.test ? ' <span class="pill info" title="Checked like a real call, answered with a 20 mm test cube, never counted">test</span>' : ''}<div style="margin-top:5px">${k.allowIps ? `<span class="pill info" title="${esc(k.allowIps)}">locked to ${k.allowIps.split(',').length} address${k.allowIps.split(',').length > 1 ? 'es' : ''}</span>` : '<span class="pill plain">any address</span>'}${k.dayCap || k.monthCap ? ` <span class="pill info">${[k.dayCap ? `${k.dayCap.toLocaleString()} a day` : '', k.monthCap ? `$${k.monthCap} extra a month` : ''].filter(Boolean).join(' · ')}</span>` : ''}</div></td>
         <td>${ago(k.createdAt)}</td><td>${ago(k.lastUsedAt)}</td><td class="n">${num(k.calls)}</td>
         <td style="min-width:140px">${k.revoked ? '—' : `<div class="hbar" style="grid-template-columns:1fr auto"><i><b style="width:${Math.min(100, (k.usedToday / Math.max(1, cur?.perDay || 1000)) * 100).toFixed(1)}%"></b></i><em>${num(k.usedToday)}</em></div>`}</td>
         <td class="n">${k.revoked || ro() ? '' : `<span class="acts">${iconBtn('list', 'Calls', `data-fkey="${k.id}"`)}${iconBtn('lock', 'Lock to addresses', `data-lock="${k.id}" data-allow="${esc(k.allowIps || '')}"`)}${iconBtn('gauge', 'Limits', `data-limits="${k.id}" data-day="${k.dayCap ?? ''}" data-month="${k.monthCap ?? ''}"`)}${iconBtn('cog', 'Rename', `data-rename="${k.id}"`)}${iconBtn('x', 'Revoke', `data-revoke="${k.id}"`, 'bad')}</span>`}</td>
@@ -274,7 +274,7 @@ document.addEventListener('submit', async (e) => {
   if (f.method === 'dialog') return;
   e.preventDefault();
   if (f.matches('[data-newkey]')) {
-    const k = await act(() => call('/api/engine/v1/keys', { method: 'POST', body: { name: f.name.value } }));
+    const k = await act(() => call('/api/engine/v1/keys', { method: 'POST', body: { name: f.name.value, test: f.test?.checked } }));
     if (!k) return;
     await load(false); keysTab();
     $('[data-fresh]').innerHTML = `<div class="card" style="margin-top:14px;border-color:var(--mint)"><p style="margin:0 0 8px"><b>Your new key.</b> Copy it now: it won't be shown again.</p><div class="toolbar"><pre class="code" style="flex:1">${esc(k.key)}</pre><button type="button" class="btn primary" data-copy="${esc(k.key)}">${icon('copy')}Copy</button></div></div>`;

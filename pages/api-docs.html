@@ -131,6 +131,7 @@
             <li><b>Keep keys secret.</b> Use them from a server, never in a web page or an app someone can unpack.</li>
             <li><b>One key per use</b> (a shop, a bot, a script), so you can see each one's calls and revoke one without stopping the rest.</li>
             <li><b>Revoke</b> a key in the console and it stops working at once. Its past calls stay in your log, under its name.</li>
+            <li><b>Test keys</b> (<code>vx_test_…</code>, tick "Test key" when you make one): every call is checked exactly like a real one, but files come back as a 20 mm test cube (header <code>X-Mint-Test: 1</code>), photo diagnosis returns a fixed sample report, and nothing counts against your plan. They work even while an API is switched off. Two per account, 20 calls a minute.</li>
             <li><b>Lock</b> a key to your server's addresses and a leaked copy is useless anywhere else. See <a href="#locking">Locking a key</a>.</li>
             <li>We only ever store a fingerprint of your key, plus its first few characters (like <code>vx_ab12…</code>) so you can tell keys apart.</li>
           </ul>
