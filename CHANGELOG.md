@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.14.0 · 3 October 2026
+
+### Added
+- **Tracer API billing per photo.** Each partner key can have a price per photo and a number of free photos a month. Only photos that traced count, and test keys are never billed. Each month's total goes on the paying account's next invoice as one line. `GET /trace/v1` now shows the key's price and what this month owes so far.
+- **Tracer billing in the admin.** Settings shows each key's price, who pays and this month's total. You can set a price when you issue a key or change it later, and see every monthly bill (on an invoice, or marked for invoicing by hand when there's no card on file).
+
 ## 1.13.0 · 3 October 2026
 
 ### Added

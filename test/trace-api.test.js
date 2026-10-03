@@ -106,3 +106,64 @@ test('keys: owner-issued, switch, test keys, allowance, revoke, and no engine na
   assert.equal((await call(api, '/api/trace/v1', 'GET', { key: live.key })).status, 403, 'revoked');
   assert.doesNotMatch(JSON.stringify((await call(api, '/api/trace/v1', 'GET', { key: tkey.key })).out), /roboflow|sam3|gpu|modal/i);
 });
+
+test('billing per photo: free photos first, only traced photos, test keys never, each month invoiced once', async () => {
+  const db = openDatabase(':memory:');
+  const OWNER = { id: 1, role: 'owner' };
+  db.prepare("INSERT INTO users (id, email, name, role, handle, created_at, synced_at) VALUES (1, 'o@x.y', 'O', 'owner', 'owner', 1, 1)").run();
+  db.prepare("INSERT INTO users (id, email, name, role, handle, stripe_customer_id, created_at, synced_at) VALUES (7, 'p@x.y', 'P', 'member', 'acme', 'cus_acme', 1, 1)").run();
+  const { image, bar } = photo();
+  let fail = false, clock = Date.now();
+  const items = [];
+  const billing = { stripeReady: () => true, currency: () => 'aud', stripeCall: async (m, p, body) => { items.push({ m, p, body }); return { id: `ii_${items.length}` }; } };
+  const toolLibrary = { aiOn: () => true, convertOn: () => true, convertRaw: async () => ({ jpeg: 'x', image }), outline: async (...a) => { if (fail) throw new Error('nope'); return outlineOf(bar)(...a); } };
+  const api = createTraceApi({ db, can, toolLibrary, billing, now: () => clock });
+  await call(api, '/api/admin/trace-api', 'PUT', { user: OWNER, body: { on: true } });
+  // A price needs someone to pay it, and that account has to exist.
+  assert.equal((await call(api, '/api/admin/trace-api/keys', 'POST', { user: OWNER, body: { name: 'Acme', centsPerPhoto: 5 } })).status, 400);
+  assert.equal((await call(api, '/api/admin/trace-api/keys', 'POST', { user: OWNER, body: { name: 'Acme', centsPerPhoto: 5, billTo: '@nobody' } })).status, 400);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM trace_keys').get().n, 0, 'a refused key leaves nothing behind');
+  const live = (await call(api, '/api/admin/trace-api/keys', 'POST', { user: OWNER, body: { name: 'Acme', quota: 50, centsPerPhoto: 5, freePhotos: 1, billTo: '@acme' } })).out;
+  assert.equal(live.centsPerPhoto, 5);
+  assert.equal(live.billHandle, 'acme');
+  const tkey = (await call(api, '/api/admin/trace-api/keys', 'POST', { user: OWNER, body: { name: 'Tester', test: true, centsPerPhoto: 5, billTo: '@acme' } })).out;
+  assert.equal(tkey.centsPerPhoto, 0, 'test keys are never priced');
+  assert.equal((await call(api, `/api/admin/trace-api/keys/${tkey.id}`, 'PUT', { user: OWNER, body: { centsPerPhoto: 5 } })).status, 400);
+
+  const run = async (key) => {
+    const s = await call(api, '/api/trace/v1/jobs', 'POST', { key, body: { image: 'AAAA', paper: 'a4' } });
+    for (let i = 0; i < 250; i++) { const r = await call(api, s.out.check, 'GET', { key }); if (r.out.status !== 'running') return r; await new Promise((ok) => setTimeout(ok, 20)); }
+    throw new Error('never finished');
+  };
+  const owed = async () => (await call(api, '/api/trace/v1', 'GET', { key: live.key })).out.key.price.owedThisMonthCents;
+  await run(live.key);
+  assert.equal(await owed(), 0, 'the first photo is free');
+  await run(live.key);
+  assert.equal(await owed(), 5);
+  fail = true; await run(live.key); fail = false;
+  assert.equal(await owed(), 5, 'a failed photo costs nothing');
+  // A price change applies from the next photo; earlier photos keep their price.
+  await call(api, `/api/admin/trace-api/keys/${live.id}`, 'PUT', { user: OWNER, body: { centsPerPhoto: 10 } });
+  await run(live.key);
+  assert.equal(await owed(), 15);
+  await run(tkey.key);
+  assert.equal((await call(api, '/api/trace/v1', 'GET', { key: tkey.key })).out.key.price, undefined, 'a test key has no bill');
+  // This month isn't billed yet; next month it goes on Acme's invoice once.
+  assert.equal(await api.billPhotos(), 0);
+  clock += 40 * 864e5;
+  assert.equal(await api.billPhotos(), 1);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].p, '/invoiceitems');
+  assert.equal(items[0].body.customer, 'cus_acme');
+  assert.equal(items[0].body.amount, 15);
+  assert.match(items[0].body.description, /2 photos/);
+  assert.doesNotMatch(items[0].body.description, /roboflow|sam/i);
+  assert.equal(await api.billPhotos(), 0, 'billed once');
+  const admin = (await call(api, '/api/admin/trace-api', 'GET', { user: OWNER })).out;
+  assert.equal(admin.bills[0].invoiceItem, 'ii_1');
+  // Without a card on file it's marked for invoicing by hand, never lost.
+  db.prepare("INSERT INTO trace_bills (key_id, month, photos, cents) VALUES (?, '2020-01', 3, 30)").run(live.id);
+  db.prepare('UPDATE users SET stripe_customer_id = NULL WHERE id = 7').run();
+  await api.billPhotos();
+  assert.equal(db.prepare("SELECT invoice_item FROM trace_bills WHERE month = '2020-01'").get().invoice_item, 'invoice by hand');
+});

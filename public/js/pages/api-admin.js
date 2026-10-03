@@ -378,8 +378,33 @@ async function settingsTab() {
       <input name="name" placeholder="Who it’s for" required aria-label="Who it’s for" style="flex:1 1 200px" />
       <label class="field" style="flex-direction:row;align-items:center;display:flex;gap:8px">Photos a month <input name="quota" type="number" min="1" max="100000" value="${t.limits?.defaultQuota || 500}" style="width:100px" /></label>
       <label class="switch"><input type="checkbox" name="test" /> test key</label>
+      <label class="field" style="flex-direction:row;align-items:center;display:flex;gap:8px">Cents a photo <input name="cents" type="number" min="0" max="100000" value="0" style="width:80px" /></label>
+      <label class="field" style="flex-direction:row;align-items:center;display:flex;gap:8px">Free a month <input name="free" type="number" min="0" value="0" style="width:90px" /></label>
+      <input name="billTo" placeholder="@account that pays" aria-label="Account that pays" style="flex:0 1 170px" />
       <button class="btn primary sm">${icon('key')}Issue key</button>
-    </form><div data-tknew></div><p class="lede" style="margin:12px 0 0">Keys are shown once. Revoke or lock them under Keys. A test key works while the API is off.</p>`) : ''}`;
+    </form><div data-tknew></div><p class="lede" style="margin:12px 0 0">Keys are shown once. Revoke or lock them under Keys. A test key works while the API is off and is never billed. Leave cents at 0 for a key that isn’t billed.</p>`) : ''}
+  ${t ? tracerBilling(t) : ''}`;
+}
+
+// Tracer API billing: each key's price, what it owes this month, and each month's bill.
+const money = (c) => `$${(c / 100).toFixed(2)}`;
+function tracerBilling(t) {
+  const live = (t.keys || []).filter((k) => !k.revoked && !k.test);
+  return card('Tracer billing', table(['Key', 'Price', 'Pays', { t: 'This month', c: 'n' }], live.map((k) => `
+      <tr><td><b>${esc(k.name)}</b> <span class="hint">${esc(k.hint || '')}</span></td>
+      <td>${k.centsPerPhoto ? `${money(k.centsPerPhoto)} a photo${k.freePhotos ? `, first ${num(k.freePhotos)} free` : ''}` : '<span class="pill plain">not billed</span>'}</td>
+      <td>${k.billHandle ? `@${esc(k.billHandle)}` : '—'}</td><td class="n">${num(k.used)} photos · ${money(k.owedThisMonth || 0)}</td></tr>`).join(''), 'No live tracer keys.')
+    + (live.length ? `<form class="toolbar" data-tkprice style="margin-top:14px">
+      <select name="id" aria-label="Key">${live.map((k) => `<option value="${k.id}" data-c="${k.centsPerPhoto}" data-f="${k.freePhotos}" data-b="${esc(k.billHandle || '')}">${esc(k.name)}</option>`).join('')}</select>
+      <label class="field" style="flex-direction:row;align-items:center;display:flex;gap:8px">Cents a photo <input name="cents" type="number" min="0" max="100000" value="${live[0].centsPerPhoto}" style="width:80px" /></label>
+      <label class="field" style="flex-direction:row;align-items:center;display:flex;gap:8px">Free a month <input name="free" type="number" min="0" value="${live[0].freePhotos}" style="width:90px" /></label>
+      <input name="billTo" placeholder="@account that pays" value="${esc(live[0].billHandle ? `@${live[0].billHandle}` : '')}" aria-label="Account that pays" style="flex:0 1 170px" />
+      <button class="btn sm">Save price</button></form>` : '')
+    + `<h3 style="margin:20px 0 8px;font-size:14px">Monthly bills</h3>`
+    + table(['Month', 'Key', { t: 'Photos', c: 'n' }, { t: 'Amount', c: 'n' }, 'Invoice'], (t.bills || []).map((b) => `
+      <tr><td>${esc(b.month)}</td><td>${esc(b.name)}</td><td class="n">${num(b.photos)}</td><td class="n">${money(b.cents)}</td>
+      <td>${b.billedAt ? (b.invoiceItem === 'invoice by hand' ? '<span class="pill warn">invoice by hand</span>' : `<span class="pill ok">on invoice</span> <span class="hint">${esc(b.invoiceItem || '')}</span>`) : '<span class="pill info">this month</span>'}</td></tr>`).join(''), 'Nothing billed yet.'),
+  { right: `<button type="button" class="btn sm ghost" data-tkbill>Bill finished months now</button>`, note: t.payments ? 'Finished months go on the payer’s next invoice.' : 'Payments aren’t set up: bills are marked for invoicing by hand.' });
 }
 
 // ---------- education ----------
@@ -452,6 +477,12 @@ async function refreshCounts() {
 const goCalls = (f) => { filters = f; rows = []; next = null; if (location.hash === '#calls') show('calls'); else location.hash = 'calls'; };
 
 document.addEventListener('change', async (e) => {
+  // Picking a key in the price form shows its current price.
+  if (e.target.matches?.('[data-tkprice] [name=id]')) {
+    const o = e.target.selectedOptions[0], f = e.target.form;
+    f.cents.value = o.dataset.c; f.free.value = o.dataset.f; f.billTo.value = o.dataset.b ? `@${o.dataset.b}` : '';
+    return;
+  }
   const sw = e.target.dataset?.sw;
   if (sw) {
     const put = { engine: () => call('/api/admin/api/settings', { method: 'PUT', body: { engineApi: e.target.checked } }), tracer: () => call('/api/admin/trace-api', { method: 'PUT', body: { on: e.target.checked } }), printai: () => call('/api/admin/print-ai', { method: 'PUT', body: { on: e.target.checked } }), 'printai-photos': () => call('/api/admin/print-ai', { method: 'PUT', body: { photos: e.target.checked } }) }[sw];
@@ -471,6 +502,7 @@ document.addEventListener('click', async (e) => {
   if (t.closest?.('[data-reload]')) return show();
   const eo = e.target.closest('[data-eduopen]');
   if (eo) return act(() => eduOpen(eo.dataset.eduopen));
+  if (t.closest?.('[data-tkbill]')) { const r = await act(() => call('/api/admin/trace-api/bill', { method: 'POST' })); if (r) toast(`${r.billed} billed`); return show('settings'); }
   if (t.closest?.('[data-vref]')) { await act(() => call('/api/admin/api/vertex/refresh', { method: 'POST' }), 'Checked VERTEX'); return show('settings'); }
   if (t.closest?.('[data-vimport]')) { if (!(await ask({ title: 'Bring the records over again?', body: 'Rows already here stay as they are.', ok: 'Bring over' }))) return; await act(() => call('/api/admin/api/vertex/import', { method: 'POST' }), 'Done'); return show('settings'); }
   const d = e.target.closest('[data-days]');
@@ -538,8 +570,12 @@ document.addEventListener('submit', async (e) => {
     return;
   }
   if (f.matches('[data-tkform]')) {
-    const k = await act(() => call('/api/admin/trace-api/keys', { method: 'POST', body: { name: f.name.value, quota: Number(f.quota.value), test: f.test.checked } }));
+    const k = await act(() => call('/api/admin/trace-api/keys', { method: 'POST', body: { name: f.name.value, quota: Number(f.quota.value), test: f.test.checked, centsPerPhoto: Number(f.cents.value), freePhotos: Number(f.free.value), billTo: f.billTo.value } }));
     if (k) { $('[data-tknew]').innerHTML = `<div class="card" style="margin-top:14px;border-color:var(--mint)"><p style="margin:0 0 8px">Key for <b>${esc(k.name)}</b>. Copy it now: it isn't shown again.</p><pre class="code">${esc(k.key)}</pre></div>`; f.reset(); }
+    return;
+  }
+  if (f.matches('[data-tkprice]')) {
+    if (await act(() => call(`/api/admin/trace-api/keys/${f.id.value}`, { method: 'PUT', body: { centsPerPhoto: Number(f.cents.value), freePhotos: Number(f.free.value), billTo: f.billTo.value } }), 'Price saved')) show('settings');
     return;
   }
   if (f.matches('[data-filter]')) { const d = new FormData(f); filters = { ...filters, status: d.get('status'), q: String(d.get('q') || '').trim(), ip: String(d.get('ip') || '').trim(), userId: String(d.get('userId') || '').trim() }; return search(); }

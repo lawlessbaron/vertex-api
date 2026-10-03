@@ -98,7 +98,7 @@ export function createApp(config) {
   const engineApi = createEngineApi({ db, controls, analytics: null, isStaff, newSerial, plans: apiPlans, teams, onKey: (userId, event, data) => apiWebhooks.emit(userId, event, data) });
   let apiStatus = null;
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
-  const traceApi = createTraceApi({ db, can, audit, toolLibrary, newSerial });
+  const traceApi = createTraceApi({ db, can, audit, toolLibrary, billing: stripe, newSerial });
   const changelog = createChangelog({ path: join(ROOT, 'CHANGELOG.md') });
   const printAi = createPrintAi({ db, isStaff, plans: apiPlans, audit, toolLibrary, env: config.env || process.env, fetchImpl });
   const apiLog = createApiLog({ db, onRecord: (row) => apiGuard.afterCall(row) });
@@ -604,6 +604,7 @@ export function createApp(config) {
     every(10 * 60e3, () => apiGuard.scan());
     every(5 * 60e3, () => apiStatus.probe());
     every(6 * 3600e3, () => apiPlans.billOverage());
+    every(6 * 3600e3, () => traceApi.billPhotos());
     every(5 * 60e3, () => controls.refresh());
     every(24 * 3600e3, () => education.sweep());
     setTimeout(() => { try { apiStatus.probe(); } catch { /* next time */ } controls.refresh().catch(() => {}); }, 15e3).unref?.();

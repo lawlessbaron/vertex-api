@@ -124,7 +124,7 @@
             <thead><tr><th>Key</th><th>For</th><th>Where it comes from</th></tr></thead>
             <tbody>
               <tr><td><code>vx_…</code></td><td>Engine API</td><td>You make it in the console, up to five live keys per account.</td></tr>
-              <tr><td><code>tk_…</code></td><td>Tracer API</td><td>Issued by us to partners, with a monthly photo allowance. Test keys work before launch.</td></tr>
+              <tr><td><code>tk_…</code></td><td>Tracer API</td><td>Issued by us to partners, with a monthly photo allowance and a price per photo. Test keys work before launch and are never billed.</td></tr>
             </tbody>
           </table>
           <ul class="dx-list">
@@ -227,17 +227,21 @@
             <div class="ax-tile"><b>2</b><p><code>GET /trace/v1/jobs/:id</code><br />Check every second or two until it's done (usually a few seconds).</p></div>
             <div class="ax-tile"><b>3</b><p>Use the outlines, or <code>GET …/bin</code> for a ready bin with a pocket per tool.</p></div>
           </div>
-          <p>Photos are traced and thrown away; jobs are kept for 15 minutes. A photo that fails costs nothing from your allowance.</p>
+          <p>Photos are traced and thrown away; jobs are kept for 15 minutes. A photo that fails costs nothing from your allowance, and is never billed.</p>
+          <p><b>Billing per photo.</b> Your agreement sets a price per photo and how many photos each month are free. Only photos that traced count. Each month's total goes on your account's next invoice as one line. <code>GET /trace/v1</code> shows your price and what this month owes so far. Test keys are never billed.</p>
         </section>
 
         <section id="trace-info" class="dx-sec dx-ep">
           <h2><b class="dx-m get">GET</b> /trace/v1</h2>
-          <p>Your key's name, whether it's a test key, and this month's allowance and use.</p>
+          <p>Your key's name, whether it's a test key, this month's allowance and use, and (for a live key) its price and what this month owes so far, in cents.</p>
           <pre class="ax-code dx-pre" data-lang="json"><code>{
   "name": "VERTEX tracer API",
   "version": 1,
   "papers": ["a4", "letter", "a5", "a3"],
-  "key": { "name": "Acme Tools", "test": false, "quota": 500, "usedThisMonth": 42 },
+  "key": {
+    "name": "Acme Tools", "test": false, "quota": 500, "usedThisMonth": 42,
+    "price": { "centsPerPhoto": 5, "freePhotos": 20, "owedThisMonthCents": 110 }
+  },
   "limits": { "perMinute": 6, "atOnce": 2, "maxPhotoMb": 20 }
 }</code></pre>
         </section>
@@ -406,7 +410,7 @@
               <tr><td>Per day</td><td>Per account, shared by all its keys, by plan (1,000 on the free plan)</td><td>—</td></tr>
               <tr><td>Past the day's allowance</td><td>Free plan: <code>429</code> until tomorrow. Paid plans: keeps working, priced per 1,000 calls and billed daily, up to your monthly limit</td><td>—</td></tr>
               <tr><td>At once</td><td>—</td><td>2 photos per key</td></tr>
-              <tr><td>Per month</td><td>—</td><td>Your allowance (500 to start)</td></tr>
+              <tr><td>Per month</td><td>—</td><td>Your allowance (500 to start). Photos past your free ones are billed at your price, once a month</td></tr>
               <tr><td>Keys</td><td>By plan (5 on the free plan)</td><td>Issued by us</td></tr>
               <tr><td>Sizes</td><td colspan="2">The same limits as the site's generators (grid size, height, parts).</td></tr>
             </tbody>

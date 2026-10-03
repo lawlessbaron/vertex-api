@@ -11,6 +11,11 @@
 // GET  /api/trace/v1/jobs/:id/bin    → a ready Gridfinity bin with a pocket for every tool
 //                                    (?format=stl|3mf&clearance=1&depth=20&finger=22), with a serial number
 // GET  /api/trace/v1                 → what the API is, and this key's allowance
+//
+// Billing per photo: the owner can give a key a price per photo, a number of
+// free photos a month and the account that pays. Only photos that traced are
+// counted; test keys never pay. Each finished month goes on that account's
+// next Stripe invoice as one item (or is marked for invoicing by hand).
 import { randomBytes } from 'node:crypto';
 import { HttpError, RateLimiter, readJson } from './security.js';
 import { hashToken } from './auth.js';
@@ -104,7 +109,7 @@ export function binFor(tools, { clearance = 1, depth = 20, finger = 22 } = {}) {
   return { mesh: generateCutoutBin({ gridX: fit.gx, gridY: fit.gy, shapes, chamfer: 0.8 }), gx: fit.gx, gy: fit.gy };
 }
 
-export function createTraceApi({ db, can, audit, toolLibrary, newSerial = () => `T${Date.now().toString(36).toUpperCase()}` }) {
+export function createTraceApi({ db, can, audit, toolLibrary, billing = null, now = () => Date.now(), newSerial = () => `T${Date.now().toString(36).toUpperCase()}` }) {
   const minute = new RateLimiter(TRACE_LIMITS.perMinute, 60e3);
   const jobs = new Map();
   warmTrace();
@@ -112,17 +117,66 @@ export function createTraceApi({ db, can, audit, toolLibrary, newSerial = () => 
   const save = (v) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(KEY, JSON.stringify(v));
 
   // ---------- keys (the owner issues them)
-  const keyOut = (k) => ({ id: k.id, name: k.name, hint: k.key_hint || null, allowIps: k.allow_ips || '', test: Boolean(k.test), quota: k.quota, used: k.month === month() ? k.used : 0, calls: k.calls, createdAt: k.created_at, lastUsedAt: k.last_used_at, revoked: Boolean(k.revoked_at) });
+  const billOf = (k) => db.prepare('SELECT photos, cents FROM trace_bills WHERE key_id = ? AND month = ?').get(k.id, month(now())) || { photos: 0, cents: 0 };
+  const priceOut = (k) => ({ centsPerPhoto: k.cents_per_photo || 0, freePhotos: k.free_photos || 0 });
+  const keyOut = (k) => ({ id: k.id, name: k.name, hint: k.key_hint || null, allowIps: k.allow_ips || '', test: Boolean(k.test), quota: k.quota, used: k.month === month() ? k.used : 0, calls: k.calls, createdAt: k.created_at, lastUsedAt: k.last_used_at, revoked: Boolean(k.revoked_at),
+    ...priceOut(k), billUserId: k.bill_user_id || null, billHandle: k.bill_user_id ? db.prepare('SELECT handle FROM users WHERE id = ?').get(k.bill_user_id)?.handle || null : null, owedThisMonth: k.test ? 0 : billOf(k).cents });
   const keys = () => db.prepare('SELECT * FROM trace_keys ORDER BY revoked_at IS NOT NULL, id DESC').all().map(keyOut);
   function issue(user, body = {}, ip) {
     const name = str(body.name, 60);
     if (!name) throw new HttpError(400, 'Who is the key for?');
     const quota = Math.max(1, Math.min(100000, Math.round(Number(body.quota) || TRACE_LIMITS.defaultQuota)));
+    const price = body.test ? null : priceFrom(body); // checked before the key exists, so a bad payer leaves nothing behind
     const key = `tk_${randomBytes(24).toString('base64url')}`;
     const id = Number(db.prepare('INSERT INTO trace_keys (name, key_hash, key_hint, test, quota, month, used, calls, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?)').run(name, hashToken(key), keyHint(key), body.test ? 1 : 0, quota, month(), user?.id || null, Date.now()).lastInsertRowid);
-    audit?.log(user, 'traceapi.key', String(id), { name, quota, test: Boolean(body.test) }, ip);
+    if (price) setPrice(id, price);
+    audit?.log(user, 'traceapi.key', String(id), { name, quota, test: Boolean(body.test), ...priceOut(db.prepare('SELECT * FROM trace_keys WHERE id = ?').get(id)) }, ip);
     return { key, ...keyOut(db.prepare('SELECT * FROM trace_keys WHERE id = ?').get(id)) };
   }
+
+  // A key's price: cents a photo, free photos a month, and who pays (an account by id or @handle).
+  function priceFrom(body = {}) {
+    const cents = Math.max(0, Math.min(100000, Math.round(Number(body.centsPerPhoto) || 0)));
+    const free = Math.max(0, Math.min(1000000, Math.round(Number(body.freePhotos) || 0)));
+    let payer = null;
+    const who = String(body.billTo ?? '').trim().replace(/^@/, '');
+    if (who) {
+      payer = /^\d+$/.test(who) ? db.prepare('SELECT id FROM users WHERE id = ?').get(Number(who)) : db.prepare('SELECT id FROM users WHERE handle = ? COLLATE NOCASE').get(who);
+      if (!payer) throw new HttpError(400, `No account “${who}” to bill.`);
+    }
+    if (cents && !payer) throw new HttpError(400, 'Who pays? Give the account to bill (its @handle).');
+    return { cents, free, payerId: payer?.id ?? null };
+  }
+  const setPrice = (id, p) => db.prepare('UPDATE trace_keys SET cents_per_photo = ?, free_photos = ?, bill_user_id = ? WHERE id = ?').run(p.cents, p.free, p.payerId, id);
+  // One more photo traced: what this month owes, past the free photos.
+  function countBill(keyId, used) {
+    const k = db.prepare('SELECT test, cents_per_photo, free_photos FROM trace_keys WHERE id = ?').get(keyId);
+    if (!k || k.test || !k.cents_per_photo) return;
+    const photos = Math.max(0, used - (k.free_photos || 0));
+    if (!photos) return;
+    db.prepare('INSERT INTO trace_bills (key_id, month, photos, cents) VALUES (?, ?, ?, ?) ON CONFLICT(key_id, month) DO UPDATE SET photos = excluded.photos, cents = cents + (excluded.photos - photos) * ?')
+      // The first billable photo starts the month's bill at one photo's price: photos traced before the key had a price stay free.
+      .run(keyId, month(now()), photos, k.cents_per_photo, k.cents_per_photo);
+  }
+  // Finished months go on the payer's next invoice. Run a few times a day; each month is billed once.
+  async function billPhotos() {
+    const due = db.prepare('SELECT b.*, k.name, k.bill_user_id, u.stripe_customer_id AS customer, s.customer AS subCustomer, s.provider_id AS sub, s.provider AS provider FROM trace_bills b JOIN trace_keys k ON k.id = b.key_id LEFT JOIN users u ON u.id = k.bill_user_id LEFT JOIN api_plan_subs s ON s.user_id = k.bill_user_id WHERE b.billed_at IS NULL AND b.cents > 0 AND b.month < ?').all(month(now()));
+    let billed = 0;
+    for (const r of due) {
+      const customer = r.customer || r.subCustomer;
+      if (!customer || !billing?.stripeReady?.()) {
+        db.prepare('UPDATE trace_bills SET billed_at = ?, invoice_item = ? WHERE key_id = ? AND month = ?').run(now(), 'invoice by hand', r.key_id, r.month);
+        continue;
+      }
+      try {
+        const item = await billing.stripeCall('POST', '/invoiceitems', { customer, ...(r.provider === 'stripe' && r.sub ? { subscription: r.sub } : {}), amount: r.cents, currency: (billing.currency?.() || 'aud').toLowerCase(), description: `Tracer API, ${r.month}: ${r.photos.toLocaleString('en-AU')} photos (${r.name})` });
+        db.prepare('UPDATE trace_bills SET billed_at = ?, invoice_item = ? WHERE key_id = ? AND month = ?').run(now(), item.id, r.key_id, r.month);
+        billed++;
+      } catch (e) { console.warn(`trace billing: ${e.message}`); }
+    }
+    return billed;
+  }
+  const bills = () => db.prepare('SELECT b.key_id AS keyId, k.name, b.month, b.photos, b.cents, b.billed_at AS billedAt, b.invoice_item AS invoiceItem FROM trace_bills b JOIN trace_keys k ON k.id = b.key_id ORDER BY b.month DESC, k.name LIMIT 200').all();
 
   // The key on a request, or a 401/403/503 that says only what the caller needs.
   function keyFor(req, ip) {
@@ -152,7 +206,9 @@ export function createTraceApi({ db, can, audit, toolLibrary, newSerial = () => 
       Object.assign(job, { status: 'done', result });
       // Counted once it worked: a failed photo costs the partner nothing.
       const now = db.prepare('SELECT month, used FROM trace_keys WHERE id = ?').get(k.id);
-      db.prepare('UPDATE trace_keys SET month = ?, used = ? WHERE id = ?').run(month(), (now?.month === month() ? now.used : 0) + 1, k.id);
+      const used = (now?.month === month() ? now.used : 0) + 1;
+      db.prepare('UPDATE trace_keys SET month = ?, used = ? WHERE id = ?').run(month(), used, k.id);
+      countBill(k.id, used);
     }, (e) => {
       console.warn(`trace api: key ${k.id} job failed: ${e.message}`); // the real reason stays in our logs
       Object.assign(job, { status: 'failed', error: SAY[e.say] || SAY.trace });
@@ -179,7 +235,8 @@ export function createTraceApi({ db, can, audit, toolLibrary, newSerial = () => 
     // ---------- the owner's side
     if (path.startsWith('/api/admin/trace-api')) {
       if (!can(ctx.user, 'tracer.private')) throw new HttpError(403, 'Only owners can open this.');
-      if (path === '/api/admin/trace-api' && method === 'GET') return json(res, 200, { ...state(), keys: keys(), limits: TRACE_LIMITS, ready: toolLibrary.aiOn() && toolLibrary.convertOn() }), true;
+      if (path === '/api/admin/trace-api' && method === 'GET') return json(res, 200, { ...state(), keys: keys(), bills: bills(), limits: TRACE_LIMITS, ready: toolLibrary.aiOn() && toolLibrary.convertOn(), payments: Boolean(billing?.stripeReady?.()) }), true;
+      if (path === '/api/admin/trace-api/bill' && method === 'POST') return json(res, 200, { billed: await billPhotos() }), true;
       if (path === '/api/admin/trace-api' && method === 'PUT') {
         const body = await readJson(req, 4096);
         save({ ...state(), on: Boolean(body.on) });
@@ -190,10 +247,22 @@ export function createTraceApi({ db, can, audit, toolLibrary, newSerial = () => 
       const km = path.match(/^\/api\/admin\/trace-api\/keys\/(\d+)$/);
       if (km && method === 'PUT') {
         const body = await readJson(req, 4096);
-        const q = Math.max(1, Math.min(100000, Math.round(Number(body.quota) || 0)));
-        if (!q) throw new HttpError(400, 'How many photos a month?');
-        db.prepare('UPDATE trace_keys SET quota = ? WHERE id = ?').run(q, Number(km[1]));
-        return json(res, 200, { ok: true }), true;
+        const cur = db.prepare('SELECT * FROM trace_keys WHERE id = ?').get(Number(km[1]));
+        if (!cur) throw new HttpError(404, 'No such key.');
+        const pricing = ['centsPerPhoto', 'freePhotos', 'billTo'].some((f) => body[f] !== undefined);
+        if (pricing && cur.test) throw new HttpError(400, 'Test keys are never billed.');
+        // Checked before anything is saved, so a refused price changes nothing.
+        const price = pricing ? priceFrom({ centsPerPhoto: cur.cents_per_photo, freePhotos: cur.free_photos, billTo: cur.bill_user_id ?? '', ...body }) : null;
+        if (body.quota !== undefined) {
+          const q = Math.max(1, Math.min(100000, Math.round(Number(body.quota) || 0)));
+          if (!q) throw new HttpError(400, 'How many photos a month?');
+          db.prepare('UPDATE trace_keys SET quota = ? WHERE id = ?').run(q, cur.id);
+        }
+        if (price) {
+          setPrice(cur.id, price);
+          audit?.log(ctx.user, 'traceapi.price', km[1], priceOut(db.prepare('SELECT * FROM trace_keys WHERE id = ?').get(cur.id)), ctx.ip);
+        }
+        return json(res, 200, keyOut(db.prepare('SELECT * FROM trace_keys WHERE id = ?').get(cur.id))), true;
       }
       if (km && method === 'DELETE') {
         db.prepare('UPDATE trace_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(Date.now(), Number(km[1]));
@@ -207,7 +276,7 @@ export function createTraceApi({ db, can, audit, toolLibrary, newSerial = () => 
     const k = keyFor(req, ctx.ip);
     const nocache = { 'Cache-Control': 'no-store' };
     if (path === '/api/trace/v1' && method === 'GET') {
-      return json(res, 200, { name: 'VERTEX tracer API', version: 1, papers: Object.keys(PAPER_SIZES), key: { name: k.name, test: Boolean(k.test), quota: k.quota, usedThisMonth: usedNow(k) }, limits: { perMinute: TRACE_LIMITS.perMinute, atOnce: TRACE_LIMITS.running, maxPhotoMb: MAX_PHOTO / 1048576 } }, nocache), true;
+      return json(res, 200, { name: 'VERTEX tracer API', version: 1, papers: Object.keys(PAPER_SIZES), key: { name: k.name, test: Boolean(k.test), quota: k.quota, usedThisMonth: usedNow(k), ...(k.test ? {} : { price: { ...priceOut(k), owedThisMonthCents: billOf(k).cents } }) }, limits: { perMinute: TRACE_LIMITS.perMinute, atOnce: TRACE_LIMITS.running, maxPhotoMb: MAX_PHOTO / 1048576 } }, nocache), true;
     }
     if (path === '/api/trace/v1/jobs' && method === 'POST') {
       if (!toolLibrary.aiOn() || !toolLibrary.convertOn()) throw new HttpError(503, SAY.off);
@@ -253,5 +322,5 @@ export function createTraceApi({ db, can, audit, toolLibrary, newSerial = () => 
     throw new HttpError(404, 'Not here. See GET /api/trace/v1.');
   }
 
-  return { handle, keys, issue, traceSheet, isOn: () => Boolean(state().on) };
+  return { handle, keys, issue, traceSheet, billPhotos, isOn: () => Boolean(state().on) };
 }

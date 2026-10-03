@@ -342,7 +342,20 @@ export const MIGRATIONS = [
      created_at INTEGER NOT NULL,
      UNIQUE (team_id, user_id)
    );
-   ALTER TABLE engine_keys ADD COLUMN team_id INTEGER;`
+   ALTER TABLE engine_keys ADD COLUMN team_id INTEGER;`,
+  // Tracer API billing per photo: a price, free photos a month, and the account billed.
+  `ALTER TABLE trace_keys ADD COLUMN cents_per_photo INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE trace_keys ADD COLUMN free_photos INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE trace_keys ADD COLUMN bill_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+   CREATE TABLE trace_bills (
+     key_id INTEGER NOT NULL,
+     month TEXT NOT NULL,
+     photos INTEGER NOT NULL DEFAULT 0,
+     cents INTEGER NOT NULL DEFAULT 0,
+     billed_at INTEGER,
+     invoice_item TEXT,
+     PRIMARY KEY (key_id, month)
+   );`
 ];
 
 export function openDatabase(path) {
