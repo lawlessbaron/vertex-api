@@ -10,6 +10,7 @@ test('the JavaScript SDK sends the key, parses files and raises errors', async (
     calls.push({ url, opts });
     if (url.endsWith('/engine/v1/generate')) return new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-disposition': 'attachment; filename="bin.stl"', 'x-vertex-serial': 'S1', 'x-vertex-parts': 'bin' } });
     if (url.endsWith('/ai/v1/check/settings')) return Response.json({ findings: [{ code: 'all-clear' }] });
+    if (url.includes('/ai/v1/apply?')) return new Response('nozzle_temperature = 215', { headers: { 'x-fixes-applied': 'nozzle_temperature', 'x-fixes-missing': '' } });
     return new Response(JSON.stringify({ error: 'No.' }), { status: 401, headers: { 'x-request-id': 'r1' } });
   };
   const mm = new MintMotive({ key: 'vx_test', base: 'https://x', fetch });
@@ -18,6 +19,10 @@ test('the JavaScript SDK sends the key, parses files and raises errors', async (
   assert.equal(f.name, 'bin.stl'); assert.equal(f.serial, 'S1');
   assert.equal(calls[0].opts.headers.Authorization, 'Bearer vx_test');
   assert.equal((await mm.ai.checkSettings({ filament_type: 'PLA' })).findings[0].code, 'all-clear');
+  const a = await mm.ai.apply(new TextEncoder().encode('nozzle_temperature = 260'), 'p.ini', [{ setting: 'nozzle_temperature', to: 215 }]);
+  assert.deepEqual(a.applied, ['nozzle_temperature']);
+  assert.deepEqual(a.missing, []);
+  assert.match(calls.at(-1).url, /name=p\.ini&fixes=/);
   await assert.rejects(mm.engine.info(), (e) => e instanceof MintMotiveError && e.status === 401 && e.requestId === 'r1');
 });
 

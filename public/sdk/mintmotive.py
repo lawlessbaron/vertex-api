@@ -108,3 +108,17 @@ class MintMotive:
 
     def ai_outcome(self, job, result, **extra):
         return self._post("/ai/v1/outcomes", {"job": job, "result": result, **extra})
+
+    def ai_apply(self, settings_bytes, name, fixes):
+        """Write fixes ([{"setting", "to"}, ...]) into a .ini, .json or .3mf settings file. Returns (bytes, applied, missing)."""
+        q = urllib.parse.urlencode({"name": name, "fixes": json.dumps(fixes)})
+        r = self._raw("POST", f"/ai/v1/apply?{q}", settings_bytes, "application/octet-stream")
+        split = lambda h: [x for x in (r.headers.get(h) or "").split(",") if x]
+        return r.read(), split("X-Fixes-Applied"), split("X-Fixes-Missing")
+
+    def ai_recipes(self):
+        return self._get("/ai/v1/recipes")["recipes"]
+
+    def ai_apply_to_recipe(self, recipe_id, settings_bytes, name, fixes):
+        q = urllib.parse.urlencode({"name": name, "fixes": json.dumps(fixes)})
+        return json.loads(self._raw("POST", f"/ai/v1/recipes/{urllib.parse.quote(recipe_id)}/apply?{q}", settings_bytes, "application/octet-stream").read().decode())

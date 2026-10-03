@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.15.0 · 3 October 2026
+
+### Added
+- **Apply fixes from the API** (`POST /ai/v1/apply`). Send your slicer settings file (.ini, .json or a 3MF project) with the fixes from a check. You get the same file back with them written in, using each slicer's own setting names, and headers saying what changed.
+- **Apply fixes to your VERTEX Recipe** (`POST /ai/v1/recipes/:id/apply`), and list your Recipes with `GET /ai/v1/recipes`. Only your own Recipes, and never with a test key. The new file goes through VERTEX's usual checks, and a verified Recipe is checked again.
+- `GET /ai/v1` now lists the settings that can be fixed (`fixable`).
+- The JavaScript and Python SDKs have `apply`, `recipes` and `applyToRecipe` (`ai_apply`, `ai_recipes`, `ai_apply_to_recipe` in Python).
+
 ## 1.14.0 · 3 October 2026
 
 ### Added

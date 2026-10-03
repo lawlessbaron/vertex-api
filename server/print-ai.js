@@ -11,6 +11,10 @@
 // POST /api/ai/v1/diagnose/photo     a photo of the print as the body (JPEG, PNG, WebP or HEIC), or { image, context, share }
 // POST /api/ai/v1/outcomes           { job, result: good|failed|fixed, fixedBy, finding, note, context } → 202
 // POST /api/ai/v1/watch/frame        live failure watch: a camera frame mid-print → continue, check or pause
+// POST /api/ai/v1/apply              a settings file (.ini, .json or a 3MF project) as the body, ?name= &fixes=[{setting,to}]
+//                                    → the same file with the fixes written in
+// GET  /api/ai/v1/recipes            your own VERTEX Recipes (id, title, file)
+// POST /api/ai/v1/recipes/:id/apply  as /apply, and the fixed file replaces that Recipe's profile on VERTEX
 import { HttpError, RateLimiter, readJson } from './security.js';
 import { hashToken } from './auth.js';
 import { ipAllowed } from './api-guard.js';
@@ -18,8 +22,9 @@ import { buildParts } from '../engine/models.js';
 import { API_KINDS } from './engine-api.js';
 import {
   checkSettings, checkModel, filaments, settingsFromText, settingsFrom3mf, trisFromStl, trisFrom3mf, trisFromMeshes,
-  summarise, SETTINGS_VERSION, MODEL_VERSION,
+  summarise, SETTINGS_VERSION, MODEL_VERSION, FIX_KEYS, applyFixes,
 } from './print-ai-checks.js';
+import { zipStore } from '../engine/export.js';
 
 const KEY = 'print_ai';
 export const PHOTO_VERSION = 'photo-0.1.0';
@@ -137,7 +142,7 @@ export function imageType(buf) {
   return null;
 }
 
-export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLibrary = null, env = process.env, fetchImpl = globalThis.fetch }) {
+export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLibrary = null, link = null, env = process.env, fetchImpl = globalThis.fetch }) {
   const photoMinute = new RateLimiter(AI_LIMITS.photosPerMinute, 60e3);
   const photoDay = new RateLimiter(AI_LIMITS.photosPerDay, 86400e3);
   // Live watch: one frame every 20 seconds per job is plenty to catch a failure.
@@ -170,6 +175,21 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     if (!n) throw new HttpError(400, 'Send the file as the body.');
     return Buffer.concat(chunks);
   }
+  // Writing chosen fixes into a settings file: the same code Print Doctor on VERTEX runs.
+  async function applyTo(req) {
+    const q = new URL(req.url || '/', 'http://x').searchParams;
+    const name = str(q.get('name'), 200), ext = (name.toLowerCase().match(/\.([a-z0-9]+)$/) || [])[1] || '';
+    if (!ext) throw new HttpError(400, 'Name the file with ?name= (for example profile.ini), so we know its format.');
+    let fixes;
+    try { fixes = JSON.parse(String(q.get('fixes') || '[]')); } catch { throw new HttpError(400, 'fixes is a JSON list of { setting, to }.'); }
+    const buf = await readBody(req, ext === '3mf' ? AI_LIMITS.maxModelMb : 4);
+    let r;
+    try { r = applyFixes(buf, ext, fixes, { zip: zipStore }); } catch (e) { throw e.status ? new HttpError(e.status, e.message) : e; }
+    const outName = name.replace(/(\.[a-z0-9]+)$/i, '-fixed$1').replace(/[^\w. -]+/g, '_');
+    return { ...r, ext, name: outName };
+  }
+  const recipesReady = () => Boolean(link?.on?.());
+
   // G-code can be hundreds of MB; only the "; key = value" comment lines matter, so read it as it streams.
   async function readGcode(req) {
     const out = {};
@@ -319,6 +339,7 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     ready: { settings: true, model: true, photo: photosReady(), watch: photosReady() },
     limits: { photosPerMinute: AI_LIMITS.photosPerMinute, photosPerDay: AI_LIMITS.photosPerDay, maxModelMb: AI_LIMITS.maxModelMb, maxGcodeMb: AI_LIMITS.maxGcodeMb, maxPhotoMb: AI_LIMITS.maxPhotoMb },
     faults: Object.keys(FAULTS),
+    fixable: Object.keys(FIX_KEYS),
   });
 
   function stats() {
@@ -358,7 +379,29 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     if (path === '/api/ai/v1/diagnose/photo' && method === 'POST') return json(res, 200, await diagnose(req, k, ctx), planHeaders), true;
     if (path === '/api/ai/v1/outcomes' && method === 'POST') return json(res, 202, outcome(k, await readJson(req, 8192)), planHeaders), true;
     if (path === '/api/ai/v1/watch/frame' && method === 'POST') return json(res, 200, await watchFrame(req, k, ctx), planHeaders), true;
-    if (/^\/api\/ai\/v1\/recipes\/[\w-]+\/apply$/.test(path) && method === 'POST') throw new HttpError(501, 'Applying a fix to your Recipe is coming: it needs your VERTEX Recipe Book linked.');
+    if (path === '/api/ai/v1/apply' && method === 'POST') {
+      const r = await applyTo(req);
+      if (ctx.apiMeta && !ctx.apiMeta.kind) Object.assign(ctx.apiMeta, { kind: 'ai-apply', params: { file: r.ext, applied: r.applied } });
+      res.writeHead(200, { ...planHeaders, 'Content-Type': r.ext === 'json' ? 'application/json' : r.ext === '3mf' ? 'model/3mf' : 'text/plain; charset=utf-8', 'Content-Length': r.buf.length, 'Content-Disposition': `attachment; filename="${r.name}"`, 'X-Fixes-Applied': r.applied.join(','), 'X-Fixes-Missing': r.missing.join(','), 'Cache-Control': 'no-store' });
+      res.end(r.buf);
+      return true;
+    }
+    if (path === '/api/ai/v1/recipes' && method === 'GET') {
+      if (!recipesReady()) throw new HttpError(503, 'Recipes aren’t reachable right now. Try again soon.');
+      return json(res, 200, { recipes: (await link.recipes(k.id)).recipes }, { ...planHeaders, 'Cache-Control': 'no-store' }), true;
+    }
+    const ra = path.match(/^\/api\/ai\/v1\/recipes\/([\w-]{6,20})\/apply$/);
+    if (ra && method === 'POST') {
+      if (k.sandbox) throw new HttpError(403, 'Test keys can’t change Recipes. Use /api/ai/v1/apply to get the fixed file back.');
+      if (!recipesReady()) throw new HttpError(503, 'Recipes aren’t reachable right now. Try again soon.');
+      const r = await applyTo(req);
+      if (!r.applied.length) throw new HttpError(400, `None of those settings are in this file (${r.missing.join(', ')}), so the Recipe is unchanged.`);
+      if (r.buf.length > 20 * 1048576) throw new HttpError(413, 'Recipe profiles can be up to 20 MB. Use /api/ai/v1/apply for the file, and trim the project before sharing it.');
+      const saved = await link.recipeFile(k.id, ra[1], r.name, r.buf);
+      audit?.log({ id: k.id, handle: k.handle }, 'printai.recipe', ra[1], { applied: r.applied }, ctx.ip);
+      if (ctx.apiMeta && !ctx.apiMeta.kind) Object.assign(ctx.apiMeta, { kind: 'ai-recipe', params: { recipe: ra[1], applied: r.applied } });
+      return json(res, 200, { applied: r.applied, missing: r.missing, recipe: saved.recipe, held: Boolean(saved.held), note: 'A new file means the Recipe is checked again before it shows as verified.' }, planHeaders), true;
+    }
     throw new HttpError(404, 'Not here. See GET /api/ai/v1.');
   }
 

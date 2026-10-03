@@ -100,7 +100,7 @@ export function createApp(config) {
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
   const traceApi = createTraceApi({ db, can, audit, toolLibrary, billing: stripe, newSerial });
   const changelog = createChangelog({ path: join(ROOT, 'CHANGELOG.md') });
-  const printAi = createPrintAi({ db, isStaff, plans: apiPlans, audit, toolLibrary, env: config.env || process.env, fetchImpl });
+  const printAi = createPrintAi({ db, isStaff, plans: apiPlans, audit, toolLibrary, link, env: config.env || process.env, fetchImpl });
   const apiLog = createApiLog({ db, onRecord: (row) => apiGuard.afterCall(row) });
   apiStatus = createApiStatus({
     db, controls, traceOn: () => traceApi.isOn(),

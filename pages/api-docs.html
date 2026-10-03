@@ -70,6 +70,7 @@
           <a href="#ai-check-model">POST /ai/v1/check/model</a>
           <a href="#ai-diagnose">POST /ai/v1/diagnose/photo</a>
           <a href="#ai-outcomes">POST /ai/v1/outcomes</a>
+          <a href="#ai-apply">POST /ai/v1/apply</a>
           <a href="#ai-findings">Findings and fixes</a>
           <p>Reference</p>
           <a href="#errors">Errors</a>
@@ -360,7 +361,16 @@
   -H "Authorization: Bearer $MINT_KEY" -H "Content-Type: image/jpeg" \
   --data-binary @frame.jpg
 # → { "action": "check", "message": "Keep an eye on it: …", "fault": "spaghetti", "streak": 1, … }</pre>
-          <p>Coming next: <code>POST /ai/v1/recipes/:id/apply</code>, to apply a fix to your VERTEX Recipe from the API. On the VERTEX site, Print Doctor already writes fixes into your settings file and can share it as a Recipe.</p>
+        </section>
+
+        <section id="ai-apply" class="dx-sec dx-ep">
+          <h2><b class="dx-m post">POST</b> /ai/v1/apply</h2>
+          <p>Write fixes into your settings file. Send the file as the body: a PrusaSlicer <code>.ini</code>, a Bambu Studio or OrcaSlicer <code>.json</code> preset, or a <code>.3mf</code> project. Add <code>?name=</code> (its file name, so we know the format) and <code>?fixes=</code>, a JSON list of <code>{ "setting", "to" }</code> straight from a check's findings. You get the same file back with the fixes written in, in each slicer's own setting names. The <code>X-Fixes-Applied</code> header lists what changed, and <code>X-Fixes-Missing</code> lists what isn't in the file. <code>GET /ai/v1</code> lists the settings that can be fixed under <code>fixable</code>. G-code is already sliced: fix the profile and slice again.</p>
+          <pre class="dx-code">curl -X POST "https://api.mintmotive.com.au/ai/v1/apply?name=profile.ini&amp;fixes=%5B%7B%22setting%22%3A%22nozzle_temperature%22%2C%22to%22%3A215%7D%5D" \
+  -H "Authorization: Bearer $MINT_KEY" --data-binary @profile.ini -o profile-fixed.ini</pre>
+          <h4 id="ai-recipes"><code>GET /ai/v1/recipes</code> and <code>POST /ai/v1/recipes/:id/apply</code>: your VERTEX Recipes</h4>
+          <p><code>GET /ai/v1/recipes</code> lists your own Recipes on VERTEX (<code>id</code>, <code>title</code>, <code>fileName</code>, <code>verified</code>). <code>POST /ai/v1/recipes/:id/apply</code> works like <code>/apply</code>, and the fixed file then replaces that Recipe's profile. It only reaches the Recipes of the account that owns the key. The new file goes through the usual safety checks, and a verified Recipe is checked again before it shows as verified. If none of the fixes are in the file, the Recipe is left as it was (<code>400</code>). Test keys can't change Recipes. Profiles can be up to 20 MB.</p>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{ "applied": ["nozzle_temperature"], "missing": [], "recipe": { "id": "k3Jd9sQe", "title": "PETG on the P1S", "url": "/recipes/k3Jd9sQe", "fileName": "profile-fixed.ini" }, "held": false }</code></pre>
         </section>
 
         <section id="ai-findings" class="dx-sec">

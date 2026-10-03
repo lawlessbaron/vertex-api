@@ -40,6 +40,10 @@ export class MintMotive {
       checkModel: (model, context = {}) => (model instanceof Uint8Array || model instanceof ArrayBuffer ? self.json(self.raw('POST', `/ai/v1/check/model?${qs(context)}`, model, 'application/octet-stream')) : self.post('/ai/v1/check/model', { ...model, context })),
       diagnosePhoto: (bytes, context = {}) => self.json(self.raw('POST', `/ai/v1/diagnose/photo?${qs(context)}`, bytes, 'application/octet-stream')),
       outcome: (o) => self.post('/ai/v1/outcomes', o),
+      /** Fixes ([{ setting, to }]) written into a .ini, .json or .3mf settings file → { bytes, applied, missing } */
+      apply: async (bytes, name, fixes) => { const r = await self.raw('POST', `/ai/v1/apply?${qs({ name, fixes: JSON.stringify(fixes) })}`, bytes, 'application/octet-stream'); const list = (h) => (r.headers.get(h) || '').split(',').filter(Boolean); return { bytes: new Uint8Array(await r.arrayBuffer()), applied: list('x-fixes-applied'), missing: list('x-fixes-missing') }; },
+      recipes: async () => (await self.get('/ai/v1/recipes')).recipes,
+      applyToRecipe: (recipeId, bytes, name, fixes) => self.json(self.raw('POST', `/ai/v1/recipes/${encodeURIComponent(recipeId)}/apply?${qs({ name, fixes: JSON.stringify(fixes) })}`, bytes, 'application/octet-stream')),
     };
   }
   async raw(method, path, body, type) {

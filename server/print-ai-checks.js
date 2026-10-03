@@ -292,3 +292,71 @@ export function checkModel(tris, context = {}) {
     orientation: { current: now.id, best: best.id, options: lies.map((l) => ({ id: l.id, name: l.name, overhangMm2: mm2(l.overhang), bridgeMm2: mm2(l.bridge), bedContactMm2: mm2(l.contact), heightMm: r1(l.height) })) },
   };
 }
+
+// ---------- writing fixes into a settings file ----------
+// A fix names one setting; each slicer calls it something of its own. Every name it might have in a file.
+export const FIX_KEYS = {
+  nozzle_temperature: ['nozzle_temperature', 'temperature'],
+  nozzle_temperature_initial_layer: ['nozzle_temperature_initial_layer', 'first_layer_temperature'],
+  bed_temperature: ['hot_plate_temp', 'textured_plate_temp', 'bed_temperature', 'cool_plate_temp', 'eng_plate_temp'],
+  bed_temperature_initial_layer: ['hot_plate_temp_initial_layer', 'textured_plate_temp_initial_layer', 'first_layer_bed_temperature'],
+  layer_height: ['layer_height'],
+  first_layer_height: ['initial_layer_print_height', 'first_layer_height'],
+  retraction_length: ['retraction_length', 'retract_length'],
+  fan_max_speed: ['fan_max_speed', 'max_fan_speed'],
+  wall_loops: ['wall_loops', 'perimeters'],
+  sparse_infill_density: ['sparse_infill_density', 'fill_density'],
+  outer_wall_speed: ['outer_wall_speed', 'external_perimeter_speed'],
+  nozzle_type: ['nozzle_type'],
+};
+const cleanFixes = (list) => (Array.isArray(list) ? list : []).filter((f) => FIX_KEYS[f?.setting] && f.to !== undefined && f.to !== null && String(f.to).length < 40).slice(0, 20);
+// A value in the file's own shape: "215,215" stays two values; "15%" keeps its %.
+const reshape = (old, to) => {
+  const v = String(to);
+  const one = (o) => (/%$/.test(String(o).trim()) && !/%$/.test(v) ? `${v}%` : v);
+  return String(old).includes(',') ? String(old).split(',').map(one).join(',') : one(old);
+};
+function applyText(text, fixes, done) {
+  return String(text).split(/(\r?\n)/).map((line) => {
+    const m = /^(;?\s*)([A-Za-z0-9_]+)(\s*=\s*)(.*)$/.exec(line);
+    if (!m) return line;
+    const f = fixes.find((x) => FIX_KEYS[x.setting].includes(m[2].toLowerCase()));
+    if (!f) return line;
+    done.add(f.setting);
+    return `${m[1]}${m[2]}${m[3]}${reshape(m[4], f.to)}`;
+  }).join('');
+}
+function applyJson(obj, fixes, done) {
+  for (const f of fixes) for (const k of FIX_KEYS[f.setting]) {
+    if (!(k in obj)) continue;
+    obj[k] = Array.isArray(obj[k]) ? obj[k].map((o) => reshape(o, f.to)) : typeof obj[k] === 'number' ? Number(f.to) : reshape(obj[k], f.to);
+    done.add(f.setting);
+  }
+  return obj;
+}
+// Errors here carry the HTTP status the caller should answer with.
+const bad = (message) => Object.assign(new Error(message), { status: 400 });
+/** The settings file with the chosen fixes written in, in its own format. Returns { buf, applied, missing }.
+ *  zip: a stored-zip writer (entries → bytes), for 3MF projects; each site passes its own. */
+export function applyFixes(buf, ext, list, { zip } = {}) {
+  const fixes = cleanFixes(list);
+  if (!fixes.length) throw bad('Pick at least one fix to apply.');
+  const done = new Set();
+  let out;
+  if (ext === 'ini' || ext === 'cfg' || ext === 'txt') out = Buffer.from(applyText(buf.toString('utf8'), fixes, done));
+  else if (ext === 'json') {
+    let obj;
+    try { obj = JSON.parse(buf.toString('utf8')); } catch { throw bad('That JSON doesn\'t read as slicer settings.'); }
+    out = Buffer.from(JSON.stringify(applyJson(obj, fixes, done), null, 4));
+  } else if (ext === '3mf') {
+    let files;
+    try { files = readZip(buf); } catch { throw bad('That 3MF won\'t open.'); }
+    for (const [name, data] of Object.entries(files)) {
+      if (!data) throw bad('That 3MF packs its files in a way we can\'t rewrite. Apply the fixes in your slicer.');
+      if (name === 'Metadata/project_settings.config') files[name] = Buffer.from(JSON.stringify(applyJson(JSON.parse(data.toString('utf8')), fixes, done), null, 4));
+      else if (/^Metadata\/.*\.(config|ini)$/i.test(name) && !/\.json$/i.test(name)) { try { JSON.parse(data.toString('utf8')); } catch { files[name] = Buffer.from(applyText(data.toString('utf8'), fixes, done)); } }
+    }
+    out = Buffer.from(zip(Object.entries(files)));
+  } else throw bad(ext === 'gcode' ? 'G-code is already sliced: apply the fixes to your slicer profile (.ini, .json or the 3MF project) and slice again.' : 'Fixes can be written into .ini, .json and 3MF project files.');
+  return { buf: out, applied: [...done], missing: fixes.map((f) => f.setting).filter((x) => !done.has(x)) };
+}

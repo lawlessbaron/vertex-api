@@ -8,6 +8,7 @@
 //   alert()    → an alert for VERTEX staff: the bell, email and Discord
 //   controls() → generators paused on VERTEX, the site's size limits
 //   exportData() → the API's records from when it lived inside VERTEX (once)
+//   recipes(id), recipeFile(id, recipeId, name, buf) → a member's own Recipes, and a fixed profile onto one
 import { HttpError } from './security.js';
 
 export function createLink({ config, fetchImpl = fetch }) {
@@ -39,5 +40,8 @@ export function createLink({ config, fetchImpl = fetch }) {
   const exportData = () => call('GET', '/export', null, { timeout: 120e3 });
   const alert = (a) => call('POST', '/alert', a).catch((e) => { console.warn(`alert to VERTEX failed: ${e.message}`); return null; });
 
-  return { on, authorizeUrl, exchange, user, controls, exportData, alert };
+  const recipes = (userId) => call('GET', `/users/${Number(userId)}/recipes`);
+  const recipeFile = (userId, recipeId, name, buf) => call('POST', `/users/${Number(userId)}/recipes/${encodeURIComponent(recipeId)}/file`, { name, data: Buffer.from(buf).toString('base64') }, { timeout: 60e3 });
+
+  return { on, authorizeUrl, exchange, user, controls, exportData, alert, recipes, recipeFile };
 }

@@ -178,3 +178,54 @@ function makeZip(files) {
   e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(Object.keys(files).length, 8); e.writeUInt16LE(Object.keys(files).length, 10); e.writeUInt32LE(cd.length, 12); e.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, cd, e]);
 }
+
+test('apply: fixes written into the settings file, and onto your own VERTEX Recipe', async () => {
+  const db = openDatabase(':memory:');
+  db.prepare("INSERT INTO users (id, email, name, handle, role, created_at, synced_at) VALUES (1, 'd@x.y', 'D', 'dev', 'user', 1, 1), (2, 's@x.y', 'S', 'staff', 'admin', 1, 1)").run();
+  db.prepare("INSERT INTO engine_keys (user_id, name, key_hash, key_hint, created_at, sandbox) VALUES (1, 'k', ?, 'vx_d…', 1, 0), (1, 't', ?, 'vx_t…', 1, 1)").run(hashToken('vx_dev'), hashToken('vx_test'));
+  const sent = [];
+  const link = {
+    on: () => true,
+    recipes: async (id) => ({ recipes: [{ id: 'mine-001', title: `Recipe of ${id}`, fileName: 'a.ini', verified: true }] }),
+    recipeFile: async (id, rid, name, buf) => { sent.push({ id, rid, name, text: buf.toString() }); return { recipe: { id: rid, title: 'R', url: `/recipes/${rid}`, fileName: name }, held: false }; },
+  };
+  const ai = createPrintAi({ db, isStaff, link, env: {} });
+  await call(ai, '/api/admin/print-ai', 'PUT', { user: { id: 2, role: 'admin' }, body: { on: true } });
+  const ini = Buffer.from('layer_height = 0.2\nnozzle_temperature = 260\nperimeters = 2\n');
+  const fixes = encodeURIComponent(JSON.stringify([{ setting: 'nozzle_temperature', to: 215 }, { setting: 'wall_loops', to: 3 }, { setting: 'fan_max_speed', to: 100 }]));
+  // The file back, with what changed in the headers.
+  const send = async (path, key, raw) => {
+    let status = 200, head = null, out = null, sentBody = null;
+    const req = { url: path, headers: { authorization: `Bearer ${key}`, 'content-type': 'application/octet-stream' }, [Symbol.asyncIterator]: async function* () { if (raw) yield raw; } };
+    const res = { writeHead: (s, h) => { status = s; head = h; }, end: (b) => { sentBody = b; } };
+    try { await ai.handle(req, res, new URL(path, 'http://x').pathname, 'POST', { ip: '1.2.3.4' }, (_r, s, b) => { status = s; out = b; }); } catch (e) { status = e.status; out = { error: e.message }; }
+    return { status, head, out, body: sentBody };
+  };
+  const f = await send(`/api/ai/v1/apply?name=profile.ini&fixes=${fixes}`, 'vx_dev', ini);
+  assert.equal(f.status, 200, JSON.stringify(f.out));
+  assert.match(f.body.toString(), /nozzle_temperature = 215/);
+  assert.match(f.body.toString(), /perimeters = 3/);
+  assert.equal(f.head['X-Fixes-Applied'], 'nozzle_temperature,wall_loops');
+  assert.equal(f.head['X-Fixes-Missing'], 'fan_max_speed');
+  assert.match(f.head['Content-Disposition'], /profile-fixed\.ini/);
+  assert.equal((await send(`/api/ai/v1/apply?name=print.gcode&fixes=${fixes}`, 'vx_dev', Buffer.from('G28'))).status, 400, 'sliced G-code can\'t be fixed');
+  assert.equal((await send(`/api/ai/v1/apply?fixes=${fixes}`, 'vx_dev', ini)).status, 400, 'needs a file name');
+  assert.ok((await call(ai, '/api/ai/v1')).out.fixable.includes('nozzle_temperature'));
+  // Your Recipes, and the fixed file onto one of them.
+  const list = await call(ai, '/api/ai/v1/recipes', 'GET', { key: 'vx_dev' });
+  assert.equal(list.out.recipes[0].title, 'Recipe of 1');
+  const r = await send(`/api/ai/v1/recipes/mine-001/apply?name=profile.ini&fixes=${fixes}`, 'vx_dev', ini);
+  assert.equal(r.status, 200, JSON.stringify(r.out));
+  assert.deepEqual(r.out.applied, ['nozzle_temperature', 'wall_loops']);
+  assert.equal(sent[0].id, 1, 'always the key owner\'s own account');
+  assert.equal(sent[0].rid, 'mine-001');
+  assert.match(sent[0].text, /nozzle_temperature = 215/);
+  // Nothing to change: the Recipe is left alone. Test keys never change Recipes.
+  const none = await send(`/api/ai/v1/recipes/mine-001/apply?name=profile.ini&fixes=${encodeURIComponent(JSON.stringify([{ setting: 'fan_max_speed', to: 90 }]))}`, 'vx_dev', ini);
+  assert.equal(none.status, 400);
+  assert.equal((await send(`/api/ai/v1/recipes/mine-001/apply?name=profile.ini&fixes=${fixes}`, 'vx_test', ini)).status, 403);
+  assert.equal(sent.length, 1);
+  // Without the link to VERTEX: a plain 503, never a crash.
+  const off = createPrintAi({ db, isStaff, link: { on: () => false }, env: {} });
+  assert.equal((await call(off, '/api/ai/v1/recipes', 'GET', { key: 'vx_dev' })).status, 503);
+});
