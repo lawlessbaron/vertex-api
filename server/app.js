@@ -30,6 +30,7 @@ import { createApiWebhooks, WEBHOOK_EVENTS } from './api-webhooks.js';
 import { createApiStatus, STATUS_COMPONENTS, INCIDENT_STATUSES, IMPACTS } from './api-status.js';
 import { createApiPlans } from './api-plans.js';
 import { createEngineApi } from './engine-api.js';
+import { createTeams } from './teams.js';
 import { createPrintAi } from './print-ai.js';
 import { createChangelog } from './changelog.js';
 import { importFromVertex } from './import.js';
@@ -93,7 +94,8 @@ export function createApp(config) {
   // Education plan applications (documents kept beside the database, deleted 30 days after the decision).
   education = createEducation({ db, dir: join(config.databasePath === ':memory:' ? join(ROOT, 'data') : dirname(config.databasePath), 'education'), audit, alerts, plans: apiPlans });
   marketing = createMarketing({ db, dir: config.databasePath === ':memory:' ? join(ROOT, 'data') : dirname(config.databasePath), config, audit });
-  const engineApi = createEngineApi({ db, controls, analytics: null, isStaff, newSerial, plans: apiPlans, onKey: (userId, event, data) => apiWebhooks.emit(userId, event, data) });
+  const teams = createTeams({ db });
+  const engineApi = createEngineApi({ db, controls, analytics: null, isStaff, newSerial, plans: apiPlans, teams, onKey: (userId, event, data) => apiWebhooks.emit(userId, event, data) });
   let apiStatus = null;
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
   const traceApi = createTraceApi({ db, can, audit, toolLibrary, newSerial });
@@ -470,6 +472,7 @@ export function createApp(config) {
     // Print AI: developer keys, its own switch (staff settings at /api/admin/print-ai).
     if (path === '/api/admin/print-ai') requireAdmin(ctx);
     if ((path.startsWith('/api/ai/v1') || path === '/api/admin/print-ai') && (await printAi.handle(req, res, path, method, ctx, json))) return;
+    if (path.startsWith('/api/teams') && (await teams.handle(req, res, path, method, ctx, json, requireUser))) return;
     if (path.startsWith('/api/engine/v1') && (await engineApi.handle(req, res, path, method, ctx, json, requireUser))) return;
     if (path.startsWith('/api/developer/')) {
       let me = requireUser(ctx, 'Sign in to open the console.');
@@ -486,9 +489,11 @@ export function createApp(config) {
       const mine = { userId: me.id, keyType: 'engine' };
       if (path === '/api/developer/console' && method === 'GET') {
         const day = Date.now() - 86400e3;
-        const used = Object.fromEntries(db.prepare("SELECT key_id, COUNT(*) AS n FROM api_requests WHERE key_type = 'engine' AND user_id = ? AND at >= ? AND status NOT IN (401, 429) AND path IN ('/api/engine/v1/generate', '/api/engine/v1/parts') GROUP BY key_id").all(me.id, day).map((r) => [r.key_id, r.n]));
+        const keys = engineApi.keysOf(me.id), ids = keys.map((k) => k.id);
+        // Today's use per key, team keys included (their calls are logged to the team owner).
+        const used = ids.length ? Object.fromEntries(db.prepare(`SELECT key_id, COUNT(*) AS n FROM api_requests WHERE key_type = 'engine' AND key_id IN (${ids.map(() => '?').join(',')}) AND at >= ? AND status NOT IN (401, 429) AND path IN ('/api/engine/v1/generate', '/api/engine/v1/parts') GROUP BY key_id`).all(...ids, day).map((r) => [r.key_id, r.n])) : {};
         return json(res, 200, {
-          me: { handle: me.handle, id: me.id }, viewingAs: Boolean(q.as), info: engineApi.info(), keys: engineApi.keysOf(me.id).map((k) => ({ ...k, usedToday: used[k.id] || 0 })),
+          me: { handle: me.handle, id: me.id }, viewingAs: Boolean(q.as), info: engineApi.info(), keys: keys.map((k) => ({ ...k, usedToday: used[k.id] || 0 })), teams: teams.list(me.id),
           plan: apiPlans.usage(me.id), plans: apiPlans.publicPlans(),
           webhooks: apiWebhooks.list(me.id), events: WEBHOOK_EVENTS,
           summary: apiLog.summary(mine, Math.max(1, Math.min(90, Number(q.days) || 30))),
@@ -601,5 +606,5 @@ export function createApp(config) {
   }
   function close() { for (const t of timers) clearInterval(t); }
 
-  return { server, db, link, controls, stripe, education, syncUser: sync, apiPlans, apiStatus, apiGuard, engineApi, traceApi, schedule, close, handle };
+  return { server, db, link, controls, stripe, education, syncUser: sync, apiPlans, apiStatus, apiGuard, engineApi, teams, traceApi, schedule, close, handle };
 }

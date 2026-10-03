@@ -187,7 +187,7 @@ function testCube() {
   return m;
 }
 
-export function createEngineApi({ db, controls, analytics, isStaff, newSerial, onKey = () => {}, plans = null }) {
+export function createEngineApi({ db, controls, analytics, isStaff, newSerial, onKey = () => {}, plans = null, teams = null }) {
   const minute = new RateLimiter(API_LIMITS.perMinute, 60e3);
   const day = new RateLimiter(API_LIMITS.perDay, 86400e3);
   const testMinute = new RateLimiter(20, 60e3);
@@ -196,17 +196,35 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
 
   // ---------- keys ----------
   const keyOut = (k) => ({ id: k.id, name: k.name, test: Boolean(k.sandbox), hint: k.key_hint || null, allowIps: k.allow_ips || '', dayCap: k.day_cap ?? null, monthCap: k.month_cap_cents == null ? null : k.month_cap_cents / 100, calls: k.calls, createdAt: k.created_at, lastUsedAt: k.last_used_at, revoked: Boolean(k.revoked_at), revokedAt: k.revoked_at || null });
-  // Revoked keys stay listed (greyed), so old calls still name their key.
-  const keysOf = (userId) => db.prepare('SELECT * FROM engine_keys WHERE user_id = ? ORDER BY revoked_at IS NOT NULL, id').all(userId).map(keyOut);
-  function makeKey(user, name, test = false) {
+  // Who may rename, lock, limit or revoke a key: whoever made it, or a team key's owner and admins.
+  const canManage = (k, userId) => (k.team_id ? Boolean(teams?.canManage(k.team_id, userId)) : k.user_id === userId);
+  // Yours and your teams' keys. Revoked keys stay listed (greyed), so old calls still name their key.
+  const keysOf = (userId) => db.prepare(`SELECT k.*, t.name AS team_name FROM engine_keys k LEFT JOIN teams t ON t.id = k.team_id
+      WHERE k.user_id = ? OR k.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?) ORDER BY k.revoked_at IS NOT NULL, k.team_id IS NOT NULL, k.id`).all(userId, userId)
+    .map((k) => ({ ...keyOut(k), team: k.team_id ? { id: k.team_id, name: k.team_name || 'Closed team' } : null, canManage: canManage(k, userId) }));
+  function makeKey(user, name, test = false, teamId = null) {
+    // A team key belongs to the team and runs on its owner's plan.
+    let owner = user.id;
+    if (teamId) {
+      const t = teams?.team(Number(teamId));
+      if (!t || !teams.roleIn(t.id, user.id)) throw new HttpError(404, 'No team with that id.');
+      if (!teams.canManage(t.id, user.id)) throw new HttpError(403, 'Only the team’s owner and admins make its keys.');
+      owner = t.owner_id;
+    }
     // Test keys don't use up the plan's key count (two at a time).
-    const maxKeys = test ? 2 : plans ? plans.planFor(user.id).keys : API_LIMITS.keys;
-    if (db.prepare('SELECT COUNT(*) AS n FROM engine_keys WHERE user_id = ? AND revoked_at IS NULL AND sandbox = ?').get(user.id, test ? 1 : 0).n >= maxKeys) throw new HttpError(400, test ? 'You can have 2 test keys. Revoke one to make another.' : `You can have ${maxKeys} keys on your plan. Revoke one to make another.`);
+    const maxKeys = test ? 2 : plans ? plans.planFor(owner).keys : API_LIMITS.keys;
+    if (db.prepare('SELECT COUNT(*) AS n FROM engine_keys WHERE user_id = ? AND revoked_at IS NULL AND sandbox = ?').get(owner, test ? 1 : 0).n >= maxKeys) throw new HttpError(400, test ? 'You can have 2 test keys. Revoke one to make another.' : teamId && owner !== user.id ? `The team owner's plan allows ${maxKeys} keys, team keys included. Revoke one to make another.` : `You can have ${maxKeys} keys on your plan. Revoke one to make another.`);
     const key = `vx_${test ? 'test_' : ''}${randomBytes(24).toString('base64url')}`;
-    const info = db.prepare('INSERT INTO engine_keys (user_id, name, key_hash, key_hint, created_at, sandbox) VALUES (?, ?, ?, ?, ?, ?)').run(user.id, str(name, 60) || (test ? 'Test key' : 'My key'), hashToken(key), keyHint(key), Date.now(), test ? 1 : 0);
+    const info = db.prepare('INSERT INTO engine_keys (user_id, name, key_hash, key_hint, created_at, sandbox, team_id) VALUES (?, ?, ?, ?, ?, ?, ?)').run(owner, str(name, 60) || (test ? 'Test key' : 'My key'), hashToken(key), keyHint(key), Date.now(), test ? 1 : 0, teamId ? Number(teamId) : null);
     const made = keyOut(db.prepare('SELECT * FROM engine_keys WHERE id = ?').get(Number(info.lastInsertRowid)));
-    onKey(user.id, 'key.created', { key: { id: made.id, name: made.name, hint: made.hint } });
-    return { key, ...made };
+    onKey(owner, 'key.created', { key: { id: made.id, name: made.name, hint: made.hint } });
+    return { key, ...made, team: teamId ? { id: Number(teamId), name: teams.team(Number(teamId)).name } : null };
+  }
+  // The key, if this person may change it; otherwise "no key" (never says whose it is).
+  function manageable(id, userId) {
+    const k = db.prepare('SELECT * FROM engine_keys WHERE id = ?').get(id);
+    if (!k || !canManage(k, userId)) throw new HttpError(404, 'No key with that id.');
+    return k;
   }
   // The member behind a key, or null. Sessions don't count: the API takes keys only.
   function keyUser(req) {
@@ -296,7 +314,7 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
     if (path === '/api/engine/v1/kinds' && m === 'GET') return json(res, 200, { kinds: kinds() }, { 'Cache-Control': 'public, max-age=300' }), true;
     // Keys: yours, made and revoked while signed in on the site.
     if (path === '/api/engine/v1/keys' && m === 'GET') { const me = requireUser(ctx, 'Sign in to see your keys.'); return json(res, 200, { keys: keysOf(me.id), enabled: !off(), staff: isStaff(me) }), true; }
-    if (path === '/api/engine/v1/keys' && m === 'POST') { const me = requireUser(ctx, 'Sign in to make a key.'); const body = await readJson(req, 4 * 1024); return json(res, 201, makeKey(me, body.name, Boolean(body.test))), true; }
+    if (path === '/api/engine/v1/keys' && m === 'POST') { const me = requireUser(ctx, 'Sign in to make a key.'); const body = await readJson(req, 4 * 1024); return json(res, 201, makeKey(me, body.name, Boolean(body.test), body.team || null)), true; }
     const km = path.match(/^\/api\/engine\/v1\/keys\/(\d+)$/);
     if (km && m === 'PATCH') {
       const me = requireUser(ctx, 'Sign in first.');
@@ -305,23 +323,22 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
       const allow = 'allowIps' in body ? parseAllow(body.allowIps) : undefined;
       // Its own limits: calls a day, and dollars of extra use a month (null or empty: none).
       const lim = (v, max, scale) => (v === null || v === '' ? null : Math.round(Math.min(max, Math.max(0, Number(v) || 0)) * scale) || null);
+      manageable(Number(km[1]), me.id);
       if ('dayCap' in body || 'monthCap' in body) {
-        if (!db.prepare('SELECT 1 FROM engine_keys WHERE id = ? AND user_id = ?').get(Number(km[1]), me.id)) throw new HttpError(404, 'No key with that id.');
         if ('dayCap' in body) db.prepare('UPDATE engine_keys SET day_cap = ? WHERE id = ?').run(lim(body.dayCap, 1e7, 1), Number(km[1]));
         if ('monthCap' in body) db.prepare('UPDATE engine_keys SET month_cap_cents = ? WHERE id = ?').run(lim(body.monthCap, 1e6, 100), Number(km[1]));
         if (!name && allow === undefined) return json(res, 200, keyOut(db.prepare('SELECT * FROM engine_keys WHERE id = ?').get(Number(km[1])))), true;
       }
       if (!name && allow === undefined) throw new HttpError(400, 'Give the key a name.');
-      const r = db.prepare('UPDATE engine_keys SET name = COALESCE(?, name), allow_ips = CASE WHEN ? THEN ? ELSE allow_ips END WHERE id = ? AND user_id = ?').run(name || null, allow === undefined ? 0 : 1, allow ?? null, Number(km[1]), me.id);
-      if (!r.changes) throw new HttpError(404, 'No key with that id.');
+      db.prepare('UPDATE engine_keys SET name = COALESCE(?, name), allow_ips = CASE WHEN ? THEN ? ELSE allow_ips END WHERE id = ?').run(name || null, allow === undefined ? 0 : 1, allow ?? null, Number(km[1]));
       return json(res, 200, keyOut(db.prepare('SELECT * FROM engine_keys WHERE id = ?').get(Number(km[1])))), true;
     }
     if (km && m === 'DELETE') {
       const me = requireUser(ctx, 'Sign in first.');
-      const r = db.prepare('UPDATE engine_keys SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL').run(Date.now(), Number(km[1]), me.id);
+      const k = manageable(Number(km[1]), me.id);
+      const r = db.prepare('UPDATE engine_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL').run(Date.now(), k.id);
       if (!r.changes) throw new HttpError(404, 'No key with that id.');
-      const gone = db.prepare('SELECT * FROM engine_keys WHERE id = ?').get(Number(km[1]));
-      onKey(me.id, 'key.revoked', { key: { id: gone.id, name: gone.name, hint: gone.key_hint }, by: 'you' });
+      onKey(k.user_id, 'key.revoked', { key: { id: k.id, name: k.name, hint: k.key_hint }, by: k.user_id === me.id ? 'you' : `@${me.handle}` });
       return json(res, 200, { ok: true }), true;
     }
     // With a key: a dry run that lists the parts, or the file itself.

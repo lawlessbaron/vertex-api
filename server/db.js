@@ -317,7 +317,32 @@ export const MIGRATIONS = [
      PRIMARY KEY (key_id, day)
    );`,
   // Test keys (vx_test_…): checked like real calls, answered with test files, never counted.
-  `ALTER TABLE engine_keys ADD COLUMN sandbox INTEGER NOT NULL DEFAULT 0;`
+  `ALTER TABLE engine_keys ADD COLUMN sandbox INTEGER NOT NULL DEFAULT 0;`,
+  // Teams: shared keys on the owner's plan; owners and admins manage them, members use them.
+  `CREATE TABLE teams (
+     id INTEGER PRIMARY KEY,
+     name TEXT NOT NULL,
+     owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     created_at INTEGER NOT NULL
+   );
+   CREATE TABLE team_members (
+     team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     role TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     PRIMARY KEY (team_id, user_id)
+   );
+   CREATE INDEX team_members_user ON team_members (user_id);
+   CREATE TABLE team_invites (
+     id INTEGER PRIMARY KEY,
+     team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     role TEXT NOT NULL,
+     invited_by INTEGER,
+     created_at INTEGER NOT NULL,
+     UNIQUE (team_id, user_id)
+   );
+   ALTER TABLE engine_keys ADD COLUMN team_id INTEGER;`
 ];
 
 export function openDatabase(path) {

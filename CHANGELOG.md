@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.11.0 · 3 October 2026
+
+### Added
+- **Teams.** Start a team in the console's new Team tab and invite people by handle or email. They join when they accept.
+  - Team keys are shared: everyone in the team sees them and the calls they make.
+  - They run on the team owner's plan, so the owner's limits and bill apply, and they count toward the owner's keys.
+  - Roles: the owner and admins make, lock, limit and revoke team keys; members use them. Only the owner invites admins and changes roles.
+  - Up to 10 people a team, 3 teams owned per account. Closing a team revokes its keys straight away.
+
 ## 1.10.0 · 3 October 2026
 
 ### Added

@@ -27,6 +27,7 @@ const TITLES = {
   overview: ['Overview', 'Your API, at a glance.'],
   keys: ['Keys', 'Make, name, lock and revoke your keys.'],
   calls: ['Calls', 'Every call your keys made, kept two years.'],
+  team: ['Team', 'Share keys with the people you build with.'],
   webhooks: ['Webhooks', 'We tell your server when something happens.'],
   plan: ['Plan and billing', 'Your limits, this month’s use, and other plans.'],
 };
@@ -78,16 +79,42 @@ function overview() {
 function keysTab() {
   const live = data.keys.filter((k) => !k.revoked), cur = data.plan?.plan;
   pane().innerHTML = (ro() ? '' : card('Make a key', `
-      <form class="toolbar" data-newkey><input name="name" maxlength="60" placeholder="What it's for, e.g. Shop orders" aria-label="Key name" required style="flex:1 1 260px" /><label class="switch" style="align-self:center"><input type="checkbox" name="test" /><span>Test key</span></label><button class="btn primary">${icon('plus')}Make a key</button></form>
+      <form class="toolbar" data-newkey><input name="name" maxlength="60" placeholder="What it's for, e.g. Shop orders" aria-label="Key name" required style="flex:1 1 260px" />${managed().length ? `<select name="team" aria-label="Whose key"><option value="">Just me</option>${managed().map((t) => `<option value="${t.id}">Team: ${esc(t.name)}</option>`).join('')}</select>` : ''}<label class="switch" style="align-self:center"><input type="checkbox" name="test" /><span>Test key</span></label><button class="btn primary">${icon('plus')}Make a key</button></form>
       <div data-fresh></div>
       <p class="lede" style="margin:12px 0 0">${cur ? `On ${esc(cur.name)}: up to ${num(cur.keys)} keys, ${num(cur.perDay)} calls a day for your whole account, and ${num(cur.perMinute)} a minute per key.` : ''} <b>Lock</b> a key to your server's addresses and it won't work from anywhere else.</p>`))
     + card('Your keys', table(['Key', 'Made', 'Last used', { t: 'Calls', c: 'n' }, 'Today', ''], data.keys.map((k) => `
       <tr class="${k.revoked ? 'off' : ''}">
-        <td><b data-name="${k.id}">${esc(k.name)}</b> <span class="hint">${esc(k.hint || 'vx_…')}</span>${k.revoked ? ' <span class="pill bad">revoked</span>' : ''}${k.test ? ' <span class="pill info" title="Checked like a real call, answered with a 20 mm test cube, never counted">test</span>' : ''}<div style="margin-top:5px">${k.allowIps ? `<span class="pill info" title="${esc(k.allowIps)}">locked to ${k.allowIps.split(',').length} address${k.allowIps.split(',').length > 1 ? 'es' : ''}</span>` : '<span class="pill plain">any address</span>'}${k.dayCap || k.monthCap ? ` <span class="pill info">${[k.dayCap ? `${k.dayCap.toLocaleString()} a day` : '', k.monthCap ? `$${k.monthCap} extra a month` : ''].filter(Boolean).join(' · ')}</span>` : ''}</div></td>
+        <td><b data-name="${k.id}">${esc(k.name)}</b> <span class="hint">${esc(k.hint || 'vx_…')}</span>${k.revoked ? ' <span class="pill bad">revoked</span>' : ''}${k.test ? ' <span class="pill info" title="Checked like a real call, answered with a 20 mm test cube, never counted">test</span>' : ''}${k.team ? ` <span class="pill plain" title="Shared with the team, on its owner's plan">${icon('users')}${esc(k.team.name)}</span>` : ''}<div style="margin-top:5px">${k.allowIps ? `<span class="pill info" title="${esc(k.allowIps)}">locked to ${k.allowIps.split(',').length} address${k.allowIps.split(',').length > 1 ? 'es' : ''}</span>` : '<span class="pill plain">any address</span>'}${k.dayCap || k.monthCap ? ` <span class="pill info">${[k.dayCap ? `${k.dayCap.toLocaleString()} a day` : '', k.monthCap ? `$${k.monthCap} extra a month` : ''].filter(Boolean).join(' · ')}</span>` : ''}</div></td>
         <td>${ago(k.createdAt)}</td><td>${ago(k.lastUsedAt)}</td><td class="n">${num(k.calls)}</td>
         <td style="min-width:140px">${k.revoked ? '—' : `<div class="hbar" style="grid-template-columns:1fr auto"><i><b style="width:${Math.min(100, (k.usedToday / Math.max(1, cur?.perDay || 1000)) * 100).toFixed(1)}%"></b></i><em>${num(k.usedToday)}</em></div>`}</td>
-        <td class="n">${k.revoked || ro() ? '' : `<span class="acts">${iconBtn('list', 'Calls', `data-fkey="${k.id}"`)}${iconBtn('lock', 'Lock to addresses', `data-lock="${k.id}" data-allow="${esc(k.allowIps || '')}"`)}${iconBtn('gauge', 'Limits', `data-limits="${k.id}" data-day="${k.dayCap ?? ''}" data-month="${k.monthCap ?? ''}"`)}${iconBtn('cog', 'Rename', `data-rename="${k.id}"`)}${iconBtn('x', 'Revoke', `data-revoke="${k.id}"`, 'bad')}</span>`}</td>
+        <td class="n">${k.revoked || ro() ? '' : k.canManage === false ? `<span class="acts">${iconBtn('list', 'Calls', `data-fkey="${k.id}"`)}</span>` : `<span class="acts">${iconBtn('list', 'Calls', `data-fkey="${k.id}"`)}${iconBtn('lock', 'Lock to addresses', `data-lock="${k.id}" data-allow="${esc(k.allowIps || '')}"`)}${iconBtn('gauge', 'Limits', `data-limits="${k.id}" data-day="${k.dayCap ?? ''}" data-month="${k.monthCap ?? ''}"`)}${iconBtn('cog', 'Rename', `data-rename="${k.id}"`)}${iconBtn('x', 'Revoke', `data-revoke="${k.id}"`, 'bad')}</span>`}</td>
       </tr>`).join(''), 'No keys yet. Make one above.'), { cls: 'flush', note: `${live.length} live · revoked keys stay listed so old calls still show which key made them` });
+}
+
+// ---------- team ----------
+const managed = () => (data?.teams?.teams || []).filter((t) => t.role === 'owner' || t.role === 'admin');
+const ROLE = { owner: 'Owner', admin: 'Admin', member: 'Member' };
+function teamTab() {
+  const T = data.teams || { teams: [], invites: [] }, me = data.me.id;
+  const invites = T.invites.length ? card('Invites for you', table(['Team', 'As', 'From', 'Sent', ''], T.invites.map((i) => `
+      <tr><td><b>${esc(i.team)}</b></td><td>${ROLE[i.role]}</td><td>${i.by ? `@${esc(i.by)}` : '—'}</td><td>${ago(i.sentAt)}</td>
+      <td class="n">${ro() ? '' : `<span class="acts"><button type="button" class="btn sm primary" data-tinv="${i.id}" data-do="accept">Join</button><button type="button" class="btn sm ghost" data-tinv="${i.id}" data-do="decline">No thanks</button></span>`}</td></tr>`).join('')), { cls: 'flush' }) : '';
+  const make = ro() ? '' : card('Start a team', `<form class="toolbar" data-newteam><input name="name" maxlength="60" placeholder="Team name, e.g. Print farm" aria-label="Team name" required style="flex:1 1 260px" /><button class="btn primary">${icon('plus')}Start a team</button></form>
+      <p class="lede" style="margin:12px 0 0">A team's keys run on its owner's plan: the owner's limits, the owner's bill. Owners and admins make, lock and revoke them; members see them and their calls. Up to ${num(T.limits?.members || 10)} people a team.</p>`);
+  const teams = T.teams.map((t) => {
+    const manage = t.role === 'owner' || t.role === 'admin', owner = t.role === 'owner';
+    const keys = data.keys.filter((k) => k.team?.id === t.id && !k.revoked).length;
+    return card(esc(t.name), table(['Person', 'Role', 'Joined', ''], [
+      ...t.members.map((m) => `<tr><td><span style="display:inline-flex;align-items:center;gap:10px">${avatar(m.handle)}<span><b>@${esc(m.handle)}</b>${m.id === me ? ' <span class="mute">(you)</span>' : ''}</span></span></td>
+        <td>${owner && m.role !== 'owner' && !ro() ? `<select data-trole="${t.id}" data-user="${m.id}" aria-label="Role for @${esc(m.handle)}"><option value="member" ${m.role === 'member' ? 'selected' : ''}>Member</option><option value="admin" ${m.role === 'admin' ? 'selected' : ''}>Admin</option></select>` : `<span class="pill ${m.role === 'owner' ? 'ok' : m.role === 'admin' ? 'info' : 'plain'}">${ROLE[m.role]}</span>`}</td>
+        <td>${ago(m.joinedAt)}</td>
+        <td class="n">${ro() || m.role === 'owner' ? '' : m.id === me ? `<button type="button" class="btn sm ghost" data-tout="${t.id}" data-user="${m.id}" data-self="1">Leave</button>` : manage && (owner || m.role === 'member') ? iconBtn('x', 'Remove', `data-tout="${t.id}" data-user="${m.id}"`, 'bad') : ''}</td></tr>`),
+      ...t.invites.map((i) => `<tr class="off"><td>@${esc(i.handle)} <span class="pill warn">invited</span></td><td>${ROLE[i.role]}</td><td>${ago(i.sentAt)}</td><td class="n">${ro() ? '' : iconBtn('x', 'Cancel invite', `data-tuninv="${t.id}" data-inv="${i.id}"`, 'bad')}</td></tr>`),
+    ].join(''))
+      + (manage && !ro() ? `<form class="toolbar" data-tinvite="${t.id}" style="padding:14px 16px 0"><input name="handle" maxlength="120" placeholder="Their handle or email" aria-label="Invite by handle or email" required style="flex:1 1 220px" />${owner ? '<select name="role" aria-label="Role"><option value="member">Member</option><option value="admin">Admin</option></select>' : ''}<button class="btn sm primary">${icon('plus')}Invite</button></form>` : ''),
+    { cls: 'flush', note: `${num(keys)} shared key${keys === 1 ? '' : 's'} · you're ${ROLE[t.role].toLowerCase()}`, right: ro() ? '' : `${manage ? `<button type="button" class="btn sm" data-trename="${t.id}" data-tname="${esc(t.name)}">Rename</button>` : ''}${owner ? ` <button type="button" class="btn sm ghost" data-tclose="${t.id}">Close team</button>` : ''}` });
+  }).join('');
+  pane().innerHTML = invites + make + (teams || card('Your teams', '<div class="empty">' + icon('users') + 'No teams yet. Start one above, or ask a teammate to invite you.</div>'));
 }
 
 // ---------- calls ----------
@@ -182,7 +209,7 @@ function planTab() {
 }
 
 // ---------- routing ----------
-const TABS = { overview, keys: keysTab, calls: callsTab, webhooks: webhooksTab, plan: planTab };
+const TABS = { overview, keys: keysTab, calls: callsTab, team: teamTab, webhooks: webhooksTab, plan: planTab };
 function show(name = tab) {
   tab = TABS[name] ? name : 'overview';
   $$('[data-tabs] a').forEach((a) => a.setAttribute('aria-current', String(a.getAttribute('href') === `#${tab}`)));
@@ -203,6 +230,8 @@ async function load(keepTab = true) {
   $('[data-me]').innerHTML = `${avatar(data.me.handle)}<div class="who"><b>@${esc(data.me.handle)}</b><span>${esc(data.plan?.plan?.name || 'Maker')} plan</span></div>`;
   const kc = $('[data-keycount]'), live = data.keys.filter((k) => !k.revoked).length;
   kc.hidden = !live; kc.textContent = live;
+  const ti = $('[data-teaminv]'), pending = data.teams?.invites?.length || 0;
+  ti.hidden = !pending; ti.textContent = pending;
   if (data.viewingAs) {
     const v = $('[data-viewing]');
     v.hidden = false;
@@ -216,9 +245,26 @@ async function load(keepTab = true) {
 document.addEventListener('click', async (e) => {
   const d = e.target.closest('[data-days]');
   if (d) { days = Number(d.dataset.days); $$('[data-days]').forEach((b) => b.setAttribute('aria-pressed', String(b === d))); return load(); }
-  const el = e.target.closest('[data-copy],[data-revoke],[data-rename],[data-lock],[data-deliv],[data-hooktest],[data-hookdel],[data-planpick],[data-manage],[data-more],[data-fkey]');
+  const el = e.target.closest('[data-tinv],[data-tout],[data-tuninv],[data-trename],[data-tclose],[data-copy],[data-revoke],[data-rename],[data-lock],[data-deliv],[data-hooktest],[data-hookdel],[data-planpick],[data-manage],[data-more],[data-fkey]');
   if (el) {
     const ds = el.dataset;
+    if (ds.tinv) { if (await act(() => call(`/api/teams/invites/${ds.tinv}/${ds.do}`, { method: 'POST' }), ds.do === 'accept' ? 'You’re in' : 'Declined')) load(); return; }
+    if (ds.tuninv) { if (await act(() => call(`/api/teams/${ds.tuninv}/invites/${ds.inv}`, { method: 'DELETE' }), 'Invite cancelled')) load(); return; }
+    if (ds.tout) {
+      if (!(await ask(ds.self ? { title: 'Leave this team?', body: 'You stop seeing its keys and their calls. Someone has to invite you back.', ok: 'Leave', danger: true } : { title: 'Remove them?', body: 'They stop seeing the team’s keys. The keys keep working: revoke any they had a copy of.', ok: 'Remove', danger: true }))) return;
+      if (await act(() => call(`/api/teams/${ds.tout}/members/${ds.user}`, { method: 'DELETE' }), ds.self ? 'Left the team' : 'Removed')) load();
+      return;
+    }
+    if (ds.trename) {
+      const name = await ask({ title: 'Rename the team', input: { value: ds.tname || '', required: true }, ok: 'Save' });
+      if (name && (await act(() => call(`/api/teams/${ds.trename}`, { method: 'PATCH', body: { name } }), 'Renamed'))) load();
+      return;
+    }
+    if (ds.tclose) {
+      if (!(await ask({ title: 'Close this team?', body: 'Every team key is revoked straight away and everyone loses access. Past calls stay in the log.', ok: 'Close team', danger: true }))) return;
+      if (await act(() => call(`/api/teams/${ds.tclose}`, { method: 'DELETE' }), 'Team closed')) load();
+      return;
+    }
     if (ds.copy) { try { await navigator.clipboard.writeText(ds.copy); toast('Copied'); } catch { toast('Select it and copy'); } return; }
     if (ds.fkey) { filters = { key: ds.fkey }; location.hash = 'calls'; return; }
     if (ds.revoke) {
@@ -274,7 +320,7 @@ document.addEventListener('submit', async (e) => {
   if (f.method === 'dialog') return;
   e.preventDefault();
   if (f.matches('[data-newkey]')) {
-    const k = await act(() => call('/api/engine/v1/keys', { method: 'POST', body: { name: f.name.value, test: f.test?.checked } }));
+    const k = await act(() => call('/api/engine/v1/keys', { method: 'POST', body: { name: f.name.value, test: f.test?.checked, team: Number(f.team?.value) || null } }));
     if (!k) return;
     await load(false); keysTab();
     $('[data-fresh]').innerHTML = `<div class="card" style="margin-top:14px;border-color:var(--mint)"><p style="margin:0 0 8px"><b>Your new key.</b> Copy it now: it won't be shown again.</p><div class="toolbar"><pre class="code" style="flex:1">${esc(k.key)}</pre><button type="button" class="btn primary" data-copy="${esc(k.key)}">${icon('copy')}Copy</button></div></div>`;
@@ -288,8 +334,14 @@ document.addEventListener('submit', async (e) => {
     $('[data-hookfresh]').innerHTML = `<div class="card" style="margin-top:14px;border-color:var(--mint)"><p style="margin:0 0 8px"><b>Signing secret.</b> Copy it now: it won't be shown again. Use it to check the Mint-Signature header.</p><div class="toolbar"><pre class="code" style="flex:1">${esc(h.secret)}</pre><button type="button" class="btn primary" data-copy="${esc(h.secret)}">${icon('copy')}Copy</button></div></div>`;
     return;
   }
+  if (f.matches('[data-newteam]')) { if (await act(() => call('/api/teams', { method: 'POST', body: { name: f.name.value } }), 'Team started')) load(); return; }
+  if (f.matches('[data-tinvite]')) { if (await act(() => call(`/api/teams/${f.dataset.tinvite}/invites`, { method: 'POST', body: { handle: f.handle.value, role: f.role?.value || 'member' } }), 'Invite sent')) load(); return; }
   if (f.matches('[data-cap]')) { if (await act(() => call('/api/developer/plan/cap', { method: 'PUT', body: { dollars: f.dollars.value } }), 'Saved')) load(); return; }
   if (f.matches('[data-filters]')) { const d = new FormData(f); filters = { key: d.get('key'), status: d.get('status'), q: String(d.get('q') || '').trim() }; loadCalls(); }
+});
+document.addEventListener('change', async (e) => {
+  const r = e.target.closest('[data-trole]');
+  if (r && (await act(() => call(`/api/teams/${r.dataset.trole}/members/${r.dataset.user}`, { method: 'PATCH', body: { role: r.value } }), 'Role changed'))) load();
 });
 window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
@@ -306,7 +358,7 @@ async function liveState() {
   tab = location.hash.slice(1) || 'overview';
   if (!(await load())) return;
   const open = commandPalette([
-    ...Object.entries(TITLES).map(([k, [t, sub]]) => ({ group: 'Go to', label: t, hint: sub, icon: { overview: 'overview', keys: 'key', calls: 'calls', webhooks: 'hook', plan: 'card' }[k], run: () => { location.hash = k; } })),
+    ...Object.entries(TITLES).map(([k, [t, sub]]) => ({ group: 'Go to', label: t, hint: sub, icon: { overview: 'overview', keys: 'key', calls: 'calls', team: 'users', webhooks: 'hook', plan: 'card' }[k], run: () => { location.hash = k; } })),
     { group: 'Build', label: 'Docs', icon: 'book', run: () => { location.href = '/docs'; } },
     { group: 'Build', label: 'Playground', icon: 'play', run: () => { location.href = '/#playground'; } },
     { group: 'Build', label: 'Status', icon: 'pulse', run: () => { location.href = '/status'; } },
