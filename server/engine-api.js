@@ -186,7 +186,7 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
   const str = (v, n) => String(v ?? '').trim().slice(0, n);
 
   // ---------- keys ----------
-  const keyOut = (k) => ({ id: k.id, name: k.name, hint: k.key_hint || null, allowIps: k.allow_ips || '', calls: k.calls, createdAt: k.created_at, lastUsedAt: k.last_used_at, revoked: Boolean(k.revoked_at), revokedAt: k.revoked_at || null });
+  const keyOut = (k) => ({ id: k.id, name: k.name, hint: k.key_hint || null, allowIps: k.allow_ips || '', dayCap: k.day_cap ?? null, monthCap: k.month_cap_cents == null ? null : k.month_cap_cents / 100, calls: k.calls, createdAt: k.created_at, lastUsedAt: k.last_used_at, revoked: Boolean(k.revoked_at), revokedAt: k.revoked_at || null });
   // Revoked keys stay listed (greyed), so old calls still name their key.
   const keysOf = (userId) => db.prepare('SELECT * FROM engine_keys WHERE user_id = ? ORDER BY revoked_at IS NOT NULL, id').all(userId).map(keyOut);
   function makeKey(user, name) {
@@ -285,6 +285,14 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
       const body = await readJson(req, 4 * 1024);
       const name = str(body.name, 60);
       const allow = 'allowIps' in body ? parseAllow(body.allowIps) : undefined;
+      // Its own limits: calls a day, and dollars of extra use a month (null or empty: none).
+      const lim = (v, max, scale) => (v === null || v === '' ? null : Math.round(Math.min(max, Math.max(0, Number(v) || 0)) * scale) || null);
+      if ('dayCap' in body || 'monthCap' in body) {
+        if (!db.prepare('SELECT 1 FROM engine_keys WHERE id = ? AND user_id = ?').get(Number(km[1]), me.id)) throw new HttpError(404, 'No key with that id.');
+        if ('dayCap' in body) db.prepare('UPDATE engine_keys SET day_cap = ? WHERE id = ?').run(lim(body.dayCap, 1e7, 1), Number(km[1]));
+        if ('monthCap' in body) db.prepare('UPDATE engine_keys SET month_cap_cents = ? WHERE id = ?').run(lim(body.monthCap, 1e6, 100), Number(km[1]));
+        if (!name && allow === undefined) return json(res, 200, keyOut(db.prepare('SELECT * FROM engine_keys WHERE id = ?').get(Number(km[1])))), true;
+      }
       if (!name && allow === undefined) throw new HttpError(400, 'Give the key a name.');
       const r = db.prepare('UPDATE engine_keys SET name = COALESCE(?, name), allow_ips = CASE WHEN ? THEN ? ELSE allow_ips END WHERE id = ? AND user_id = ?').run(name || null, allow === undefined ? 0 : 1, allow ?? null, Number(km[1]), me.id);
       if (!r.changes) throw new HttpError(404, 'No key with that id.');

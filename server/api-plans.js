@@ -81,6 +81,16 @@ export function createApiPlans({ db, billing = null, audit = null, config = {}, 
   // One call by a key: within the minute and the day, or counted as extra use.
   function take(userId, keyId) {
     const plan = planFor(userId);
+    // The key's own limits first (set in the console): calls a day, and extra use a month.
+    const key = db.prepare('SELECT day_cap, month_cap_cents FROM engine_keys WHERE id = ?').get(keyId) || {};
+    const kd = db.prepare('SELECT calls FROM api_key_days WHERE key_id = ? AND day = ?').get(keyId, today());
+    if (key.day_cap && (kd?.calls || 0) >= key.day_cap) throw new HttpError(429, `This key has made its ${key.day_cap.toLocaleString('en-AU')} calls for today (its own limit, set in your console).`);
+    const count = (over) => db.prepare('INSERT INTO api_key_days (key_id, day, calls, over_calls) VALUES (?, ?, 1, ?) ON CONFLICT(key_id, day) DO UPDATE SET calls = calls + 1, over_calls = over_calls + excluded.over_calls').run(keyId, today(), over ? 1 : 0);
+    const result = takeAccount(userId, keyId, plan, key);
+    count(result.over);
+    return result;
+  }
+  function takeAccount(userId, keyId, plan, key) {
     if (!limiter('m', plan.perMinute, 60e3).take(`${plan.id}:${keyId}`)) throw new HttpError(429, `Slow down: ${plan.perMinute} calls a minute per key on the ${plan.name} plan.`);
     // The day's allowance is the account's, shared by all its keys: more keys never means more calls.
     if (limiter('d', plan.perDay, DAY).take(`${plan.id}:u${userId}`)) return { plan, over: false };
@@ -89,6 +99,10 @@ export function createApiPlans({ db, billing = null, audit = null, config = {}, 
     const row = db.prepare('SELECT calls FROM api_overage WHERE user_id = ? AND day = ?').get(userId, day);
     const calls = (row?.calls || 0) + 1;
     const cents = Math.ceil((calls * plan.overagePer1000 * 100) / 1000);
+    if (key.month_cap_cents) {
+      const overCalls = db.prepare('SELECT COALESCE(SUM(over_calls), 0) AS n FROM api_key_days WHERE key_id = ? AND day >= ?').get(keyId, day.slice(0, 8) + '01').n;
+      if (Math.ceil(((overCalls + 1) * plan.overagePer1000 * 100) / 1000) > key.month_cap_cents) throw new HttpError(429, `This key has reached its own $${(key.month_cap_cents / 100).toFixed(2)} limit for extra use this month (set in your console).`);
+    }
     const cap = capCents(userId, plan);
     if (cap && monthOver(userId) - Math.ceil(((calls - 1) * plan.overagePer1000 * 100) / 1000) + cents > cap) {
       throw new HttpError(429, `You've reached your $${(cap / 100).toFixed(2)} limit for extra use this month. Raise it in the console, or wait for the 1st.`);

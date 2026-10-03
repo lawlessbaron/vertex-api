@@ -83,10 +83,10 @@ function keysTab() {
       <p class="lede" style="margin:12px 0 0">${cur ? `On ${esc(cur.name)}: up to ${num(cur.keys)} keys, ${num(cur.perDay)} calls a day for your whole account, and ${num(cur.perMinute)} a minute per key.` : ''} <b>Lock</b> a key to your server's addresses and it won't work from anywhere else.</p>`))
     + card('Your keys', table(['Key', 'Made', 'Last used', { t: 'Calls', c: 'n' }, 'Today', ''], data.keys.map((k) => `
       <tr class="${k.revoked ? 'off' : ''}">
-        <td><b data-name="${k.id}">${esc(k.name)}</b> <span class="hint">${esc(k.hint || 'vx_…')}</span>${k.revoked ? ' <span class="pill bad">revoked</span>' : ''}<div style="margin-top:5px">${k.allowIps ? `<span class="pill info" title="${esc(k.allowIps)}">locked to ${k.allowIps.split(',').length} address${k.allowIps.split(',').length > 1 ? 'es' : ''}</span>` : '<span class="pill plain">any address</span>'}</div></td>
+        <td><b data-name="${k.id}">${esc(k.name)}</b> <span class="hint">${esc(k.hint || 'vx_…')}</span>${k.revoked ? ' <span class="pill bad">revoked</span>' : ''}<div style="margin-top:5px">${k.allowIps ? `<span class="pill info" title="${esc(k.allowIps)}">locked to ${k.allowIps.split(',').length} address${k.allowIps.split(',').length > 1 ? 'es' : ''}</span>` : '<span class="pill plain">any address</span>'}${k.dayCap || k.monthCap ? ` <span class="pill info">${[k.dayCap ? `${k.dayCap.toLocaleString()} a day` : '', k.monthCap ? `$${k.monthCap} extra a month` : ''].filter(Boolean).join(' · ')}</span>` : ''}</div></td>
         <td>${ago(k.createdAt)}</td><td>${ago(k.lastUsedAt)}</td><td class="n">${num(k.calls)}</td>
         <td style="min-width:140px">${k.revoked ? '—' : `<div class="hbar" style="grid-template-columns:1fr auto"><i><b style="width:${Math.min(100, (k.usedToday / Math.max(1, cur?.perDay || 1000)) * 100).toFixed(1)}%"></b></i><em>${num(k.usedToday)}</em></div>`}</td>
-        <td class="n">${k.revoked || ro() ? '' : `<span class="acts">${iconBtn('list', 'Calls', `data-fkey="${k.id}"`)}${iconBtn('lock', 'Lock to addresses', `data-lock="${k.id}" data-allow="${esc(k.allowIps || '')}"`)}${iconBtn('cog', 'Rename', `data-rename="${k.id}"`)}${iconBtn('x', 'Revoke', `data-revoke="${k.id}"`, 'bad')}</span>`}</td>
+        <td class="n">${k.revoked || ro() ? '' : `<span class="acts">${iconBtn('list', 'Calls', `data-fkey="${k.id}"`)}${iconBtn('lock', 'Lock to addresses', `data-lock="${k.id}" data-allow="${esc(k.allowIps || '')}"`)}${iconBtn('gauge', 'Limits', `data-limits="${k.id}" data-day="${k.dayCap ?? ''}" data-month="${k.monthCap ?? ''}"`)}${iconBtn('cog', 'Rename', `data-rename="${k.id}"`)}${iconBtn('x', 'Revoke', `data-revoke="${k.id}"`, 'bad')}</span>`}</td>
       </tr>`).join(''), 'No keys yet. Make one above.'), { cls: 'flush', note: `${live.length} live · revoked keys stay listed so old calls still show which key made them` });
 }
 
@@ -230,6 +230,14 @@ document.addEventListener('click', async (e) => {
       const name = await ask({ title: 'Rename this key', input: { value: $(`[data-name="${ds.rename}"]`)?.textContent || '', required: true }, ok: 'Save' });
       if (!name) return;
       if (await act(() => call(`/api/engine/v1/keys/${ds.rename}`, { method: 'PATCH', body: { name } }), 'Renamed')) load();
+      return;
+    }
+    if (ds.limits) {
+      const day = await ask({ title: 'This key\'s limits (1 of 2)', body: 'Most calls this key may make in a day. Empty: only your plan\'s limit.', input: { value: ds.day || '', placeholder: 'e.g. 500' }, ok: 'Next' });
+      if (day === null) return;
+      const month = await ask({ title: 'This key\'s limits (2 of 2)', body: 'Most this key may spend on extra use (past your plan\'s daily allowance) in a month, in dollars. Empty: only your account\'s limit.', input: { value: ds.month || '', placeholder: 'e.g. 20' }, ok: 'Save' });
+      if (month === null) return;
+      if (await act(() => call(`/api/engine/v1/keys/${ds.limits}`, { method: 'PATCH', body: { dayCap: day, monthCap: month } }), 'Saved')) load();
       return;
     }
     if (ds.lock) {

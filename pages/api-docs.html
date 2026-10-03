@@ -77,6 +77,7 @@
           <a href="#locking">Locking a key to your servers</a>
           <a href="#webhooks">Webhooks</a>
           <a href="#traceability">Request ids and serials</a>
+          <a href="#sdks">SDKs: JavaScript and Python</a>
           <a href="#versions">Versions and changes</a>
           <a href="#licence">Licence and fair use</a>
           <a href="#support">Support</a>
@@ -389,6 +390,7 @@
         <section id="limits" class="dx-sec">
           <h2>Limits, plans and quotas</h2>
           <p>Your account's plan sets the engine API's limits. The day's allowance belongs to your account and is shared by all your keys: more keys never means more calls. The per-minute limit is per key, so one busy script can't use it all up. The plans and prices are on the <a href="/#pricing">overview</a>, and you can change plan in the <a href="/console">console</a> at any time.</p>
+          <p><b>Each key's own limits.</b> In the console, give any key its own cap on <b>calls a day</b> and on <b>extra use a month</b> (in dollars, past your plan's daily allowance). A key at its cap gets a <code>429</code> that says which cap it hit; your other keys carry on. They sit on top of your account's limits, never above them.</p>
           <table class="dx-table">
             <thead><tr><th></th><th>Engine API</th><th>Tracer API</th></tr></thead>
             <tbody>
@@ -478,11 +480,32 @@ def verify(raw_body: bytes, header: str, secret: str) -&gt; bool:
           </ul>
         </section>
 
+        <section id="sdks" class="dx-sec">
+          <h2>SDKs: JavaScript and Python</h2>
+          <p>Two small clients with no dependencies. They cover the Engine, Tracer and Print AI APIs, and turn errors into exceptions that carry the status, the message and the request id.</p>
+          <ul class="dx-list">
+            <li><b>JavaScript</b> (Node 18+, Deno, Bun, browsers): <a href="/sdk/mintmotive.mjs"><code>/sdk/mintmotive.mjs</code></a></li>
+            <li><b>Python</b> (3.8+, standard library only): <a href="/sdk/mintmotive.py"><code>/sdk/mintmotive.py</code></a></li>
+          </ul>
+          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="js">import { MintMotive } from 'https://api.mintmotive.com.au/sdk/mintmotive.mjs';
+const mm = new MintMotive({ key: process.env.MINT_KEY });
+const bin = await mm.engine.generate({ kind: 'bin', format: 'stl', params: { gridX: 2, gridY: 1 } });
+const report = await mm.ai.checkSettings(gcodeText, { filament: 'PETG' });</code></pre></div>
+          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="python">from mintmotive import MintMotive
+mm = MintMotive(key=os.environ["MINT_KEY"])
+f = mm.engine_generate({"kind": "bin", "format": "stl", "params": {"gridX": 2, "gridY": 1}})
+open(f["name"], "wb").write(f["bytes"])
+job = mm.trace_photo(open("tools.jpg", "rb").read(), paper="a4")</code></pre></div>
+        </section>
+
         <section id="versions" class="dx-sec">
           <h2>Versions and changes</h2>
           <p>The API is versioned in its path (<code>/v1</code>). Within v1 we only add things: new kinds, new settings, new fields. Nothing you rely on is removed or renamed without a new version and notice.</p>
           <p>The <b>engine</b> has its own version, sent with every file. When a generator's shapes change, the engine version moves on, and old files can always be matched to the engine that made them. Recent engine changes:</p>
           <div class="dx-history" data-history><p class="cx-empty">Loading…</p></div>
+          <h3>What's new on the API</h3>
+          <p>Every new feature and fix, newest first. Follow it in a feed reader or a chat channel: <a href="/changelog.rss"><code>/changelog.rss</code></a>, or as JSON from <code>GET /api/changelog?limit=20</code>.</p>
+          <div class="dx-history" data-apichanges><p class="cx-empty">Loading…</p></div>
         </section>
 
         <section id="licence" class="dx-sec">

@@ -31,6 +31,7 @@ import { createApiStatus, STATUS_COMPONENTS, INCIDENT_STATUSES, IMPACTS } from '
 import { createApiPlans } from './api-plans.js';
 import { createEngineApi } from './engine-api.js';
 import { createPrintAi } from './print-ai.js';
+import { createChangelog } from './changelog.js';
 import { importFromVertex } from './import.js';
 import { createEducation, EDU_KINDS } from './education.js';
 import { createMarketing } from './marketing.js';
@@ -40,7 +41,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
 const ENGINE_DIR = join(ROOT, 'engine');
 const TYPES = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.py': 'text/x-python; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
   '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2',
 };
@@ -96,6 +97,7 @@ export function createApp(config) {
   let apiStatus = null;
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
   const traceApi = createTraceApi({ db, can, audit, toolLibrary, newSerial });
+  const changelog = createChangelog({ path: join(ROOT, 'CHANGELOG.md') });
   const printAi = createPrintAi({ db, isStaff, plans: apiPlans, audit, toolLibrary, env: config.env || process.env, fetchImpl });
   const apiLog = createApiLog({ db, onRecord: (row) => apiGuard.afterCall(row) });
   apiStatus = createApiStatus({
@@ -254,7 +256,7 @@ export function createApp(config) {
       const etag = `"${info.size.toString(16)}-${info.mtimeMs.toString(16)}"`;
       if (req.headers['if-none-match'] === etag) return send(res, 304, null, { ETag: etag }), true;
       const code = /\.(js|css)$/.test(file);
-      send(res, 200, req.method === 'HEAD' ? null : await readFile(file), { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream', ETag: etag, 'Cache-Control': code ? 'no-cache' : 'public, max-age=604800' });
+      send(res, 200, req.method === 'HEAD' ? null : await readFile(file), { 'Content-Type': TYPES[extname(file)] || 'application/octet-stream', ETag: etag, 'Cache-Control': code || pathname.startsWith('/sdk/') ? 'no-cache' : 'public, max-age=604800', ...(pathname.startsWith('/sdk/') ? { 'Access-Control-Allow-Origin': '*' } : {}) });
       return true;
     } catch { return false; }
   }
@@ -312,6 +314,9 @@ export function createApp(config) {
       return json(res, 200, { ok: true }, { 'Set-Cookie': clearCookie({ secure }) });
     }
     if (path === '/api/status' && method === 'GET') return json(res, 200, apiStatus.summary(), { 'Cache-Control': 'public, max-age=30' });
+    // The developers' changelog: JSON for tools, RSS for feed readers and chat channels.
+    if (path === '/api/changelog' && method === 'GET') return json(res, 200, changelog.json(Number(url.searchParams.get('limit')) || 20), { 'Cache-Control': 'public, max-age=300' });
+    if (path === '/api/changelog.rss' && method === 'GET') return send(res, 200, changelog.rss(config.publicUrl), { 'Content-Type': 'application/rss+xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
     if (path === '/api/status.rss' && method === 'GET') return send(res, 200, apiStatus.rss(config.publicUrl), { 'Content-Type': 'application/rss+xml; charset=utf-8', 'Cache-Control': 'public, max-age=60' });
 
     // A page view, from site.js (no cookies; see marketing.js).
@@ -539,7 +544,7 @@ export function createApp(config) {
       return json(res, 200, { ok: true, version: config.version, engine: ENGINE.version, vertex: link.on() });
     }
     // Short API paths: /engine/v1/…, /trace/v1/… and /ai/v1/… are the APIs.
-    if (/^\/(?:engine|trace|ai)\/v1(?:\/|$)/.test(url.pathname)) url.pathname = `/api${url.pathname}`;
+    if (/^\/(?:engine|trace|ai)\/v1(?:\/|$)/.test(url.pathname) || url.pathname === '/changelog.rss') url.pathname = `/api${url.pathname}`;
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     if (token) {
       ctx.user = sessionUser(db, token, ctx.ip);

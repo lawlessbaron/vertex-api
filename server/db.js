@@ -306,6 +306,16 @@ export const MIGRATIONS = [
      created_at INTEGER NOT NULL
    );
    CREATE INDEX print_ai_outcomes_at ON print_ai_outcomes (created_at);`,
+  // Per-key limits: calls a day, and a monthly limit on extra (billed) use; each key's use by day.
+  `ALTER TABLE engine_keys ADD COLUMN day_cap INTEGER;
+   ALTER TABLE engine_keys ADD COLUMN month_cap_cents INTEGER;
+   CREATE TABLE api_key_days (
+     key_id INTEGER NOT NULL,
+     day TEXT NOT NULL,
+     calls INTEGER NOT NULL DEFAULT 0,
+     over_calls INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (key_id, day)
+   );`
 ];
 
 export function openDatabase(path) {

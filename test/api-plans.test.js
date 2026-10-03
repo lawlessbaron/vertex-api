@@ -141,3 +141,15 @@ test('plans on the API site: pricing, console, admin, and the engine using them'
     assert.equal((await dev.call('/api/developer/plan/cap', { method: 'PUT', body: { dollars: 10 } })).data.ownCap, 1000);
   } finally { server.closeAllConnections?.(); server.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('per-key limits: calls a day and extra use a month, on top of the account\'s', async () => {
+  const { openDatabase } = await import('../server/db.js');
+  const { createApiPlans } = await import('../server/api-plans.js');
+  const db = openDatabase(':memory:');
+  db.prepare("INSERT INTO users (id, email, name, role, created_at, synced_at) VALUES (1, 'a@b.c', 'A', 'user', 1, 1)").run();
+  db.prepare("INSERT INTO engine_keys (id, user_id, name, key_hash, created_at, day_cap) VALUES (7, 1, 'k', 'h', 1, 3)").run();
+  const plans = createApiPlans({ db });
+  for (let i = 0; i < 3; i++) plans.take(1, 7);
+  assert.throws(() => plans.take(1, 7), (e) => e.status === 429 && /its own limit/.test(e.message));
+  assert.equal(db.prepare('SELECT calls FROM api_key_days WHERE key_id = 7').get().calls, 3);
+});

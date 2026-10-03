@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.0 · 3 October 2026
+
+### Added
+- **A changelog feed for developers.** Every new feature and fix, newest first: `/changelog.rss` for feed readers and chat channels, `GET /api/changelog` as JSON, and the latest five in the docs under Versions and changes.
+- **SDKs for JavaScript and Python** (`/sdk/mintmotive.mjs`, `/sdk/mintmotive.py`). They have no dependencies and cover the Engine, Tracer and Print AI APIs. Errors come back as exceptions with the status, the message and the request id.
+- **Each key's own limits.** In the console, any key can have its own cap on calls a day and on extra use a month, on top of your account's limits. A key at its cap is told which cap it hit, and your other keys carry on.
+
 ## 1.8.0 · 3 October 2026
 
 ### Added

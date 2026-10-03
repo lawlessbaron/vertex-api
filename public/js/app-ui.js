@@ -63,6 +63,7 @@ const P = {
   play: '<path d="m7 4 13 8-13 8z"/>',
   inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/>',
   chart: '<path d="M3 3v18h18M7 15l4-4 3 3 6-6"/>',
+  gauge: '<path d="M12 14l4-4M3.5 17a9 9 0 1 1 17 0"/><circle cx="12" cy="14" r="1.5"/>',
 };
 export const icon = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
 

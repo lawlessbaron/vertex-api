@@ -83,6 +83,9 @@ function renderKinds({ kinds }) {
 }
 // Straight from the engine, and refreshed in place when it changes (api-portal.js's live updater).
 document.addEventListener('ax-kinds', (e) => renderKinds(e.detail));
+fetch('/api/changelog?limit=5').then((r) => r.json()).then(({ entries }) => {
+  $('[data-apichanges]').innerHTML = entries.map((e) => `<details class="ax-tile"><summary><b class="ax-mono">${esc(e.version)}</b><span>${esc(e.date)}</span></summary><ul>${e.items.map((i) => `<li>${esc(i.text)}</li>`).join('')}</ul></details>`).join('') || '<p class="cx-empty">Nothing yet.</p>';
+}).catch(() => { $('[data-apichanges]').innerHTML = '<p class="cx-empty">Couldn’t load the changelog. It’s at /changelog.rss.</p>'; });
 fetch('/api/engine/v1/kinds').then((r) => r.json()).then(renderKinds).catch(() => { $('[data-kindtable]').innerHTML = '<p class="cx-empty">Couldn’t reach the engine. GET /engine/v1/kinds lists them.</p>'; });
 
 // Recent engine changes.
