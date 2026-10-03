@@ -350,7 +350,13 @@
         <section id="ai-outcomes" class="dx-sec dx-ep">
           <h2><b class="dx-m post">POST</b> /ai/v1/outcomes</h2>
           <p>Tell us how the print went, so the checks learn which fixes work: <code>{ "job": "your-id", "result": "good" | "failed" | "fixed", "finding": "warping", "fixedBy": "bed_temperature:105", "note": "…" }</code>. Answers <code>202</code>.</p>
-          <p>Coming next: <code>POST /ai/v1/watch/frame</code> (live failure watch from a printer camera) and <code>POST /ai/v1/recipes/:id/apply</code> (apply a fix to your VERTEX Recipe). Both answer <code>501</code> for now.</p>
+          <h4 id="ai-watch"><code>POST /ai/v1/watch/frame?job=…</code>: live failure watch</h4>
+          <p>Send a frame from the printer's camera every 20 seconds or so while it prints (the body is the JPEG or PNG; <code>job</code> is your own id for the print, the same on every frame). You get back <code>action</code>: <code>continue</code>, <code>check</code> (something's worth a look) or <code>pause</code>. It only says pause when two frames in a row show a print-ending fault: spaghetti, a layer shift, a clog or layers splitting. One blurry frame never stops a print. You also get <code>message</code>, <code>fault</code>, <code>streak</code> and the same <code>findings</code> as a photo diagnosis. One frame every 20 seconds per job; frames count toward the photo allowance.</p>
+          <pre class="dx-code">curl -X POST "https://api.mintmotive.com.au/ai/v1/watch/frame?job=benchy-42" \
+  -H "Authorization: Bearer $MINT_KEY" -H "Content-Type: image/jpeg" \
+  --data-binary @frame.jpg
+# → { "action": "check", "message": "Keep an eye on it: …", "fault": "spaghetti", "streak": 1, … }</pre>
+          <p>Coming next: <code>POST /ai/v1/recipes/:id/apply</code>, to apply a fix to your VERTEX Recipe from the API. On the VERTEX site, Print Doctor already writes fixes into your settings file and can share it as a Recipe.</p>
         </section>
 
         <section id="ai-findings" class="dx-sec">

@@ -10,7 +10,7 @@
 // POST /api/ai/v1/check/model        an STL or 3MF as the body, or { kind, params, context } to check a VERTEX model
 // POST /api/ai/v1/diagnose/photo     a photo of the print as the body (JPEG, PNG, WebP or HEIC), or { image, context, share }
 // POST /api/ai/v1/outcomes           { job, result: good|failed|fixed, fixedBy, finding, note, context } → 202
-// POST /api/ai/v1/watch/frame        501 for now (live failure watch is on the roadmap)
+// POST /api/ai/v1/watch/frame        live failure watch: a camera frame mid-print → continue, check or pause
 import { HttpError, RateLimiter, readJson } from './security.js';
 import { hashToken } from './auth.js';
 import { ipAllowed } from './api-guard.js';
@@ -140,6 +140,9 @@ export function imageType(buf) {
 export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLibrary = null, env = process.env, fetchImpl = globalThis.fetch }) {
   const photoMinute = new RateLimiter(AI_LIMITS.photosPerMinute, 60e3);
   const photoDay = new RateLimiter(AI_LIMITS.photosPerDay, 86400e3);
+  // Live watch: one frame every 20 seconds per job is plenty to catch a failure.
+  const watchJob = new RateLimiter(1, 20e3);
+  const streaks = new Map(); // key:job → { code, count, at }
   const minute = new RateLimiter(60, 60e3);
   const state = () => { try { return { on: false, photos: true, ...JSON.parse(db.prepare('SELECT value FROM settings WHERE key = ?').get(KEY)?.value || '{}') }; } catch { return { on: false, photos: true }; } };
   const save = (v) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(KEY, JSON.stringify(v));
@@ -280,6 +283,26 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     return { ...out, model: PHOTO_VERSION };
   }
 
+  // Live failure watch. Faults that waste a whole spool if left: pause, but only
+  // when two frames in a row agree (one blurry frame never stops a print).
+  const STOP = new Set(['spaghetti', 'layer-shift', 'clog', 'layer-separation']);
+  async function watchFrame(req, k, ctx) {
+    const job = str(new URL(req.url, 'http://x').searchParams.get('job') || '', 80);
+    if (!job) throw new HttpError(400, 'Which print? Send ?job= with your own id for it, the same on every frame.');
+    if (!k.sandbox && !watchJob.take(`w:${k.key_id}:${job}`)) throw new HttpError(429, 'One frame every 20 seconds per job is enough to catch a failure.');
+    const report = await diagnose(req, k, ctx);
+    const id = `${k.key_id}:${job}`;
+    const worst = report.findings.filter((f) => STOP.has(f.code) && (f.confidence ?? 0.5) >= 0.6).sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0];
+    const prev = streaks.get(id);
+    const streak = worst ? (prev?.code === worst.code ? prev.count + 1 : 1) : 0;
+    if (worst) streaks.set(id, { code: worst.code, count: streak, at: Date.now() }); else streaks.delete(id);
+    if (streaks.size > 5000) for (const [key, v] of streaks) if (Date.now() - v.at > 6 * 3600e3) streaks.delete(key);
+    const warn = report.findings.some((f) => f.severity === 'warn' || f.severity === 'fail');
+    const action = worst && streak >= 2 ? 'pause' : worst || warn ? 'check' : 'continue';
+    const say = { pause: `Pause it: ${FAULTS[worst?.code] || 'a failure'} Seen on ${streak} frames in a row.`, check: worst ? `Keep an eye on it: this frame looks like ${worst.code.replace(/-/g, ' ')}. One more frame like it and we’ll say pause.` : 'Something’s not quite right. Have a look when you can.', continue: 'Looks fine. Carry on.' }[action];
+    return { action, message: say, job, streak, fault: worst?.code || null, findings: report.findings, model: report.model, ...(report.test ? { test: true } : {}) };
+  }
+
   function outcome(k, body) {
     const result = str(body.result, 10);
     if (!['good', 'failed', 'fixed'].includes(result)) throw new HttpError(400, 'result must be good, failed or fixed.');
@@ -293,7 +316,7 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
   const info = () => ({
     name: 'VERTEX Print AI API', version: 1, enabled: Boolean(state().on), docs: '/docs#print-ai',
     checkers: { settings: SETTINGS_VERSION, model: MODEL_VERSION, photo: PHOTO_VERSION },
-    ready: { settings: true, model: true, photo: photosReady(), watch: false },
+    ready: { settings: true, model: true, photo: photosReady(), watch: photosReady() },
     limits: { photosPerMinute: AI_LIMITS.photosPerMinute, photosPerDay: AI_LIMITS.photosPerDay, maxModelMb: AI_LIMITS.maxModelMb, maxGcodeMb: AI_LIMITS.maxGcodeMb, maxPhotoMb: AI_LIMITS.maxPhotoMb },
     faults: Object.keys(FAULTS),
   });
@@ -334,7 +357,7 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     if (path === '/api/ai/v1/check/model' && method === 'POST') return json(res, 200, await modelCheck(req, ctx), planHeaders), true;
     if (path === '/api/ai/v1/diagnose/photo' && method === 'POST') return json(res, 200, await diagnose(req, k, ctx), planHeaders), true;
     if (path === '/api/ai/v1/outcomes' && method === 'POST') return json(res, 202, outcome(k, await readJson(req, 8192)), planHeaders), true;
-    if (path === '/api/ai/v1/watch/frame' && method === 'POST') throw new HttpError(501, 'Live failure watch is coming. See the roadmap.');
+    if (path === '/api/ai/v1/watch/frame' && method === 'POST') return json(res, 200, await watchFrame(req, k, ctx), planHeaders), true;
     if (/^\/api\/ai\/v1\/recipes\/[\w-]+\/apply$/.test(path) && method === 'POST') throw new HttpError(501, 'Applying a fix to your Recipe is coming: it needs your VERTEX Recipe Book linked.');
     throw new HttpError(404, 'Not here. See GET /api/ai/v1.');
   }

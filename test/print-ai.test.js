@@ -149,7 +149,16 @@ test('the API: developer keys, its own switch, every check, outcomes, and no AI 
   assert.equal((await call(ai, '/api/ai/v1/outcomes', 'POST', { key: 'vx_dev', body: { job: 'j1', result: 'fixed', fixedBy: 'bed_temperature:105', finding: 'warping' } })).status, 202);
   assert.equal((await call(ai, '/api/ai/v1/outcomes', 'POST', { key: 'vx_dev', body: { job: 'j1', result: 'meh' } })).status, 400);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM print_ai_outcomes').get().n, 1);
-  assert.equal((await call(ai, '/api/ai/v1/watch/frame', 'POST', { key: 'vx_dev', body: {} })).status, 501);
+  // Live failure watch: a job id is needed; one bad frame says check, two in a row say pause.
+  assert.equal((await call(ai, '/api/ai/v1/watch/frame', 'POST', { key: 'vx_dev', raw: png, type: 'image/png' })).status, 400);
+  const w1 = await call(ai, '/api/ai/v1/watch/frame?job=print-7', 'POST', { key: 'vx_dev', raw: png, type: 'image/png' });
+  assert.equal(w1.status, 200, JSON.stringify(w1.out));
+  assert.equal(w1.out.action, 'check', 'warping is worth a look, not a stop');
+  assert.equal((await call(ai, '/api/ai/v1/watch/frame?job=print-7', 'POST', { key: 'vx_dev', raw: png, type: 'image/png' })).status, 429, 'one frame every 20 seconds per job');
+  const spag = createPrintAi({ db, isStaff, env: { ANTHROPIC_API_KEY: 'k' }, fetchImpl: async () => ({ ok: true, json: async () => ({ content: [{ type: 'tool_use', name: 'report', input: { isPrint: true, summary: 'Spaghetti.', findings: [{ code: 'spaghetti', severity: 'fail', message: 'It came off the bed.', confidence: 0.9 }] } }] }) }) });
+  const s1 = await call(spag, '/api/ai/v1/watch/frame?job=a', 'POST', { key: 'vx_dev', raw: png, type: 'image/png' });
+  const s2 = await call(spag, '/api/ai/v1/watch/frame?job=b', 'POST', { key: 'vx_dev', raw: png, type: 'image/png' });
+  assert.deepEqual([s1.out.action, s1.out.streak, s2.out.action], ['check', 1, 'check'], 'each job keeps its own count');
   assert.ok(db.prepare('SELECT calls FROM engine_keys WHERE user_id = 1').get().calls >= 5, 'calls are counted on the key');
   for (const r of [info, g, m]) assert.doesNotMatch(JSON.stringify(r.out), /anthropic|claude|sonnet|opus/i);
 });

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.13.0 · 3 October 2026
+
+### Added
+- **Live failure watch** (`POST /ai/v1/watch/frame?job=`). Send camera frames while a print runs. You get back continue, check or pause. Pause only comes when two frames in a row show a print-ending fault (spaghetti, layer shift, clog, layers splitting). One frame every 20 seconds per job.
+
+### Fixed
+- **Settings checks read PrusaSlicer `.ini` files.** Plain `key = value` lines now count, not just the `; key = value` lines inside G-code.
+
 ## 1.12.0 · 3 October 2026
 
 ### Added

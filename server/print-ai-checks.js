@@ -31,9 +31,9 @@ export const filaments = () => Object.keys(TEMPS).map((id) => ({
 }));
 
 // ---------------------------------------------------------------- settings in
-const SETTING = /^;\s*([A-Za-z0-9_]+)\s*=\s*(.*)$/;
+const SETTING = /^;?\s*([A-Za-z0-9_]+)\s*=\s*(.*)$/;
 
-/** Every "; key = value" line a slicer wrote (Orca, Bambu Studio and PrusaSlicer all write them). */
+/** Every "key = value" line a slicer wrote: "; key = value" in G-code (Orca, Bambu Studio, PrusaSlicer), plain in a PrusaSlicer .ini. */
 export function settingsFromText(text) {
   const out = {};
   for (const line of String(text).split(/\r?\n/)) {
