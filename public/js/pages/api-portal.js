@@ -155,7 +155,30 @@ function layout(list) {
   });
 }
 // Some kinds (Skådis, Desk Pod and the rest) load their generator on first use: load it, then build.
+// Models are built in a worker (no stall on the page); if workers can't run, on the page as before.
+let worker = null, workerId = 0, MeshClass = null;
+const pending = new Map();
+function buildWorker() {
+  if (worker !== null) return worker;
+  try {
+    worker = new Worker('/js/pages/build-worker.js', { type: 'module' });
+    worker.onmessage = ({ data }) => { const p = pending.get(data.id); if (p) { pending.delete(data.id); p(data); } };
+    worker.onerror = () => { worker = false; for (const p of pending.values()) p({ error: 'worker' }); pending.clear(); };
+  } catch { worker = false; }
+  return worker;
+}
 async function timedBuild(kind, params) {
+  const w = buildWorker();
+  if (w) {
+    const id = ++workerId;
+    const data = await new Promise((resolve) => { pending.set(id, resolve); w.postMessage({ id, kind, params }); });
+    if (!data.error) {
+      MeshClass ||= (await import('/js/geometry/mesh.js')).Mesh;
+      const list = data.parts.map((p) => { const m = new MeshClass(); m.positions = Array.from(p.positions); m.indices = Array.from(p.indices); return { name: p.name, mesh: m }; });
+      return { list, ms: data.ms, tris: list.reduce((n, p) => n + p.mesh.triangleCount, 0) };
+    }
+  }
+  await engineReady();
   if (loadKind) await loadKind(kind);
   const t0 = performance.now();
   const list = (buildParts && buildParts(kind, params)) || [];
@@ -434,20 +457,46 @@ function background() {
     streams = Array.from({ length: sc }, (_, i) => ({ x: (i + .5) * (W / sc) + (Math.random() - .5) * 60, y: Math.random() * H, v: .12 + Math.random() * .22, lines: Array.from({ length: 6 + ((Math.random() * 6) | 0) }, () => ({ t: WORDS[(Math.random() * WORDS.length) | 0], c: (Math.random() * COLS.length) | 0 })) }));
   }
   const LINK = 150;
+  // Drawn once, stamped every frame: a word of code in its colour, and the soft glow round a node or a
+  // signal. fillText and new gradients every frame were the heaviest drawing on big screens.
+  const sprites = new Map();
+  function textSprite(t, c) {
+    const key = `${t}|${c}|${pal.code[c]}`;
+    let sp = sprites.get(key);
+    if (!sp) {
+      const k = cv.width / Math.max(1, W), m = document.createElement('canvas'), g = m.getContext('2d');
+      g.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
+      const w = Math.ceil(g.measureText(t).width) + 2;
+      m.width = Math.ceil(w * k); m.height = Math.ceil(16 * k);
+      g.scale(k, k); g.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
+      g.fillStyle = pal.code[c]; g.fillText(t, 0, 12);
+      sp = { img: m, w, h: 16 }; sprites.set(key, sp);
+    }
+    return sp;
+  }
+  let glowImg = null, glowFor = '';
+  function stampGlow(x, y, r, alpha) {
+    if (glowFor !== pal.b) {
+      glowFor = pal.b; glowImg = document.createElement('canvas'); glowImg.width = glowImg.height = 64;
+      const g = glowImg.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, pal.b); gr.addColorStop(1, 'transparent'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    }
+    ctx.globalAlpha = alpha; ctx.drawImage(glowImg, x - r, y - r, r * 2, r * 2);
+  }
   function frame(still) {
     ctx.clearRect(0, 0, W, H);
     drawAurora(still ? 0 : performance.now(), still);
     // Code, drifting up
-    ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
     for (const s of streams) {
       if (!still) { s.y -= s.v; if (s.y < -s.lines.length * 22) { s.y = H + 20; } }
       s.lines.forEach((l, i) => {
         const y = s.y + i * 22;
         if (y < -20 || y > H + 20) return;
         const edge = Math.min(1, y / (H * .25), (H - y) / (H * .25));
-        ctx.globalAlpha = Math.max(0, .09 * edge);
-        ctx.fillStyle = pal.code[l.c];
-        ctx.fillText(l.t, s.x, y);
+        if (edge <= 0) return;
+        const sp = textSprite(l.t, l.c);
+        ctx.globalAlpha = .09 * edge;
+        ctx.drawImage(sp.img, s.x, y - 12, sp.w, sp.h);
       });
     }
     // The network
@@ -486,31 +535,23 @@ function background() {
         p.a = p.b; p.b = near[(Math.random() * near.length) | 0]; p.t = 0;
       }
       const x = p.a.x + (p.b.x - p.a.x) * p.t, y = p.a.y + (p.b.y - p.a.y) * p.t;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, 14);
-      g.addColorStop(0, pal.b); g.addColorStop(1, 'transparent');
-      ctx.globalAlpha = .85; ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.fill();
+      stampGlow(x, y, 14, .85);
       ctx.globalAlpha = .5; ctx.strokeStyle = pal.b; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(p.a.x, p.a.y); ctx.lineTo(x, y); ctx.stroke(); ctx.lineWidth = 1;
       return true;
     });
     for (const n of nodes) {
       const r = n.r + n.glow * 2.5;
-      if (n.glow > .05) {
-        const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, 18 * n.glow + 4);
-        g.addColorStop(0, pal.b); g.addColorStop(1, 'transparent');
-        ctx.globalAlpha = .6 * n.glow; ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(n.x, n.y, 18 * n.glow + 4, 0, Math.PI * 2); ctx.fill();
-      }
+      if (n.glow > .05) stampGlow(n.x, n.y, 18 * n.glow + 4, .6 * n.glow);
       ctx.globalAlpha = .55 + n.glow * .45; ctx.fillStyle = n.glow > .2 ? pal.b : pal.a;
       ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
   readPal(); size();
-  addEventListener('resize', () => { size(); if (still) frame(true); });
+  addEventListener('resize', () => { sprites.clear(); size(); if (still) frame(true); });
   addEventListener('pointermove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; }, { passive: true });
-  document.addEventListener('ax-palette', () => { readPal(); if (still) frame(true); });
+  document.addEventListener('ax-palette', () => { readPal(); sprites.clear(); if (still) frame(true); });
   if (still) { frame(true); return; }
   // 30 frames a second is plenty for a slow drift, and it rests while the page
   // scrolls so scrolling gets the whole frame. The network moves where it's seen: the hero on the front page (the canvas
@@ -524,7 +565,10 @@ function background() {
     // Pages without a hero: the fixed canvas is always "in view", so past the
     // first screen it sleeps and looks again a few times a second.
     if (zone === cv && scrollY > innerHeight * .8) { setTimeout(() => requestAnimationFrame(loop), 400); return; }
-    const gap = quality.level === 2 ? 32 : 50;
+    // Each redraw re-sends the whole canvas to the screen: on a big monitor that's millions of pixels, so
+    // the slow drift redraws 20 times a second there (12 when the page is struggling), 30 elsewhere.
+    const bigScreen = W * H > 2.5e6;
+    const gap = quality.level === 2 ? (bigScreen ? 50 : 32) : (bigScreen ? 80 : 50);
     if (t - lastDraw > gap && performance.now() - lastScroll > 180) { lastDraw = t; frame(false); }
     requestAnimationFrame(loop);
   };

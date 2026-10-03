@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 · 3 October 2026
+
+### Changed
+- **Smoother on big and ultra-wide monitors.** The front page does far less drawing per frame:
+  - The 3D model turns at 30 frames a second, and is never drawn at more than about 1.6 million pixels.
+  - The background's code text and glows are drawn once and reused, not redrawn every frame.
+  - On very large screens the slow background drift redraws 20 times a second.
+- **No stalls while a model builds.** The example models on the front page are built in the background, so the typing, scrolling and turning never pause while a model is made.
+
 ## 1.6.3 · 2 October 2026
 
 ### Fixed

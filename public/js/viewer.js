@@ -308,12 +308,11 @@ export class Viewer {
   spin(on = true) {
     if (on === this.spinning) return;
     this.spinning = on;
-    let last = performance.now();
+    // A slow turn reads as smooth at 30 frames a second, and costs half the drawing of 60.
+    let last = performance.now(), drawn = 0;
     const tick = (now) => {
       if (!this.spinning) return;
-      this.theta += (now - last) * 0.00025;
-      last = now;
-      this.render();
+      if (now - drawn >= 32) { this.theta += (now - last) * 0.00025; last = now; drawn = now; this.render(); }
       requestAnimationFrame(tick);
     };
     if (on) requestAnimationFrame(tick);
@@ -322,7 +321,11 @@ export class Viewer {
   render() {
     const gl = this.gl;
     const c = this.canvas;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Sharp on any screen, but never more than about 1.6 million pixels a frame (a big, high-density
+    // monitor would otherwise draw several times that, with antialiasing on top).
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const area = c.clientWidth * c.clientHeight;
+    if (area * dpr * dpr > 1.6e6) dpr = Math.max(0.75, Math.sqrt(1.6e6 / Math.max(1, area)));
     const w = Math.max(1, Math.round(c.clientWidth * dpr));
     const h = Math.max(1, Math.round(c.clientHeight * dpr));
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
