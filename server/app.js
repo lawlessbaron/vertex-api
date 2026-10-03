@@ -30,6 +30,7 @@ import { createApiWebhooks, WEBHOOK_EVENTS } from './api-webhooks.js';
 import { createApiStatus, STATUS_COMPONENTS, INCIDENT_STATUSES, IMPACTS } from './api-status.js';
 import { createApiPlans } from './api-plans.js';
 import { createEngineApi } from './engine-api.js';
+import { createPrintAi } from './print-ai.js';
 import { importFromVertex } from './import.js';
 import { createEducation, EDU_KINDS } from './education.js';
 import { createMarketing } from './marketing.js';
@@ -95,6 +96,7 @@ export function createApp(config) {
   let apiStatus = null;
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
   const traceApi = createTraceApi({ db, can, audit, toolLibrary, newSerial });
+  const printAi = createPrintAi({ db, isStaff, plans: apiPlans, audit, toolLibrary, env: config.env || process.env, fetchImpl });
   const apiLog = createApiLog({ db, onRecord: (row) => apiGuard.afterCall(row) });
   apiStatus = createApiStatus({
     db, controls, traceOn: () => traceApi.isOn(),
@@ -289,7 +291,7 @@ export function createApp(config) {
   // ---------- the API routes ----------
   async function api(req, res, url, ctx) {
     const path = url.pathname, method = req.method;
-    if (/^\/api\/(?:engine|trace)\/v1(?:\/|$)/.test(path) && (req.headers.authorization || method !== 'GET' || path.startsWith('/api/trace/'))) {
+    if (/^\/api\/(?:engine|trace|ai)\/v1(?:\/|$)/.test(path) && (req.headers.authorization || method !== 'GET' || path.startsWith('/api/trace/'))) {
       apiLog.track(req, res, ctx, path);
       if (apiGuard.blocked(ctx.ip)) throw new HttpError(403, 'Calls from this address are blocked. Write to support if you think that’s wrong.');
     }
@@ -460,6 +462,9 @@ export function createApp(config) {
 
     // ---------- developers ----------
     if (path === '/api/engine/v1/plans' && method === 'GET') return json(res, 200, { plans: apiPlans.publicPlans(), currency: stripe.currency().toUpperCase(), paid: stripe.stripeReady() }, { 'Cache-Control': 'public, max-age=60' });
+    // Print AI: developer keys, its own switch (staff settings at /api/admin/print-ai).
+    if (path === '/api/admin/print-ai') requireAdmin(ctx);
+    if ((path.startsWith('/api/ai/v1') || path === '/api/admin/print-ai') && (await printAi.handle(req, res, path, method, ctx, json))) return;
     if (path.startsWith('/api/engine/v1') && (await engineApi.handle(req, res, path, method, ctx, json, requireUser))) return;
     if (path.startsWith('/api/developer/')) {
       let me = requireUser(ctx, 'Sign in to open the console.');
@@ -533,8 +538,8 @@ export function createApp(config) {
       try { db.prepare('SELECT 1').get(); } catch { return json(res, 503, { ok: false }); }
       return json(res, 200, { ok: true, version: config.version, engine: ENGINE.version, vertex: link.on() });
     }
-    // Short API paths: /engine/v1/… and /trace/v1/… are the APIs.
-    if (/^\/(?:engine|trace)\/v1(?:\/|$)/.test(url.pathname)) url.pathname = `/api${url.pathname}`;
+    // Short API paths: /engine/v1/…, /trace/v1/… and /ai/v1/… are the APIs.
+    if (/^\/(?:engine|trace|ai)\/v1(?:\/|$)/.test(url.pathname)) url.pathname = `/api${url.pathname}`;
     const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     if (token) {
       ctx.user = sessionUser(db, token, ctx.ip);

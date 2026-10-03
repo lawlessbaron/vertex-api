@@ -30,6 +30,7 @@ It runs on its own: its own server, database, sessions and Stripe webhook. Accou
 | `DATABASE_URL` | This service's own PostgreSQL (a full copy of the database, restored onto an empty volume) |
 | `TRUST_PROXY` | `1` on Railway |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Same Stripe account. The webhook is its own endpoint: `https://api.mintmotive.com.au/api/stripe/webhook`, with `checkout.session.completed` and `customer.subscription.*` |
+| Print Doctor | Optional: its vision key and model turn on photo diagnosis (`/ai/v1/diagnose/photo`); see VERTEX's private docs |
 | Tracer | The same tracer variables as VERTEX (see VERTEX's private docs) |
 
 On VERTEX, set `API_PUBLIC_URL=https://api.mintmotive.com.au` and the same `API_LINK_SECRET`. VERTEX's own copy of the API then goes quiet and forwards there.

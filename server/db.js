@@ -291,6 +291,21 @@ export const MIGRATIONS = [
      created_by INTEGER,
      created_at INTEGER NOT NULL
    );`,
+  // Print AI: how prints went after a check (so the checks learn), and photos members chose to share.
+  `CREATE TABLE print_ai_outcomes (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+     key_id INTEGER,
+     kind TEXT NOT NULL,
+     job TEXT,
+     result TEXT NOT NULL,
+     finding TEXT,
+     fixed_by TEXT,
+     context TEXT,
+     note TEXT,
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX print_ai_outcomes_at ON print_ai_outcomes (created_at);`,
 ];
 
 export function openDatabase(path) {

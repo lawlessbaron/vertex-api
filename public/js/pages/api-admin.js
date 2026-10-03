@@ -350,12 +350,14 @@ async function marketingTab() {
 // ---------- settings ----------
 const yes = (on, okText, offText) => `<span class="pill ${on ? 'ok' : 'bad'}">${on ? okText : offText}</span>`;
 async function settingsTab() {
-  const [s, t] = await Promise.all([call('/api/admin/api/settings'), call('/api/admin/trace-api').catch(() => null)]);
+  const [s, t, a] = await Promise.all([call('/api/admin/api/settings'), call('/api/admin/trace-api').catch(() => null), call('/api/admin/print-ai').catch(() => null)]);
   const v = s.vertex;
   pane().innerHTML = `<div class="grid g2">
     ${card('Switches', `<div class="grid" style="gap:16px">
         <label class="switch"><input type="checkbox" data-sw="engine" ${s.engineApi ? 'checked' : ''} /><span><b>Engine API</b><span class="sub mute" style="display:block;font-size:12.5px">${s.engineApi ? 'On: anyone with a key' : 'Off: staff keys only'}</span></span></label>
         ${t ? `<label class="switch"><input type="checkbox" data-sw="tracer" ${t.on ? 'checked' : ''} /><span><b>Tracer API</b> ${yes(t.ready, 'ready', 'not set up')}<span class="sub mute" style="display:block;font-size:12.5px">${t.on ? 'On' : 'Off: test keys only'}</span></span></label>` : '<p class="mute">Tracer switches: owners only.</p>'}
+        ${a ? `<label class="switch"><input type="checkbox" data-sw="printai" ${a.on ? 'checked' : ''} /><span><b>Print AI API</b><span class="sub mute" style="display:block;font-size:12.5px">${a.on ? 'On: anyone with a key' : 'Off: staff keys only'}</span></span></label>
+        <label class="switch"><input type="checkbox" data-sw="printai-photos" ${a.photos !== false ? 'checked' : ''} /><span><b>Print Doctor photos</b> ${yes(a.visionKey, 'ready', 'no vision key set')}<span class="sub mute" style="display:block;font-size:12.5px">${num((a.last30Days || []).reduce((n, r) => n + r.n, 0))} outcomes and shared photos in 30 days</span></span></label>` : ''}
       </div>
       <dl class="kv" style="margin-top:18px">
         <dt>Engine</dt><dd class="mono">${esc(s.engine)}</dd>
@@ -451,7 +453,8 @@ const goCalls = (f) => { filters = f; rows = []; next = null; if (location.hash 
 document.addEventListener('change', async (e) => {
   const sw = e.target.dataset?.sw;
   if (sw) {
-    await act(() => (sw === 'engine' ? call('/api/admin/api/settings', { method: 'PUT', body: { engineApi: e.target.checked } }) : call('/api/admin/trace-api', { method: 'PUT', body: { on: e.target.checked } })), 'Saved');
+    const put = { engine: () => call('/api/admin/api/settings', { method: 'PUT', body: { engineApi: e.target.checked } }), tracer: () => call('/api/admin/trace-api', { method: 'PUT', body: { on: e.target.checked } }), printai: () => call('/api/admin/print-ai', { method: 'PUT', body: { on: e.target.checked } }), 'printai-photos': () => call('/api/admin/print-ai', { method: 'PUT', body: { photos: e.target.checked } }) }[sw];
+    await act(put, 'Saved');
     return show('settings');
   }
   if (e.target.matches?.('[data-upload]')) {

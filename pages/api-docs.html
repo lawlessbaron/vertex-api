@@ -64,6 +64,13 @@
           <a href="#trace-job">GET /trace/v1/jobs/:id</a>
           <a href="#trace-bin">GET /trace/v1/jobs/:id/bin</a>
           <a href="#photos">Taking good photos</a>
+          <p>Print AI API</p>
+          <a href="#print-ai">How Print AI works</a>
+          <a href="#ai-check-settings">POST /ai/v1/check/settings</a>
+          <a href="#ai-check-model">POST /ai/v1/check/model</a>
+          <a href="#ai-diagnose">POST /ai/v1/diagnose/photo</a>
+          <a href="#ai-outcomes">POST /ai/v1/outcomes</a>
+          <a href="#ai-findings">Findings and fixes</a>
           <p>Reference</p>
           <a href="#errors">Errors</a>
           <a href="#limits">Limits, plans and quotas</a>
@@ -80,7 +87,7 @@
         <section id="intro" class="dx-sec">
           <p class="ax-label">Docs</p>
           <h1>The Mint Motive API</h1>
-          <p class="dx-lede">Two APIs on one engine. The <b>Engine API</b> turns settings into print-ready models, <span data-docs-kinds>77</span> kinds of them (Gridfinity bins and baseplates, Skådis, Deck Foundry, server racks, kitchen, desk and home organisers and more, every one listed under <a href="#settings">Kinds and settings</a>), as STL, 3MF or OBJ. The <b>Tracer API</b> turns a photo of tools on a sheet of paper into outlines in millimetres, or a finished bin with a pocket for every tool.</p>
+          <p class="dx-lede">Three APIs on one engine. The <b>Engine API</b> turns settings into print-ready models, <span data-docs-kinds>77</span> kinds of them (Gridfinity bins and baseplates, Skådis, Deck Foundry, server racks, kitchen, desk and home organisers and more, every one listed under <a href="#settings">Kinds and settings</a>), as STL, 3MF or OBJ. The <b>Tracer API</b> turns a photo of tools on a sheet of paper into outlines in millimetres, or a finished bin with a pocket for every tool. The <b>Print AI API</b> checks a print before slicing, after slicing and from a photo after printing, and gives the exact settings to change.</p>
           <div class="dx-cards">
             <div class="ax-tile"><p class="ax-tile-k">Base URL</p><p class="ax-mono dx-strong">https://api.mintmotive.com.au</p></div>
             <div class="ax-tile"><p class="ax-tile-k">Format</p><p class="dx-strong">JSON in, files or JSON out</p></div>
@@ -286,6 +293,78 @@
             <li>Tools <b>flat and apart</b>, not touching each other or the edge of the sheet.</li>
             <li>Shiny steel: tilt the light a little to kill glare.</li>
           </ul>
+        </section>
+
+        <section id="print-ai" class="dx-sec">
+          <h2>How Print AI works <span class="dx-badge">New</span></h2>
+          <p>Print AI checks a 3D print at every step and says exactly what to change. It checks the model <b>before slicing</b> (overhangs, bridges, bed contact, a closed mesh, the best way up), the slicer settings <b>after slicing</b> (temperatures, layers, cooling and retraction for your filament and nozzle), and a photo <b>after printing</b> (Print Doctor names the fault, boxes it on the photo and gives the settings that fix it).</p>
+          <p>Your developer key (<code>vx_…</code>) works here, on your plan's allowance. <code>GET /ai/v1</code> says what's ready; <code>GET /ai/v1/filaments</code> lists each filament family's safe ranges. Neither needs a key.</p>
+          <p>The VERTEX slicer plugin (OrcaSlicer, Bambu Studio and PrusaSlicer post-processing) runs the settings checks on your computer for free, and sends the settings (never your model) here when you set <code>VERTEX_API_KEY</code>.</p>
+        </section>
+
+        <section id="ai-check-settings" class="dx-sec dx-ep">
+          <h2><b class="dx-m post">POST</b> /ai/v1/check/settings</h2>
+          <p>Slicer settings against safe ranges. Send any of these:</p>
+          <ul class="dx-list">
+            <li><b>JSON</b>: <code>{ "settings": { "filament_type": "PETG", "nozzle_temperature": 275, … }, "context": { "nozzle": 0.4 } }</code>. Setting names are your slicer's own; OrcaSlicer, Bambu Studio and PrusaSlicer names all work.</li>
+            <li><b>G-code</b> as the body (<code>text/plain</code>, up to 200 MB). The settings comments the slicer writes are read; the moves are skipped.</li>
+            <li>A <b>sliced 3MF</b> as the body (<code>model/3mf</code>).</li>
+          </ul>
+          <p>With a file as the body, give the context on the query string: <code>?filament=PETG&amp;nozzle=0.4</code>.</p>
+          <div class="ax-tile dx-code"><pre class="ax-code"><code data-hl="curl">curl -X POST "https://api.mintmotive.com.au/ai/v1/check/settings?filament=PETG" \
+  -H "Authorization: Bearer $MINT_KEY" \
+  -H "Content-Type: text/plain" \
+  --data-binary @part.gcode</code></pre></div>
+        </section>
+
+        <section id="ai-check-model" class="dx-sec dx-ep">
+          <h2><b class="dx-m post">POST</b> /ai/v1/check/model</h2>
+          <p>A model before slicing. Send an STL or 3MF as the body (up to 50 MB), or <code>{ "kind", "params" }</code> to check any Engine API model. You get its size, volume, whether the mesh is closed, how much overhangs and bridges over air, how much sits on the bed, and the six flat ways it could lie, with the best one.</p>
+          <table class="dx-table">
+            <thead><tr><th>Query</th><th>Default</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>bed</code></td><td></td><td>Your printer's build volume in mm, e.g. <code>256,256,256</code>, to check it fits.</td></tr>
+              <tr><td><code>overhangAngle</code></td><td>45</td><td>The steepest overhang (from upright) that prints without support (20–80).</td></tr>
+            </tbody>
+          </table>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{
+  "findings": [
+    { "code": "better-orientation", "severity": "info", "confidence": 0.75,
+      "message": "Laid upside down, it needs about 0 mm² of support instead of 3500 mm² and sits on 3600 mm² of bed.",
+      "fixes": [{ "id": "orient:-z", "setting": "orientation", "from": "+z", "to": "-z" }] }
+  ],
+  "stats": { "sizeMm": [60, 60, 35], "volumeCm3": 21, "closed": true, "overhangMm2": 0, "bridgeMm2": 3500, "bedContactMm2": 100 },
+  "orientation": { "current": "+z", "best": "-z", "options": [ … ] },
+  "model": "model-0.1.0", "summary": "2 tips."
+}</code></pre>
+        </section>
+
+        <section id="ai-diagnose" class="dx-sec dx-ep">
+          <h2><b class="dx-m post">POST</b> /ai/v1/diagnose/photo</h2>
+          <p>Print Doctor. Send a photo of a finished or failed print as the body (JPEG, PNG, WebP or HEIC, up to 12 MB), or <code>{ "image": base64, "context": { … }, "settings": { … }, "share": false }</code>. Each finding names the fault (spaghetti, warping, stringing, under-extrusion, layer shift, poor first layer, elephant's foot, ringing and more), boxes it on the photo as fractions of the image (<code>[x, y, w, h]</code>), and gives the settings to change. Tell it the filament and printer for sharper answers. Photos are looked at and thrown away, unless you send <code>share: true</code> to help Print Doctor learn. 6 photos a minute and 200 a day per key.</p>
+        </section>
+
+        <section id="ai-outcomes" class="dx-sec dx-ep">
+          <h2><b class="dx-m post">POST</b> /ai/v1/outcomes</h2>
+          <p>Tell us how the print went, so the checks learn which fixes work: <code>{ "job": "your-id", "result": "good" | "failed" | "fixed", "finding": "warping", "fixedBy": "bed_temperature:105", "note": "…" }</code>. Answers <code>202</code>.</p>
+          <p>Coming next: <code>POST /ai/v1/watch/frame</code> (live failure watch from a printer camera) and <code>POST /ai/v1/recipes/:id/apply</code> (apply a fix to your VERTEX Recipe). Both answer <code>501</code> for now.</p>
+        </section>
+
+        <section id="ai-findings" class="dx-sec">
+          <h2>Findings and fixes</h2>
+          <p>Every check answers <code>{ findings, model, summary }</code>. <code>model</code> names the checker version (e.g. <code>settings-0.2.0</code>), so you can tell when the rules changed.</p>
+          <table class="dx-table">
+            <thead><tr><th>Field</th><th>What it is</th></tr></thead>
+            <tbody>
+              <tr><td><code>code</code></td><td>What was found, e.g. <code>temp-high-for-filament</code>, <code>layer-too-tall</code>, <code>steep-overhangs</code>, <code>warping</code>. Stable: build on it.</td></tr>
+              <tr><td><code>severity</code></td><td><code>fail</code> (it won't print), <code>warn</code> (it may fail) or <code>info</code> (a tip).</td></tr>
+              <tr><td><code>message</code></td><td>Plain words, ready to show your users.</td></tr>
+              <tr><td><code>confidence</code></td><td>0 to 1.</td></tr>
+              <tr><td><code>fixes</code></td><td>Each <code>{ id, setting, from, to, unit, why }</code>: the slicer setting, its value now and what to set it to. Send the <code>id</code> back as <code>fixedBy</code> on an outcome.</td></tr>
+              <tr><td><code>test</code></td><td>A quick test print that confirms the cause.</td></tr>
+              <tr><td><code>box</code></td><td>Photos only: where the fault is.</td></tr>
+            </tbody>
+          </table>
         </section>
 
         <section id="errors" class="dx-sec">

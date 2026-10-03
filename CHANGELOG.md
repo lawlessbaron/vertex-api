@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.8.0 · 3 October 2026
+
+### Added
+- **The Print AI API** (`/ai/v1`). It checks a 3D print at every step and says exactly which setting to change, to what, and why.
+  - **Before slicing:** `POST /ai/v1/check/model` takes an STL or 3MF, or any Engine API model by kind and settings. It reports:
+    - size, volume and whether the mesh is closed;
+    - overhangs, bridges and how much sits on the bed;
+    - the six flat ways the model could lie, with the best one;
+    - whether it fits your printer;
+    - models saved in the wrong unit.
+  - **After slicing:** `POST /ai/v1/check/settings` takes a settings object, the G-code itself (read as it streams, up to 200 MB) or a sliced 3MF. It checks nozzle and bed temperatures for the filament, layer and first-layer heights for the nozzle, retraction, cooling, walls and infill, abrasive filament on a brass nozzle, and TPU speed. These are the same rules as the VERTEX slicer plugin.
+  - **After printing:** `POST /ai/v1/diagnose/photo` is Print Doctor. Send a photo and it names the fault, boxes it on the photo and gives the settings that fix it.
+  - `POST /ai/v1/outcomes` records how a print went, so the checks learn which fixes work.
+  - `GET /ai/v1` and `GET /ai/v1/filaments` are open to everyone.
+  - Live failure watch and "apply to my Recipe" are coming (they answer 501 for now).
+- Your developer key works for Print AI, on your plan's allowance. Print AI has its own switch in Admin → Settings, plus a separate switch for photos. Staff keys work while it's off.
+- **Docs:** a Print AI section covering every route, with examples and the findings format.
+
 ## 1.7.0 · 3 October 2026
 
 ### Changed

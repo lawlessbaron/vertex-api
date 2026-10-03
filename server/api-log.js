@@ -62,7 +62,7 @@ export function createApiLog({ db, now = () => Date.now(), onRecord = null }) {
       const m = ctx.apiMeta || {};
       const serial = headers['X-Vertex-Serial'] || res.getHeader?.('X-Vertex-Serial') || m.serial || null;
       try {
-        const row = [id, t0, path.startsWith('/api/trace') ? 'trace' : 'engine', req.method, str(path, 200), status || res.statusCode, now() - t0, bytes,
+        const row = [id, t0, path.startsWith('/api/trace') ? 'trace' : path.startsWith('/api/ai') ? 'ai' : 'engine', req.method, str(path, 200), status || res.statusCode, now() - t0, bytes,
           key.type, key.id, key.hint, key.userId ?? ctx.user?.id ?? null, str(ctx.ip, 64), str(ctx.ua || req.headers?.['user-agent'], 200),
           str(m.kind, 40), str(m.format, 10), str(serial, 40), str(error, 300), m.params ? str(JSON.stringify(m.params), 4000) : null];
         insert.run(...row);
