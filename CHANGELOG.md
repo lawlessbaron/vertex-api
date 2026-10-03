@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.12.0 · 3 October 2026
+
+### Added
+- **Get set up, in the console.** A six-step checklist on the overview for new accounts: make a key, try a test key, make your first file, lock a key, add a webhook, bring your team. Each step ticks itself off, and you can hide the checklist.
+- **Teams in the admin.** Developers now lists every team with its owner (who pays), people and pending invites, shared keys and calls today, plus a link to the owner's console.
+
+### Changed
+- The console and admin use the full width of very wide screens (up to 3000 px of content).
+
 ## 1.11.0 · 3 October 2026
 
 ### Added

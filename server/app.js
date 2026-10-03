@@ -432,6 +432,16 @@ export function createApp(config) {
         return json(res, 200, { developers: db.prepare(`SELECT u.id, u.handle, u.email, COUNT(k.id) AS keys, SUM(k.revoked_at IS NULL) AS live, MAX(k.last_used_at) AS lastUsedAt
           FROM users u JOIN engine_keys k ON k.user_id = u.id WHERE u.handle LIKE ? OR u.email LIKE ? GROUP BY u.id ORDER BY lastUsedAt DESC LIMIT 50`).all(like, like) });
       }
+      // Teams: who owns them, who's in them, their shared keys and today's calls.
+      if (path === '/api/admin/api/teams' && method === 'GET') {
+        const day = Date.now() - 86400e3;
+        return json(res, 200, { teams: db.prepare(`SELECT t.id, t.name, t.created_at AS createdAt, u.id AS ownerId, u.handle AS owner,
+            (SELECT COUNT(*) FROM team_members m WHERE m.team_id = t.id) AS members,
+            (SELECT COUNT(*) FROM team_invites i WHERE i.team_id = t.id) AS invites,
+            (SELECT COUNT(*) FROM engine_keys k WHERE k.team_id = t.id AND k.revoked_at IS NULL) AS keys,
+            (SELECT COUNT(*) FROM api_requests r JOIN engine_keys k ON r.key_type = 'engine' AND k.id = r.key_id WHERE k.team_id = t.id AND r.at >= ?) AS today
+          FROM teams t JOIN users u ON u.id = t.owner_id ORDER BY today DESC, t.id DESC LIMIT 200`).all(day) });
+      }
       // This site's switches and its line to VERTEX.
       if (path === '/api/admin/api/settings' && method === 'GET') {
         const imported = db.prepare("SELECT value FROM settings WHERE key = 'vertex_import'").get()?.value;

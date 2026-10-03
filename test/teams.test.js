@@ -76,6 +76,12 @@ test('a team shares keys: owner and admins manage them, members see them, the ow
   assert.equal((await mem(`/api/teams/${id}/members/${mem.id}`, 'DELETE')).data.teams.length, 0);
   assert.equal((await mem('/api/engine/v1/keys')).data.keys.length, 0, 'gone with the team');
 
+  // Staff see every team, with its owner, people and shared keys; others can't.
+  const staff = user('tm_staff', 'owner');
+  const row = (await staff('/api/admin/api/teams')).data.teams.find((x) => x.id === id);
+  assert.deepEqual([row.owner, row.members, row.keys], ['tm_own', 2, 1]);
+  assert.equal((await out('/api/admin/api/teams')).status, 403);
+
   // Closing the team revokes its keys.
   assert.equal((await adm(`/api/teams/${id}`, 'DELETE')).status, 403);
   assert.equal((await own(`/api/teams/${id}`, 'DELETE')).status, 200);

@@ -213,11 +213,12 @@ async function addressesTab() {
 
 // ---------- developers ----------
 async function developersTab(q = '') {
-  const r = await call(`/api/admin/api/developers?q=${encodeURIComponent(q)}`);
+  const [r, tm] = await Promise.all([call(`/api/admin/api/developers?q=${encodeURIComponent(q)}`), call('/api/admin/api/teams').catch(() => ({ teams: [] }))]);
   pane().innerHTML = card('Developers', `
     <form class="toolbar" data-devsearch><label class="search-in">${icon('trace')}<input name="q" placeholder="Username or email" value="${esc(q)}" aria-label="Find a developer" /></label><button class="btn primary sm">Find</button></form>
     <p class="lede" style="margin:10px 0 12px">Open a developer's console to see exactly what they see. It's read only, and each look is written to the audit log.</p>
-    ${table(['Account', 'Keys', 'Last call', ''], r.developers.map((d) => `<tr><td>${userCell(d.handle, `#${d.id} · ${esc(d.email)}`)}</td><td><b>${num(d.live)}</b> <span class="mute">live of ${num(d.keys)}</span></td><td>${ago(d.lastUsedAt)}</td><td class="n"><span class="acts">${iconBtn('list', 'Calls', `data-fuser="${d.id}"`)}<a class="btn sm" href="/console?as=${d.id}">${icon('eye')}Console</a></span></td></tr>`).join(''), 'Nobody matches.')}`, { note: `${num(r.developers.length)} shown` });
+    ${table(['Account', 'Keys', 'Last call', ''], r.developers.map((d) => `<tr><td>${userCell(d.handle, `#${d.id} · ${esc(d.email)}`)}</td><td><b>${num(d.live)}</b> <span class="mute">live of ${num(d.keys)}</span></td><td>${ago(d.lastUsedAt)}</td><td class="n"><span class="acts">${iconBtn('list', 'Calls', `data-fuser="${d.id}"`)}<a class="btn sm" href="/console?as=${d.id}">${icon('eye')}Console</a></span></td></tr>`).join(''), 'Nobody matches.')}`, { note: `${num(r.developers.length)} shown` })
+    + card('Teams', table(['Team', 'Owner (pays)', { t: 'People', c: 'n' }, { t: 'Shared keys', c: 'n' }, { t: 'Calls today', c: 'n' }, 'Started', ''], tm.teams.map((t) => `<tr><td><b>${esc(t.name)}</b> <span class="mute">#${t.id}</span></td><td>@${esc(t.owner)}</td><td class="n">${num(t.members)}${t.invites ? ` <span class="pill warn">+${num(t.invites)} invited</span>` : ''}</td><td class="n">${num(t.keys)}</td><td class="n">${num(t.today)}</td><td>${ago(t.createdAt)}</td><td class="n"><a class="btn sm" href="/console?as=${t.ownerId}#team">${icon('eye')}Owner's console</a></td></tr>`).join(''), 'No teams yet.'), { cls: 'flush', note: 'Team keys run on the owner’s plan' });
 }
 
 // ---------- webhooks ----------

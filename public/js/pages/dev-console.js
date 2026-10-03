@@ -42,13 +42,34 @@ function meter(used, total) {
 }
 
 // ---------- overview ----------
+// A first-week checklist: each step ticks itself off from what the account has done. Hidden once done or dismissed.
+const SETUP_KEY = 'mm-console-setup-hidden';
+function setup() {
+  if (ro()) return '';
+  try { if (localStorage.getItem(SETUP_KEY)) return ''; } catch { /* private window: show it */ }
+  const live = data.keys.filter((k) => !k.revoked);
+  const steps = [
+    ['Make a key', live.length > 0, '#keys', 'One per use, so each one can be revoked on its own.'],
+    ['Try a test key', (data.recent || []).some((r) => String(r.key?.hint || '').startsWith('vx_test')), '#keys', 'Checked like a real call, answered with a 20 mm cube, never counted.'],
+    ['Make your first file', data.summary.totals.files > 0, '/docs', 'One call with a real key. It comes back with a serial.'],
+    ['Lock a key to your server', live.some((k) => k.allowIps), '#keys', 'A leaked copy then works nowhere else.'],
+    ['Add a webhook', (data.webhooks || []).length > 0, '#webhooks', 'We tell your server when a key changes or a limit is near.'],
+    ['Bring your team', (data.teams?.teams || []).length > 0, '#team', 'Shared keys, on one plan, with roles.'],
+  ];
+  const done = steps.filter((x) => x[1]).length;
+  if (done === steps.length) return '';
+  return card(`Get set up <span class="mute" style="font-weight:500">· ${done} of ${steps.length}</span>`, `${meter(done, steps.length)}
+    <ol class="setup">${steps.map(([t, ok, href, why]) => `<li class="${ok ? 'ok' : ''}"><a href="${href}"><span class="tick">${ok ? icon('check') : ''}</span><span><b>${t}</b><small>${why}</small></span></a></li>`).join('')}</ol>`,
+  { right: '<button type="button" class="btn sm ghost" data-setuphide>Hide</button>' });
+}
+
 function overview() {
   const s = data.summary, t = s.totals, cur = data.plan?.plan;
   const series = daySeries(s.byDay, s.days);
   const [bv, bu] = bytes(t.bytes);
   const liveKeys = data.keys.filter((k) => !k.revoked);
   const hint = liveKeys[0]?.hint || 'vx_…';
-  pane().innerHTML = `
+  pane().innerHTML = `${setup()}
     ${cur ? card(`Today on <b>${esc(cur.name)}</b>`, `
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px"><span style="font:700 30px/1 var(--font-ui);letter-spacing:-.02em">${num(usedToday())}</span><span class="mute">of ${num(cur.perDay)} calls today, shared by your keys</span><span class="mute" style="margin-left:auto;font-size:12.5px">Resets at midnight UTC · ${num(cur.perMinute)} a minute per key</span></div>
       ${meter(usedToday(), cur.perDay)}`, { right: ro() ? '' : '<a class="btn sm ghost" href="#plan">Plan and billing</a>' }) : ''}
@@ -245,6 +266,7 @@ async function load(keepTab = true) {
 document.addEventListener('click', async (e) => {
   const d = e.target.closest('[data-days]');
   if (d) { days = Number(d.dataset.days); $$('[data-days]').forEach((b) => b.setAttribute('aria-pressed', String(b === d))); return load(); }
+  if (e.target.closest('[data-setuphide]')) { try { localStorage.setItem(SETUP_KEY, '1'); } catch { /* fine */ } return show(); }
   const el = e.target.closest('[data-tinv],[data-tout],[data-tuninv],[data-trename],[data-tclose],[data-copy],[data-revoke],[data-rename],[data-lock],[data-deliv],[data-hooktest],[data-hookdel],[data-planpick],[data-manage],[data-more],[data-fkey]');
   if (el) {
     const ds = el.dataset;
