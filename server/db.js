@@ -355,7 +355,23 @@ export const MIGRATIONS = [
      billed_at INTEGER,
      invoice_item TEXT,
      PRIMARY KEY (key_id, month)
-   );`
+   );`,
+  // Custom generators: recipes of engine parts, checked against the reference engine.
+  `CREATE TABLE custom_generators (
+     id TEXT PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     name TEXT NOT NULL,
+     description TEXT NOT NULL DEFAULT '',
+     spec TEXT NOT NULL,
+     check_json TEXT,
+     score REAL NOT NULL DEFAULT 0,
+     verified INTEGER NOT NULL DEFAULT 0,
+     public INTEGER NOT NULL DEFAULT 0,
+     uses INTEGER NOT NULL DEFAULT 0,
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   );
+   CREATE INDEX custom_generators_user ON custom_generators (user_id);`
 ];
 
 export function openDatabase(path) {

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.16.0 · 3 October 2026
+
+### Added
+- **Custom generators.** Make your own generator from our engine's parts, as a recipe:
+  - **Inputs:** numbers, choices or switches.
+  - **Parts:** settings that can use your inputs or small formulas, plus a place, a turn, an on/off condition and repeats.
+  - Nothing of yours is ever run as code.
+- **Checked against our reference engine.** Every save tries your generator across its inputs and reports what's broken, off-spec or changes nothing, with a match score. Score 95% or more with nothing broken and it's **Verified**.
+- **Build them with your key:** `POST /engine/v1/custom/:id/generate`, on your plan like `/generate`. Publish one and anyone can use it.
+- A new console tab, **Custom generators** (`/console#generators`, or Jump to… Custom generators), to write, check, save and publish them, plus a new docs section.
+
 ## 1.15.0 · 3 October 2026
 
 ### Added

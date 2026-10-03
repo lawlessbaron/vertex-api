@@ -29,7 +29,8 @@ import { createApiGuard, parseAllow } from './api-guard.js';
 import { createApiWebhooks, WEBHOOK_EVENTS } from './api-webhooks.js';
 import { createApiStatus, STATUS_COMPONENTS, INCIDENT_STATUSES, IMPACTS } from './api-status.js';
 import { createApiPlans } from './api-plans.js';
-import { createEngineApi } from './engine-api.js';
+import { createEngineApi, API_KINDS } from './engine-api.js';
+import { createCustomGenerators, customRoutes } from './custom-generators.js';
 import { createTeams } from './teams.js';
 import { createPrintAi } from './print-ai.js';
 import { createChangelog } from './changelog.js';
@@ -96,6 +97,8 @@ export function createApp(config) {
   marketing = createMarketing({ db, dir: config.databasePath === ':memory:' ? join(ROOT, 'data') : dirname(config.databasePath), config, audit });
   const teams = createTeams({ db });
   const engineApi = createEngineApi({ db, controls, analytics: null, isStaff, newSerial, plans: apiPlans, teams, onKey: (userId, event, data) => apiWebhooks.emit(userId, event, data) });
+  const customGenerators = createCustomGenerators({ db, kinds: API_KINDS, buildKind: (kind, params) => engineApi.parts(kind, params), audit });
+  const customHandle = customRoutes({ custom: customGenerators, engine: engineApi, readJson, keyUser: (req) => engineApi.keyUser(req) });
   let apiStatus = null;
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
   const traceApi = createTraceApi({ db, can, audit, toolLibrary, billing: stripe, newSerial });
@@ -483,6 +486,7 @@ export function createApp(config) {
     if (path === '/api/admin/print-ai') requireAdmin(ctx);
     if ((path.startsWith('/api/ai/v1') || path === '/api/admin/print-ai') && (await printAi.handle(req, res, path, method, ctx, json))) return;
     if (path.startsWith('/api/teams') && (await teams.handle(req, res, path, method, ctx, json, requireUser))) return;
+    if (path.startsWith('/api/engine/v1/custom') && (await customHandle(req, res, path, method, ctx, json, requireUser))) return;
     if (path.startsWith('/api/engine/v1') && (await engineApi.handle(req, res, path, method, ctx, json, requireUser))) return;
     if (path.startsWith('/api/developer/')) {
       let me = requireUser(ctx, 'Sign in to open the console.');

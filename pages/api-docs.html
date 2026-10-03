@@ -56,6 +56,7 @@
           <a href="#engine-kinds">GET /engine/v1/kinds</a>
           <a href="#engine-parts">POST /engine/v1/parts</a>
           <a href="#engine-generate">POST /engine/v1/generate</a>
+          <a href="#custom">Custom generators</a>
           <a href="#settings">Kinds and settings</a>
           <p>Tracer API</p>
           <a href="#tracer">How tracing works</a>
@@ -211,6 +212,35 @@
   -d '{ "kind": "baseplate", "format": "3mf", "params": { "gridX": 6, "gridY": 4, "bed": 256 } }' \
   -o baseplate.3mf -D headers.txt</code></pre></div>
           <p>A baseplate bigger than your bed comes back split into tiles that fit, with the clips that join them, all in one 3MF.</p>
+        </section>
+
+        <section id="custom" class="dx-sec dx-ep">
+          <h2>Custom generators</h2>
+          <p>Make your own generator out of our engine's parts, without running any code of your own. A generator is a recipe. It has <b>inputs</b> (numbers with a range, choices, or on/off switches) and <b>parts</b>. Each part is one of the kinds from <code>GET /engine/v1/kinds</code>, with its settings, a place (<code>at</code>, in mm) and a turn (<code>rotate</code>, in degrees about x, y and z).</p>
+          <ul>
+            <li>A setting can be written as is (<code>"gridY": 1</code>), name an input (<code>"gridX": "$count"</code>), or be a formula (<code>"heightUnits": "=3 + $tall * 3"</code>). Formulas take numbers, inputs, <code>+ - * /</code>, brackets and <code>min max round floor ceil abs clamp</code>. Nothing else runs. An on/off input counts as 1 or 0.</li>
+            <li><code>when</code> switches a part on or off (<code>"when": "$withLid"</code>). <code>repeat: { count, step: [x, y, z] }</code> makes a row of copies.</li>
+            <li>Limits: 24 inputs, 24 parts, 48 pieces once repeated, 2 million triangles, 32 KB, and 50 generators per account.</li>
+          </ul>
+          <pre class="ax-code dx-pre" data-lang="json"><code>{
+  "name": "Bin row",
+  "inputs": [
+    { "id": "count", "type": "number", "min": 1, "max": 4, "default": 2 },
+    { "id": "tall", "type": "bool", "default": false }
+  ],
+  "parts": [
+    { "kind": "baseplate", "name": "plate", "params": { "gridX": "$count", "gridY": 1 } },
+    { "kind": "bin", "name": "bin", "params": { "gridX": 1, "heightUnits": "=3 + $tall * 3" },
+      "at": [0, 0, 5], "repeat": { "count": "$count", "step": [42, 0, 0] } }
+  ]
+}</code></pre>
+          <h4>The check, and Verified</h4>
+          <p>Every save is checked on our reference engine. It runs the defaults, every number at its smallest and largest, every choice and every switch. It reports parts that are <b>broken</b> (refused or empty), <b>off-spec</b> (below the bed), and settings or parts that <b>change nothing</b> (not a setting of that kind, always the kind's default, the same part twice, or an input nothing uses). You get a match score. A generator scoring 95% or more, with nothing broken or off-spec, is <b>Verified</b>. Make and check them in your <a href="/console#generators">console</a>, or with <code>POST /engine/v1/custom/check</code> (your key, or signed in; this never counts as a call).</p>
+          <h4>Using one</h4>
+          <p><code>POST /engine/v1/custom/:id/generate</code> with <code>{ "inputs": { … }, "format": "3mf" }</code> answers with the file, just like <code>/generate</code>, on your plan's allowance. Inputs are kept inside their ranges. <code>X-Vertex-Verified</code> says whether it passed the check. Your own generators work for you; once published, anyone's key can use them. <code>GET /engine/v1/custom</code> lists yours and the published ones, and <code>GET /engine/v1/custom/:id</code> gives one's inputs.</p>
+          <pre class="dx-code">curl -X POST https://api.mintmotive.com.au/engine/v1/custom/cg_AbC123xy/generate \
+  -H "Authorization: Bearer $MINT_KEY" -H "Content-Type: application/json" \
+  -d '{ "inputs": { "count": 3, "tall": true }, "format": "3mf" }' -o bin-row.3mf</pre>
         </section>
 
         <section id="settings" class="dx-sec">

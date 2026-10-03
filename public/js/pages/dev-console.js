@@ -30,6 +30,7 @@ const TITLES = {
   team: ['Team', 'Share keys with the people you build with.'],
   webhooks: ['Webhooks', 'We tell your server when something happens.'],
   plan: ['Plan and billing', 'Your limits, this month’s use, and other plans.'],
+  generators: ['Custom generators', 'Your own generators, made from engine parts and checked against ours.'],
 };
 
 function daySeries(byDay, n) {
@@ -229,8 +230,61 @@ function planTab() {
       </article>`).join('')}</div>`;
 }
 
+// ---------- custom generators ----------
+// A recipe of engine parts (see /docs#custom). Checked on our reference engine
+// before it's saved; nothing in it runs as code.
+const STARTER = {
+  name: 'Bin row',
+  description: 'A row of Gridfinity bins on a matching baseplate.',
+  inputs: [
+    { id: 'count', label: 'Bins', type: 'number', min: 1, max: 4, default: 2, step: 1 },
+    { id: 'tall', label: 'Tall bins', type: 'bool', default: false },
+  ],
+  parts: [
+    { kind: 'baseplate', name: 'plate', params: { gridX: '$count', gridY: 1 } },
+    { kind: 'bin', name: 'bin', params: { gridX: 1, heightUnits: '=3 + $tall * 3' }, at: [0, 0, 5], repeat: { count: '$count', step: [42, 0, 0] } },
+  ],
+};
+let gens = null, genEditing = null, genReport = null;
+const LEVEL = { broken: ['bad', 'Broken'], 'off-spec': ['warn', 'Off-spec'], 'no-effect': ['info', 'Changes nothing'], note: ['plain', 'Note'] };
+function genReportHtml(r) {
+  if (!r) return '<p class="lede" style="margin:0">Check runs your generator on our reference engine with its defaults, every number at its smallest and largest, and every choice.</p>';
+  const c = r.check;
+  return `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+      <span style="font:700 26px/1 var(--font-ui)">${Math.round(c.score * 100)}%</span><span class="mute">match with the reference engine, ${num(c.runs)} of ${num(c.of ?? c.runs)} input sets</span>
+      ${c.verified ? `<span class="pill ok">${icon('check')} Verified</span>` : '<span class="pill warn">Not verified yet</span>'}</div>
+    <div class="hbar ${c.score < 0.8 ? 'bad' : c.score < 0.95 ? 'warn' : ''}" style="grid-template-columns:1fr"><i style="height:10px"><b style="width:${(c.score * 100).toFixed(1)}%"></b></i></div>
+    ${c.findings.length ? `<ul style="list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px">${c.findings.map((f) => `<li style="display:flex;gap:8px;align-items:baseline"><span class="pill ${LEVEL[f.level]?.[0] || 'plain'}">${LEVEL[f.level]?.[1] || esc(f.level)}</span><span>${f.part ? `<b>${esc(f.part)}</b>: ` : ''}${esc(f.text)}</span></li>`).join('')}</ul>` : '<p class="lede" style="margin:12px 0 0">Nothing to fix: every part builds, sits on the bed and does something.</p>'}`;
+}
+async function generatorsTab() {
+  if (!gens) { pane().innerHTML = card('Custom generators', '<div class="empty">Loading…</div>'); gens = await call('/api/engine/v1/custom').catch(() => ({ mine: [], published: [] })); if (tab !== 'generators') return; }
+  const src = genEditing ? JSON.stringify(genEditing.spec, null, 2) : JSON.stringify(STARTER, null, 2);
+  pane().innerHTML = (ro() ? '' : card(genEditing ? `Editing <b>${esc(genEditing.name)}</b>` : 'Make a generator', `
+      <form data-genform>
+        <textarea name="spec" spellcheck="false" aria-label="Generator recipe (JSON)" style="width:100%;min-height:360px;font:12.5px/1.5 var(--font-mono);background:rgb(0 0 0 / .25);color:inherit;border:1px solid var(--line);border-radius:10px;padding:12px">${esc(src)}</textarea>
+        <div class="toolbar" style="margin-top:10px">
+          <button type="button" class="btn" data-gencheck>${icon('check')}Check</button>
+          <button class="btn primary">${genEditing ? 'Save changes' : 'Save'}</button>
+          <label class="switch"><input type="checkbox" name="public" ${genEditing?.public ? 'checked' : ''} /> Publish for everyone</label>
+          ${genEditing ? '<button type="button" class="btn ghost sm" data-gennew>Start a new one</button>' : ''}
+          <a class="btn ghost sm" href="/docs#custom" style="margin-left:auto">How recipes work</a>
+        </div>
+      </form>
+      <div data-genreport style="margin-top:14px">${genReportHtml(genReport)}</div>`))
+    + card('Your generators', table(['Generator', 'Check', { t: 'Uses', c: 'n' }, 'Updated', ''], gens.mine.map((g) => `
+      <tr><td><b>${esc(g.name)}</b> <span class="hint mono">${esc(g.id)}</span>${g.public ? ' <span class="pill info">published</span>' : ''}<div class="mute" style="font-size:12.5px">${esc(g.description || '')}</div></td>
+      <td>${g.verified ? `<span class="pill ok">${icon('check')} Verified</span>` : `<span class="pill warn">${Math.round((g.score || 0) * 100)}%</span>`}</td><td class="n">${num(g.uses)}</td><td>${ago(g.updatedAt)}</td>
+      <td class="n">${ro() ? '' : `<span class="acts">${iconBtn('cog', 'Edit', `data-genedit="${esc(g.id)}"`)}${iconBtn('x', 'Delete', `data-gendel="${esc(g.id)}"`, 'bad')}</span>`}</td></tr>`).join(''), 'None yet. Check the example above, then save it.'), { cls: 'flush', note: `POST ${BASE}/engine/v1/custom/&lt;id&gt;/generate with your key` })
+    + card('Published by others', table(['Generator', 'By', 'Check', { t: 'Uses', c: 'n' }], gens.published.filter((g) => !gens.mine.some((m) => m.id === g.id)).map((g) => `
+      <tr><td><b>${esc(g.name)}</b> <span class="hint mono">${esc(g.id)}</span><div class="mute" style="font-size:12.5px">${esc(g.description || '')}</div></td><td>${esc(g.author || '')}</td>
+      <td>${g.verified ? `<span class="pill ok">${icon('check')} Verified</span>` : `<span class="pill warn">${Math.round((g.score || 0) * 100)}%</span>`}</td><td class="n">${num(g.uses)}</td></tr>`).join(''), 'Nobody has published one yet.'), { cls: 'flush' });
+}
+function genSpec() {
+  try { return JSON.parse($('[data-genform] [name=spec]').value); } catch (e) { toast(`That isn’t valid JSON: ${e.message}`, { bad: true }); return null; }
+}
+
 // ---------- routing ----------
-const TABS = { overview, keys: keysTab, calls: callsTab, team: teamTab, webhooks: webhooksTab, plan: planTab };
+const TABS = { overview, keys: keysTab, calls: callsTab, team: teamTab, webhooks: webhooksTab, plan: planTab, generators: generatorsTab };
 function show(name = tab) {
   tab = TABS[name] ? name : 'overview';
   $$('[data-tabs] a').forEach((a) => a.setAttribute('aria-current', String(a.getAttribute('href') === `#${tab}`)));
@@ -264,6 +318,24 @@ async function load(keepTab = true) {
 }
 
 document.addEventListener('click', async (e) => {
+  if (e.target.closest('[data-gencheck]')) {
+    const spec = genSpec();
+    if (!spec) return;
+    const box = $('[data-genreport]');
+    box.innerHTML = '<div class="empty">Running it on the reference engine…</div>';
+    const r = await act(() => call('/api/engine/v1/custom/check', { method: 'POST', body: { spec } }));
+    genReport = r; box.innerHTML = r ? genReportHtml(r) : genReportHtml(null);
+    return;
+  }
+  if (e.target.closest('[data-gennew]')) { genEditing = null; genReport = null; return generatorsTab(); }
+  const ge = e.target.closest('[data-genedit]');
+  if (ge) { genEditing = gens.mine.find((g) => g.id === ge.dataset.genedit) || null; genReport = genEditing?.check ? { check: genEditing.check } : null; generatorsTab(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const gd = e.target.closest('[data-gendel]');
+  if (gd) {
+    if (!(await ask({ title: 'Delete this generator?', body: 'Anything calling it gets a 404 from now on.', ok: 'Delete', danger: true }))) return;
+    if (await act(() => call(`/api/engine/v1/custom/${gd.dataset.gendel}`, { method: 'DELETE' }), 'Deleted')) { if (genEditing?.id === gd.dataset.gendel) genEditing = null; gens = null; generatorsTab(); }
+    return;
+  }
   const d = e.target.closest('[data-days]');
   if (d) { days = Number(d.dataset.days); $$('[data-days]').forEach((b) => b.setAttribute('aria-pressed', String(b === d))); return load(); }
   if (e.target.closest('[data-setuphide]')) { try { localStorage.setItem(SETUP_KEY, '1'); } catch { /* fine */ } return show(); }
@@ -338,6 +410,15 @@ document.addEventListener('click', async (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.matches?.('[data-row]')) e.target.click(); });
 document.addEventListener('submit', async (e) => {
+  if (e.target.matches('[data-genform]')) {
+    e.preventDefault();
+    const spec = genSpec();
+    if (!spec) return;
+    const pub = e.target.public.checked;
+    const r = await act(() => (genEditing ? call(`/api/engine/v1/custom/${genEditing.id}`, { method: 'PUT', body: { spec, public: pub } }) : call('/api/engine/v1/custom', { method: 'POST', body: { spec, public: pub } })), 'Saved');
+    if (r) { genEditing = r; genReport = { check: r.check }; gens = null; generatorsTab(); }
+    return;
+  }
   const f = e.target;
   if (f.method === 'dialog') return;
   e.preventDefault();
@@ -380,7 +461,7 @@ async function liveState() {
   tab = location.hash.slice(1) || 'overview';
   if (!(await load())) return;
   const open = commandPalette([
-    ...Object.entries(TITLES).map(([k, [t, sub]]) => ({ group: 'Go to', label: t, hint: sub, icon: { overview: 'overview', keys: 'key', calls: 'calls', team: 'users', webhooks: 'hook', plan: 'card' }[k], run: () => { location.hash = k; } })),
+    ...Object.entries(TITLES).map(([k, [t, sub]]) => ({ group: 'Go to', label: t, hint: sub, icon: { overview: 'overview', keys: 'key', calls: 'calls', team: 'users', webhooks: 'hook', plan: 'card', generators: 'play' }[k], run: () => { location.hash = k; } })),
     { group: 'Build', label: 'Docs', icon: 'book', run: () => { location.href = '/docs'; } },
     { group: 'Build', label: 'Playground', icon: 'play', run: () => { location.href = '/#playground'; } },
     { group: 'Build', label: 'Status', icon: 'pulse', run: () => { location.href = '/status'; } },

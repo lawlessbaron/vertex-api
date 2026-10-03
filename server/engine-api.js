@@ -269,13 +269,21 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
   }
   const summary = (list) => list.map((p) => { const b = p.mesh.bounds(); return { name: p.name, triangles: p.mesh.triangleCount, size: b.size.map((v) => Math.round(v * 100) / 100) }; });
 
-  function generate(k, body, ctx) {
-    const kind = str(body.kind, 20), format = str(body.format || '3mf', 5).toLowerCase();
+  const formatOf = (body) => {
+    const format = str(body.format || '3mf', 5).toLowerCase();
     if (!API_FORMATS[format]) throw new HttpError(400, `format must be one of ${Object.keys(API_FORMATS).join(', ')}.`);
     if (controls.isOff(format === '3mf' ? 'multiColour' : format) && format !== '3mf') throw new HttpError(503, `${format.toUpperCase()} downloads are switched off right now.`);
+    return format;
+  };
+  function generate(k, body, ctx) {
+    const kind = str(body.kind, 20), format = formatOf(body);
     if (ctx.apiMeta) Object.assign(ctx.apiMeta, { kind, format, params: body.params || {} });
-    const list = parts(kind, body.params);
-    const name = str(body.name, 60).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || kind;
+    return deliver(k, parts(kind, body.params), { kind, format, name: body.name, part: body.part, params: body.params || {} }, ctx);
+  }
+  // Parts → the file: a test cube for a test key; otherwise the model, with a serial number recorded like a site download.
+  function deliver(k, list, { kind, format, name: wanted, part: wantedPart, params = {} }, ctx) {
+    const body = { part: wantedPart, params };
+    const name = str(wanted, 60).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || kind;
     // A test key: the request was checked like a real one; the file is a 20 mm test cube, not the model.
     if (k.sandbox) {
       if (format === 'stl' && list.length > 1 && !list.some((p) => p.name === str(body.part, 60))) throw new HttpError(400, `This model has ${list.length} parts; STL takes one at a time. Pass "part" as one of: ${list.map((p) => p.name).join(', ')}. Or ask for 3mf to get them all.`);
@@ -363,5 +371,5 @@ export function createEngineApi({ db, controls, analytics, isStaff, newSerial, o
     return false;
   }
 
-  return { handle, info, kinds, generate, makeKey, keysOf };
+  return { handle, info, kinds, generate, deliver, formatOf, parts, requireKey, keyUser, makeKey, keysOf };
 }
