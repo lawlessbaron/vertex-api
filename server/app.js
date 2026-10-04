@@ -24,6 +24,7 @@ import { createStripe } from './stripe.js';
 import { createFonts } from './fonts.js';
 import { createToolLibrary } from './tool-library.js';
 import { createTraceApi } from './trace-api.js';
+import { createAiDoor } from './ai-door.js';
 import { createApiLog } from './api-log.js';
 import { createApiGuard, parseAllow } from './api-guard.js';
 import { createApiWebhooks, WEBHOOK_EVENTS } from './api-webhooks.js';
@@ -101,7 +102,9 @@ export function createApp(config) {
   const customHandle = customRoutes({ custom: customGenerators, engine: engineApi, readJson, keyUser: (req) => engineApi.keyUser(req) });
   let apiStatus = null;
   const toolLibrary = createToolLibrary({ db, can, audit, env: config.env || process.env, fetchImpl, onOutcome: (ok, ms, note) => apiStatus?.record('tracer', ok, ms, note) });
-  const traceApi = createTraceApi({ db, can, audit, toolLibrary, billing: stripe, newSerial });
+  // Every AI outline goes through one door, with the owner's allowance (ai-door.js).
+  const aiDoor = createAiDoor({ db, can, toolLibrary, audit });
+  const traceApi = createTraceApi({ db, can, audit, toolLibrary, door: aiDoor, billing: stripe, newSerial });
   const changelog = createChangelog({ path: join(ROOT, 'CHANGELOG.md') });
   const printAi = createPrintAi({ db, isStaff, plans: apiPlans, audit, toolLibrary, link, env: config.env || process.env, fetchImpl });
   const apiLog = createApiLog({ db, onRecord: (row) => apiGuard.afterCall(row) });
@@ -309,6 +312,17 @@ export function createApp(config) {
       if (!linkSecretOk(req)) throw new HttpError(401, 'No.');
       return json(res, 200, { ok: true, site: 'api', engine: ENGINE.version });
     }
+    // VERTEX's AI outlines come through the door too, so there's one allowance and one set of AI keys.
+    if (path === '/api/link/ai' && method === 'GET') {
+      if (!linkSecretOk(req)) throw new HttpError(401, 'No.');
+      const a = aiDoor.allowance();
+      return json(res, 200, { available: a.aiReady && a.mode !== 'free-only', left: a.left, mode: a.mode });
+    }
+    if (path === '/api/link/ai/outline' && method === 'POST') {
+      if (!linkSecretOk(req)) throw new HttpError(401, 'No.');
+      const body = await readJson(req, 16 * 1024 * 1024);
+      return json(res, 200, { tools: await aiDoor.outline(body.image, body.engine, 'vertex') });
+    }
     const keyed = /^Bearer (vx|tk)_/.test(String(req.headers.authorization || ''));
     if (method !== 'GET' && method !== 'HEAD' && !keyed && !sameOrigin(req, config.publicUrl)) throw new HttpError(403, 'Cross-site request blocked.');
 
@@ -334,6 +348,7 @@ export function createApp(config) {
     // The tracer API (partners' keys), and its owner-only settings.
     if (path.startsWith('/api/admin/trace-api')) requireAdmin(ctx);
     if ((path.startsWith('/api/trace/v1') || path.startsWith('/api/admin/trace-api')) && (await traceApi.handle(req, res, path, method, ctx, json))) return;
+    if (path.startsWith('/api/admin/ai-door') && (await aiDoor.handle(req, res, path, method, ctx, json))) return;
 
     // ---------- staff ----------
     if (path.startsWith('/api/admin/api/')) {
@@ -449,7 +464,7 @@ export function createApp(config) {
       if (path === '/api/admin/api/settings' && method === 'GET') {
         const imported = db.prepare("SELECT value FROM settings WHERE key = 'vertex_import'").get()?.value;
         return json(res, 200, {
-          engineApi: controls.status().engineApi, tracer: { on: traceApi.isOn(), ready: toolLibrary.aiOn() && toolLibrary.convertOn() },
+          engineApi: controls.status().engineApi, tracer: { on: traceApi.isOn(), ready: true },
           vertex: { url: config.vertexUrl, linked: link.on(), controls: controls.status().vertex, imported: imported ? JSON.parse(imported) : null },
           stripe: { ready: stripe.stripeReady(), webhook: Boolean(config.stripe.webhookSecret) },
           engine: ENGINE.version, audit: audit.verify(),
@@ -621,5 +636,5 @@ export function createApp(config) {
   }
   function close() { for (const t of timers) clearInterval(t); }
 
-  return { server, db, link, controls, stripe, education, syncUser: sync, apiPlans, apiStatus, apiGuard, engineApi, teams, traceApi, schedule, close, handle };
+  return { server, db, link, aiDoor, controls, stripe, education, syncUser: sync, apiPlans, apiStatus, apiGuard, engineApi, teams, traceApi, schedule, close, handle };
 }

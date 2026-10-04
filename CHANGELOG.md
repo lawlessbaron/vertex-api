@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.17.0 · 4 October 2026
+
+### Improved
+- **The tracer API reads your photos itself.** JPEG and PNG photos are turned upright from the camera's rotation and shrunk here, so tracing starts sooner. HEIC photos still need converting first; send a JPEG or PNG if one is refused.
+- **Faster, steadier tracing.** Clear photos (tools that stand out from the paper) are traced straight away by our own tracer. Harder ones (shiny or pale tools, strong shadows) get the deeper pass automatically. Answers look the same either way.
+- **Print Doctor photos:** big JPEG and PNG photos are shrunk here instead of being refused.
+
 ## 1.16.0 · 3 October 2026
 
 ### Added

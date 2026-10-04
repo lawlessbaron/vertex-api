@@ -4,6 +4,7 @@
 import { rectify, homography, PAPER_SIZES } from '../engine/trace/vision.js';
 import { findPaper, dropPaper, addMissed } from '../engine/trace/detect.js';
 import { wholeOutlines, objectPixels } from '../engine/trace/whole.js';
+import { readPhoto as readPhotoHere } from './photo.js';
 
 // The paper in the photo, straightened at 3 px/mm, and the photo → mm map.
 export function prepSheet({ image, paper = 'a4' }) {
@@ -29,4 +30,9 @@ export function addMissedOn({ joined, sheet }) {
   return addMissed(joined, sheet).shapes.map((s) => ({ polygon: s.polygon, label: s.label }));
 }
 
-export const OPS = { prepSheet, finishSheet, addMissedOn, ping: () => true };
+// A JPEG or PNG read here: upright, 1600 px on the long edge, pixels and a JPEG.
+export function readPhoto({ buf, side }) {
+  try { return readPhotoHere(buf, side ? { side } : {}); } catch (e) { return { error: e.message }; }
+}
+
+export const OPS = { prepSheet, finishSheet, addMissedOn, readPhoto, ping: () => true };

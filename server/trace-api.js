@@ -109,7 +109,7 @@ export function binFor(tools, { clearance = 1, depth = 20, finger = 22 } = {}) {
   return { mesh: generateCutoutBin({ gridX: fit.gx, gridY: fit.gy, shapes, chamfer: 0.8 }), gx: fit.gx, gy: fit.gy };
 }
 
-export function createTraceApi({ db, can, audit, toolLibrary, billing = null, now = () => Date.now(), newSerial = () => `T${Date.now().toString(36).toUpperCase()}` }) {
+export function createTraceApi({ db, can, audit, toolLibrary, door = null, billing = null, now = () => Date.now(), newSerial = () => `T${Date.now().toString(36).toUpperCase()}` }) {
   const minute = new RateLimiter(TRACE_LIMITS.perMinute, 60e3);
   const jobs = new Map();
   warmTrace();
@@ -201,6 +201,8 @@ export function createTraceApi({ db, can, audit, toolLibrary, billing = null, no
     db.prepare('UPDATE trace_keys SET calls = calls + 1, last_used_at = ? WHERE id = ?').run(Date.now(), k.id);
     (async () => {
       const { jpeg, image } = await toolLibrary.convertRaw(photo).catch((e) => { throw Object.assign(e, { say: e.status === 415 ? 'photo' : 'trace' }); });
+      // Through the AI door: the built-in tracer first, the paid AI when needed and allowed.
+      if (door) { const { route: _route, ...r } = await door.tracePhoto({ image, jpeg, paper, caller: `key:${k.id}` }); return r; }
       return traceSheet({ image, jpeg, paper, outline: (img) => toolLibrary.outline(img) });
     })().then((result) => {
       Object.assign(job, { status: 'done', result });
@@ -235,7 +237,7 @@ export function createTraceApi({ db, can, audit, toolLibrary, billing = null, no
     // ---------- the owner's side
     if (path.startsWith('/api/admin/trace-api')) {
       if (!can(ctx.user, 'tracer.private')) throw new HttpError(403, 'Only owners can open this.');
-      if (path === '/api/admin/trace-api' && method === 'GET') return json(res, 200, { ...state(), keys: keys(), bills: bills(), limits: TRACE_LIMITS, ready: toolLibrary.aiOn() && toolLibrary.convertOn(), payments: Boolean(billing?.stripeReady?.()) }), true;
+      if (path === '/api/admin/trace-api' && method === 'GET') return json(res, 200, { ...state(), keys: keys(), bills: bills(), limits: TRACE_LIMITS, ready: Boolean(door) || (toolLibrary.aiOn() && toolLibrary.convertOn()), payments: Boolean(billing?.stripeReady?.()) }), true;
       if (path === '/api/admin/trace-api/bill' && method === 'POST') return json(res, 200, { billed: await billPhotos() }), true;
       if (path === '/api/admin/trace-api' && method === 'PUT') {
         const body = await readJson(req, 4096);
@@ -279,7 +281,7 @@ export function createTraceApi({ db, can, audit, toolLibrary, billing = null, no
       return json(res, 200, { name: 'VERTEX tracer API', version: 1, papers: Object.keys(PAPER_SIZES), key: { name: k.name, test: Boolean(k.test), quota: k.quota, usedThisMonth: usedNow(k), ...(k.test ? {} : { price: { ...priceOut(k), owedThisMonthCents: billOf(k).cents } }) }, limits: { perMinute: TRACE_LIMITS.perMinute, atOnce: TRACE_LIMITS.running, maxPhotoMb: MAX_PHOTO / 1048576 } }, nocache), true;
     }
     if (path === '/api/trace/v1/jobs' && method === 'POST') {
-      if (!toolLibrary.aiOn() || !toolLibrary.convertOn()) throw new HttpError(503, SAY.off);
+      if (!door && (!toolLibrary.aiOn() || !toolLibrary.convertOn())) throw new HttpError(503, SAY.off);
       const { photo, paper: bodyPaper } = await readPhoto(req);
       const paper = String(new URL(req.url || '/', 'http://x').searchParams.get('paper') || bodyPaper || 'a4').toLowerCase();
       if (!PAPER_SIZES[paper]) throw new HttpError(400, `paper must be one of ${Object.keys(PAPER_SIZES).join(', ')}.`);

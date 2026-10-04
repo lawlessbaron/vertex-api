@@ -371,7 +371,16 @@ export const MIGRATIONS = [
      created_at INTEGER NOT NULL,
      updated_at INTEGER NOT NULL
    );
-   CREATE INDEX custom_generators_user ON custom_generators (user_id);`
+   CREATE INDEX custom_generators_user ON custom_generators (user_id);`,
+  // The AI door: every outline counted by day, caller and who traced it (ai-door.js).
+  `CREATE TABLE ai_door_days (
+     day TEXT NOT NULL,
+     caller TEXT NOT NULL,
+     route TEXT NOT NULL,
+     count INTEGER NOT NULL DEFAULT 0,
+     ms INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (day, caller, route)
+   );`
 ];
 
 export function openDatabase(path) {

@@ -351,7 +351,7 @@ async function marketingTab() {
 // ---------- settings ----------
 const yes = (on, okText, offText) => `<span class="pill ${on ? 'ok' : 'bad'}">${on ? okText : offText}</span>`;
 async function settingsTab() {
-  const [s, t, a] = await Promise.all([call('/api/admin/api/settings'), call('/api/admin/trace-api').catch(() => null), call('/api/admin/print-ai').catch(() => null)]);
+  const [s, t, a, d] = await Promise.all([call('/api/admin/api/settings'), call('/api/admin/trace-api').catch(() => null), call('/api/admin/print-ai').catch(() => null), call('/api/admin/ai-door').catch(() => null)]);
   const v = s.vertex;
   pane().innerHTML = `<div class="grid g2">
     ${card('Switches', `<div class="grid" style="gap:16px">
@@ -383,7 +383,29 @@ async function settingsTab() {
       <input name="billTo" placeholder="@account that pays" aria-label="Account that pays" style="flex:0 1 170px" />
       <button class="btn primary sm">${icon('key')}Issue key</button>
     </form><div data-tknew></div><p class="lede" style="margin:12px 0 0">Keys are shown once. Revoke or lock them under Keys. A test key works while the API is off and is never billed. Leave cents at 0 for a key that isn’t billed.</p>`) : ''}
+  ${d ? aiDoorCard(d) : ''}
   ${t ? tracerBilling(t) : ''}`;
+}
+
+// The AI door: who traces (our built-in tracer or the paid AI), the allowance, and 30 days of use.
+const DOOR_MODE = { 'free-first': 'Free first: the paid AI only when the built-in tracer looks unsure', 'ai-first': 'AI first: the paid AI while the allowance lasts', 'free-only': 'Free only: never the paid AI' };
+const DOOR_ROUTE = { builtin: 'Built-in', ai: 'Paid AI', 'ai-failed': 'Paid AI failed', capped: 'Over allowance' };
+function aiDoorCard(d) {
+  const a = d.allowance, u = d.usage, paid = (r) => (r.ai || 0) + (r['ai-failed'] || 0);
+  const saved = (u.total.builtin || 0) + (u.total.capped || 0), all = saved + paid(u.total);
+  return card('AI door', `<div class="kpis">
+      ${kpi({ k: 'Paid AI this month', v: num(a.usedMonth), unit: `/ ${num(a.monthlyAi)}`, x: `${num(a.left)} left today or this month`, spark: u.byDay.map(paid), bad: a.left <= 0 && a.mode !== 'free-only' })}
+      ${kpi({ k: 'Paid AI today', v: num(a.usedToday), unit: `/ ${num(a.dailyAi)}` })}
+      ${kpi({ k: 'Traced free, 30 days', v: num(saved), x: all ? `${Math.round((100 * saved) / all)}% of all traces` : 'no traces yet', spark: u.byDay.map((r) => (r.builtin || 0) + (r.capped || 0)) })}
+    </div>
+    <form class="toolbar" data-doorform>
+      <select name="mode" aria-label="Who traces">${d.modes.map((m) => `<option value="${m}" ${m === a.mode ? 'selected' : ''}>${esc(DOOR_MODE[m] || m)}</option>`).join('')}</select>
+      <label class="field">Paid AI a month <input name="monthly" type="number" min="0" max="100000" value="${a.monthlyAi}" /></label>
+      <label class="field">a day <input name="daily" type="number" min="0" max="10000" value="${a.dailyAi}" /></label>
+      <button class="btn primary sm">Save</button>
+    </form>
+    ${table(['Caller', ...Object.values(DOOR_ROUTE).map((t) => ({ t, c: 'n' }))], Object.entries(u.byCaller).map(([c, r]) => `<tr><td>${esc(c === 'vertex' ? 'VERTEX (Trace a photo)' : c.startsWith('key:') ? `Tracer key #${esc(c.slice(4))}` : c)}</td>${Object.keys(DOOR_ROUTE).map((k) => `<td class="n">${num(r[k] || 0)}</td>`).join('')}</tr>`).join(''), 'No traces in the last 30 days.')}`,
+  { note: a.aiReady ? 'Every outline, from the tracer API and VERTEX, comes through here.' : 'No AI key is set up, so everything is traced by the built-in tracer.' });
 }
 
 // Tracer API billing: each key's price, what it owes this month, and each month's bill.
@@ -572,6 +594,10 @@ document.addEventListener('submit', async (e) => {
   if (f.matches('[data-tkform]')) {
     const k = await act(() => call('/api/admin/trace-api/keys', { method: 'POST', body: { name: f.name.value, quota: Number(f.quota.value), test: f.test.checked, centsPerPhoto: Number(f.cents.value), freePhotos: Number(f.free.value), billTo: f.billTo.value } }));
     if (k) { $('[data-tknew]').innerHTML = `<div class="card" style="margin-top:14px;border-color:var(--mint)"><p style="margin:0 0 8px">Key for <b>${esc(k.name)}</b>. Copy it now: it isn't shown again.</p><pre class="code">${esc(k.key)}</pre></div>`; f.reset(); }
+    return;
+  }
+  if (f.matches('[data-doorform]')) {
+    if (await act(() => call('/api/admin/ai-door', { method: 'PUT', body: { mode: f.mode.value, monthlyAi: Number(f.monthly.value), dailyAi: Number(f.daily.value) } }), 'AI allowance saved')) show('settings');
     return;
   }
   if (f.matches('[data-tkprice]')) {

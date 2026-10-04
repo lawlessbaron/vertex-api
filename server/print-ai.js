@@ -289,7 +289,8 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     let b64 = photo.toString('base64');
     // HEIC and very big photos go through the photo converter: an upright JPEG, 1600 px a side.
     if (mediaType === 'image/heic' || photo.length > SEND_PHOTO_MAX) {
-      if (!toolLibrary?.convertOn?.()) throw new HttpError(mediaType === 'image/heic' ? 415 : 413, mediaType === 'image/heic' ? 'Send a JPEG or PNG (HEIC needs the photo converter, which isn’t set up).' : 'That photo is too big. Send one under 4.5 MB.');
+      // JPEG and PNG are shrunk here; only HEIC needs the photo converter.
+      if (mediaType === 'image/heic' ? !toolLibrary?.convertOn?.() : !toolLibrary?.convertRaw) throw new HttpError(mediaType === 'image/heic' ? 415 : 413, mediaType === 'image/heic' ? 'Send a JPEG or PNG (HEIC needs the photo converter, which isn’t set up).' : 'That photo is too big. Send one under 4.5 MB.');
       try { b64 = (await toolLibrary.convertRaw(photo)).jpeg; mediaType = 'image/jpeg'; } catch { throw new HttpError(415, SAY.photo); }
     }
     if (ctx.apiMeta) Object.assign(ctx.apiMeta, { kind: 'ai-photo', params: { bytes: photo.length, ...context, settings: undefined } });

@@ -16,6 +16,8 @@
 // traced; nothing needs training.
 import { randomBytes } from 'node:crypto';
 import { HttpError, readJson } from './security.js';
+import { photoKind } from './photo.js';
+import { runTrace } from './trace-pool.js';
 
 const MAX_IMAGE = 6 * 1024 * 1024;
 const MAX_PHOTO = 40 * 1024 * 1024; // a phone's HEIC, sent as it is to be converted
@@ -304,8 +306,15 @@ export function createToolLibrary({ db, can, audit, env = process.env, fetchImpl
 
   // A photo (JPEG, PNG or a phone's HEIC) as an upright JPEG plus its pixels (RGB), at most
   // 1600 px a side: the converter decodes it, so the server can find the paper itself.
+  // JPEG and PNG are read here (on a worker thread); only HEIC needs the converter.
   async function convertRaw(data) {
-    if (!convertOn()) throw new HttpError(503, 'No photo converter is set up.');
+    const kind = photoKind(data);
+    if (kind === 'jpeg' || kind === 'png') {
+      const out = await runTrace('readPhoto', { buf: data });
+      if (out.error) throw new HttpError(415, 'That photo couldn’t be read. Send a JPEG or PNG.');
+      return { jpeg: out.jpeg, image: { width: out.width, height: out.height, data: out.data } };
+    }
+    if (!convertOn()) throw new HttpError(415, kind === 'heic' ? 'Send a JPEG or PNG (HEIC photos need the photo converter, which isn’t set up).' : 'Send a JPEG or PNG photo.');
     let r;
     try { r = await fetchImpl(`${convertUrl()}/convert?raw=1`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', Authorization: `Bearer ${metaKey()}` }, body: data, signal: AbortSignal.timeout(60000) }); } catch (e) { throw new HttpError(502, `The photo converter didn’t answer (${e.message}).`); }
     const out = await r.json().catch(() => ({}));
@@ -442,5 +451,6 @@ export function createToolLibrary({ db, can, audit, env = process.env, fetchImpl
     return false;
   }
 
-  return { handle, aiOn, record, list, outline, convertRaw, convertOn };
+  // Photos are always readable now (JPEG and PNG here); convertOn() is only about HEIC.
+  return { handle, aiOn, record, list, outline, convertRaw, convertOn, readOn: () => true };
 }
