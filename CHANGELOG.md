@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.18.1 · 4 October 2026
+
+### Improved
+- **Custom generators are in the console's sidebar** (under Build), so you don't need Jump to… to find them.
+
 ## 1.18.0 · 4 October 2026
 
 ### Added

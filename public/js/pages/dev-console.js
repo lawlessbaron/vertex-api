@@ -461,7 +461,7 @@ async function liveState() {
   tab = location.hash.slice(1) || 'overview';
   if (!(await load())) return;
   const open = commandPalette([
-    ...Object.entries(TITLES).map(([k, [t, sub]]) => ({ group: 'Go to', label: t, hint: sub, icon: { overview: 'overview', keys: 'key', calls: 'calls', team: 'users', webhooks: 'hook', plan: 'card', generators: 'play' }[k], run: () => { location.hash = k; } })),
+    ...Object.entries(TITLES).map(([k, [t, sub]]) => ({ group: 'Go to', label: t, hint: sub, icon: { overview: 'overview', keys: 'key', calls: 'calls', team: 'users', webhooks: 'hook', plan: 'card', generators: 'cog' }[k], run: () => { location.hash = k; } })),
     { group: 'Build', label: 'Docs', icon: 'book', run: () => { location.href = '/docs'; } },
     { group: 'Build', label: 'Playground', icon: 'play', run: () => { location.href = '/#playground'; } },
     { group: 'Build', label: 'Status', icon: 'pulse', run: () => { location.href = '/status'; } },
