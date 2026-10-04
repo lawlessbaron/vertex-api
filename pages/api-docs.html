@@ -413,7 +413,7 @@
               <tr><td><code>severity</code></td><td><code>fail</code> (it won't print), <code>warn</code> (it may fail) or <code>info</code> (a tip).</td></tr>
               <tr><td><code>message</code></td><td>Plain words, ready to show your users.</td></tr>
               <tr><td><code>confidence</code></td><td>0 to 1.</td></tr>
-              <tr><td><code>fixes</code></td><td>Each <code>{ id, setting, from, to, unit, why }</code>: the slicer setting, its value now and what to set it to. Send the <code>id</code> back as <code>fixedBy</code> on an outcome.</td></tr>
+              <tr><td><code>fixes</code></td><td>Each <code>{ id, setting, from, to, unit, why }</code>: the slicer setting, its value now and what to set it to. Send the <code>id</code> back as <code>fixedBy</code> on an outcome. Once three or more makers have reported back on a fix for that fault, it also has <code>trackRecord: { worked, tried }</code>, and the fixes that worked most reliably come first.</td></tr>
               <tr><td><code>test</code></td><td>A quick test print that confirms the cause.</td></tr>
               <tr><td><code>box</code></td><td>Photos only: where the fault is.</td></tr>
             </tbody>

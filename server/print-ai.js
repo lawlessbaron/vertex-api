@@ -142,6 +142,14 @@ export function imageType(buf) {
   return null;
 }
 
+// A cautious success rate (the lower edge of a 90% Wilson interval): 3 of 3 ranks below 40 of 45.
+export function wilson(worked, tried, z = 1.645) {
+  if (!tried) return 0;
+  const p = worked / tried, d = 1 + (z * z) / tried;
+  return (p + (z * z) / (2 * tried) - z * Math.sqrt((p * (1 - p) + (z * z) / (4 * tried)) / tried)) / d;
+}
+export const TRACK_MIN = 3;
+
 export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLibrary = null, link = null, env = process.env, fetchImpl = globalThis.fetch }) {
   const photoMinute = new RateLimiter(AI_LIMITS.photosPerMinute, 60e3);
   const photoDay = new RateLimiter(AI_LIMITS.photosPerDay, 86400e3);
@@ -324,6 +332,36 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     return { action, message: say, job, streak, fault: worst?.code || null, findings: report.findings, model: report.model, ...(report.test ? { test: true } : {}) };
   }
 
+  // Learning from outcomes: how often each fix worked, from what makers reported (POST /outcomes).
+  // Counted by maker, not by report, so one person can't tip it; shown once TRACK_MIN makers tried it.
+  let track = { at: 0, map: new Map() };
+  function trackRecords() {
+    if (Date.now() - track.at < 10 * 60e3) return track.map;
+    const rows = db.prepare(`SELECT finding, CASE WHEN instr(fixed_by, ':') > 0 THEN substr(fixed_by, 1, instr(fixed_by, ':') - 1) ELSE fixed_by END AS setting,
+        COUNT(DISTINCT user_id) AS tried, COUNT(DISTINCT CASE WHEN result = 'fixed' THEN user_id END) AS worked
+      FROM print_ai_outcomes WHERE kind = 'outcome' AND result IN ('fixed', 'failed') AND finding IS NOT NULL AND fixed_by IS NOT NULL AND created_at > ?
+      GROUP BY finding, setting`).all(Date.now() - 365 * 86400e3);
+    track = { at: Date.now(), map: new Map(rows.map((r) => [`${r.finding}|${r.setting}`, { worked: r.worked, tried: r.tried }])) };
+    return track.map;
+  }
+  // Each fix gets its track record (when there's enough), and the ones that worked most reliably come first.
+  function learned(report) {
+    const map = trackRecords();
+    if (!map.size || !report) return report;
+    const fixFindings = (findings) => (findings || []).forEach((f) => {
+      if (!Array.isArray(f.fixes) || !f.fixes.length) return;
+      const scored = f.fixes.map((fx, i) => {
+        const rec = map.get(`${f.code}|${fx.setting}`);
+        if (rec && rec.tried >= TRACK_MIN) fx.trackRecord = { worked: rec.worked, tried: rec.tried };
+        return { fx, i, score: fx.trackRecord ? wilson(rec.worked, rec.tried) : 0.5 };
+      });
+      f.fixes = scored.sort((a, b) => b.score - a.score || a.i - b.i).map((x) => x.fx);
+    });
+    fixFindings(report.findings);
+    (report.parts || []).forEach((p) => fixFindings(p.findings));
+    return report;
+  }
+
   function outcome(k, body) {
     const result = str(body.result, 10);
     if (!['good', 'failed', 'fixed'].includes(result)) throw new HttpError(400, 'result must be good, failed or fixed.');
@@ -331,6 +369,7 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     if (!job) throw new HttpError(400, 'Which job? Send "job" (your own id for the print is fine).');
     const id = Number(db.prepare('INSERT INTO print_ai_outcomes (user_id, key_id, kind, job, result, finding, fixed_by, context, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
       .run(k.id, k.key_id, 'outcome', job, result, str(body.finding, 60) || null, str(body.fixedBy, 80) || null, JSON.stringify(contextOf(body.context)), str(body.note, 500) || null, Date.now()).lastInsertRowid);
+    track.at = 0; // counted in the next answer
     return { id, recorded: true };
   }
 
@@ -341,6 +380,7 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     limits: { photosPerMinute: AI_LIMITS.photosPerMinute, photosPerDay: AI_LIMITS.photosPerDay, maxModelMb: AI_LIMITS.maxModelMb, maxGcodeMb: AI_LIMITS.maxGcodeMb, maxPhotoMb: AI_LIMITS.maxPhotoMb },
     faults: Object.keys(FAULTS),
     fixable: Object.keys(FIX_KEYS),
+    learning: { trackRecordAfter: TRACK_MIN },
   });
 
   function stats() {
@@ -372,14 +412,14 @@ export function createPrintAi({ db, isStaff, plans = null, audit = null, toolLib
     const planHeaders = k.plan ? { 'X-Mint-Plan': k.plan.plan.id, ...(k.plan.over ? { 'X-Mint-Extra-Use': '1' } : {}) } : {};
     if (path === '/api/ai/v1' && method === 'GET') return json(res, 200, { ...info(), key: { user: k.handle || null, staff: isStaff(k) } }, planHeaders), true;
     if (path === '/api/ai/v1/check/settings' && method === 'POST') {
-      const r = await settingsCheck(req);
+      const r = learned(await settingsCheck(req));
       if (ctx.apiMeta && !ctx.apiMeta.kind) Object.assign(ctx.apiMeta, { kind: 'ai-settings', params: { filament: r.filament, nozzle: r.nozzle, read: r.read } });
       return json(res, 200, r, planHeaders), true;
     }
-    if (path === '/api/ai/v1/check/model' && method === 'POST') return json(res, 200, await modelCheck(req, ctx), planHeaders), true;
-    if (path === '/api/ai/v1/diagnose/photo' && method === 'POST') return json(res, 200, await diagnose(req, k, ctx), planHeaders), true;
+    if (path === '/api/ai/v1/check/model' && method === 'POST') return json(res, 200, learned(await modelCheck(req, ctx)), planHeaders), true;
+    if (path === '/api/ai/v1/diagnose/photo' && method === 'POST') return json(res, 200, learned(await diagnose(req, k, ctx)), planHeaders), true;
     if (path === '/api/ai/v1/outcomes' && method === 'POST') return json(res, 202, outcome(k, await readJson(req, 8192)), planHeaders), true;
-    if (path === '/api/ai/v1/watch/frame' && method === 'POST') return json(res, 200, await watchFrame(req, k, ctx), planHeaders), true;
+    if (path === '/api/ai/v1/watch/frame' && method === 'POST') return json(res, 200, learned(await watchFrame(req, k, ctx)), planHeaders), true;
     if (path === '/api/ai/v1/apply' && method === 'POST') {
       const r = await applyTo(req);
       if (ctx.apiMeta && !ctx.apiMeta.kind) Object.assign(ctx.apiMeta, { kind: 'ai-apply', params: { file: r.ext, applied: r.applied } });

@@ -229,3 +229,23 @@ test('apply: fixes written into the settings file, and onto your own VERTEX Reci
   const off = createPrintAi({ db, isStaff, link: { on: () => false }, env: {} });
   assert.equal((await call(off, '/api/ai/v1/recipes', 'GET', { key: 'vx_dev' })).status, 503);
 });
+
+test('learning from outcomes: each fix shows how often it worked, and the most reliable comes first', async () => {
+  const { wilson, TRACK_MIN } = await import('../server/print-ai.js');
+  assert.ok(wilson(40, 45) > wilson(3, 3), 'many reports beat a lucky few');
+  assert.ok(wilson(3, 3) > wilson(1, 3));
+  const db = openDatabase(':memory:');
+  db.prepare("INSERT INTO users (id, email, name, handle, role, created_at, synced_at) VALUES (1, 'a@x.y', 'A', 'a', 'user', 1, 1), (2, 'b@x.y', 'B', 'b', 'user', 1, 1), (3, 'c@x.y', 'C', 'c', 'user', 1, 1), (9, 's@x.y', 'S', 'staff', 'admin', 1, 1)").run();
+  db.prepare("INSERT INTO engine_keys (user_id, name, key_hash, key_hint, created_at) VALUES (9, 'k', ?, 'vx_s…', 1)").run(hashToken('vx_staff'));
+  const ai = createPrintAi({ db, isStaff, env: {} });
+  const ask = async () => (await call(ai, '/api/ai/v1/check/settings', 'POST', { key: 'vx_staff', body: { settings: { filament_type: 'PLA', nozzle_temperature: 250 } } })).out.findings.find((f) => f.code === 'temp-high-for-filament');
+  assert.equal((await ask()).fixes[0].trackRecord, undefined, 'no reports yet');
+  const put = db.prepare("INSERT INTO print_ai_outcomes (user_id, key_id, kind, job, result, finding, fixed_by, context, created_at) VALUES (?, 1, 'outcome', ?, ?, 'temp-high-for-filament', 'nozzle_temperature:225', '{}', ?)");
+  // Two makers it worked for, one it didn't, and one maker reporting twice still counts once.
+  put.run(1, 'j1', 'fixed', Date.now()); put.run(2, 'j2', 'fixed', Date.now()); put.run(2, 'j3', 'fixed', Date.now());
+  assert.equal((await ask()).fixes[0].trackRecord, undefined, `shown only after ${TRACK_MIN} makers`);
+  put.run(3, 'j4', 'failed', Date.now());
+  // The cache is cleared when an outcome comes in through the API; here they went straight in.
+  await call(ai, '/api/ai/v1/outcomes', 'POST', { key: 'vx_staff', body: { job: 'j5', result: 'good' } });
+  assert.deepEqual((await ask()).fixes[0].trackRecord, { worked: 2, tried: 3 });
+});

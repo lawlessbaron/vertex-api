@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.18.0 · 4 October 2026
+
+### Added
+- **Fixes that learn from real prints.** Every fix in a check or diagnosis now carries `trackRecord: { worked, tried }` once three or more makers have reported back on it for that fault (`POST /ai/v1/outcomes` with `fixedBy`). Within each finding, the fixes that worked most reliably come first. Each maker counts once, however many reports they send, so one person can't tip it.
+- `GET /ai/v1` lists `learning.trackRecordAfter` (3).
+
 ## 1.17.0 · 4 October 2026
 
 ### Improved
