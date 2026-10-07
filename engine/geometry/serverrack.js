@@ -449,7 +449,8 @@ function frontPanel(p, u, kind, mod = null, grooves = []) {
   const dw = p.ex - 1.5, dh = h - 2; // the drawer sleeve, outside
   const mag = magnetKind(p, kind) && ft - magPocket().depth >= 1.2 ? magPocket() : null; // a pocket in each ear's back, at least 1.2 mm of face left
   const gd = grooves.filter((g) => Number.isFinite(g.depth)).map((g) => g.depth);
-  const m = sections([-hw, 0, hw, h], [...new Set([0, 0.4, ...CH, ...(kind === 'patch' || kind === 'screen' || kind === 'control' ? [2] : []), ...(kind === 'cart' ? [1.9] : []), ...(mag ? [ft - mag.depth] : []), ...(bi ? [bi.depth] : []), ...(p.threads && hwHead(p, 'trim').depth < ft ? [hwHead(p, 'trim').depth] : []), ...gd, ft])].sort((a, b) => a - b), (z, d) => {
+  const m = sections([-hw, 0, hw, h], [...new Set([0, 0.4, ...CH, ...(kind === 'patch' || kind === 'screen' || kind === 'control' ? [2] : []), ...(kind === 'cart' ? [1.9] : []), ...(mag ? [ft - mag.depth] : []), ...(bi ? [bi.depth] : []), ...(p.threads && hwHead(p, 'trim').depth < ft ? [hwHead(p, 'trim').depth] : []), ...gd, ...(kind === 'fanctl' ? fanctlCuts(p, ft) : []), ft])].sort((a, b) => a - b), (z, d) => {
+    if (kind === 'fanctl' && z > ft) { fanctlLedges(p, d, h); return; } // behind the face: the ledges the board rests on
     const f = Math.max(z < 0.4 ? 0.4 : 0, ch(z)); // the face's edge chamfered (it prints face down)
     d.on(rr(-hw + f, f, hw - f, h - f, 2));
     if (mag && z > ft - mag.depth) for (let k = 0; k < u; k++) for (const s of [-1, 1]) for (const my of MAG_YS) { const y = k * RACK10.U + my - 0.4; if (!grooves.some((g) => Number.isFinite(g.depth) && s * p.hx > g.x0 - 3.2 && s * p.hx < g.x1 + 3.2 && y > g.y0 - 3.2 && y < g.y1 + 3.2)) d.disc(s * p.hx, y, mag.r, 0); } // no magnet behind a wrap pocket
@@ -479,6 +480,7 @@ function frontPanel(p, u, kind, mod = null, grooves = []) {
       for (const x of [-S.w / 4, 0, S.w / 4]) for (const sy of [-1, 1]) d.disc(x, h / 2 + sy * (S.h / 2 + 3.5), 1.7, 0);
     } else if (kind === 'screen') { const S = SCREENS[p.screen]; if (z < 2) d.off(rr(-S.vw / 2, h / 2 - S.vh / 2, S.vw / 2, h / 2 + S.vh / 2, 2)); else d.off(rr(-S.w / 2 - 0.3, h / 2 - S.h / 2 - 0.3, S.w / 2 + 0.3, h / 2 + S.h / 2 + 0.3, 1.5)); for (const sx of [-1, 1]) for (const sy of [-1, 1]) d.disc(sx * (S.w / 2 + 5), h / 2 + sy * (S.h / 2 - 8), 1.2, 0); }
     if (kind === 'control') controlHoles(p, d, h, z > 2);
+    if (kind === 'fanctl') fanctlHoles(p, d, h, z, ft);
     if (kind === 'cart') { const g = cartGeom(p); d.off(rr(-g.Wi / 2, 2 + g.zIn[0], g.Wi / 2, 2 + g.zIn[1], 1)); for (const [x, zz] of g.fix) { d.disc(x, 2 + zz, 1.7, 0); if (z < 1.9) d.disc(x, 2 + zz, 3.1, 0); } } // the bay's opening; the cage's screws, heads flush
     if (bi && z < bi.depth) d.off(rr(...bi.pocket, bi.r)); // phase 1E: the sheet's pocket in the face (it prints face down)
     if (kind === 'blank' && p.blankStyle === 'vents' && !bi) vents(at(p, 'blank'), d, -p.ex + 10, 5, p.ex - 10, h - 5, 5, 2.6);
@@ -553,6 +555,29 @@ export function ctrlXs(p) {
   return items.map((t) => { const w = CTRL[t].w * scale, c = x + w / 2; x += w + extra; return { t, x: -c }; });
 }
 // The holes, drawn on the control unit's face (h: the face's height; deep: the cut is behind the face's front 2 mm).
+// A fan controller board (the common 4-knob, 8-channel kind on a PCI bracket) mounted flat behind a panel:
+// its knob shafts come through a row of holes and the knob caps, pushed back on from the front, hold it to
+// the panel. Two ledges behind the face carry the board's short ends. With its bracket left on, the bracket
+// sits in a shallow pocket in the panel's back instead. Everything comes from p.fc (the measured board).
+const fanctlFit = (p, h) => {
+  const f = p.fc, cy = h / 2, top = cy - f.above; // the board's top face, f.above below the shafts
+  return { ...f, cy, top, bottom: top - 1.6, xs: Array.from({ length: f.knobs }, (_, i) => (i - (f.knobs - 1) / 2) * f.pitch) };
+};
+const fanctlCuts = (p, ft) => [ft + p.fc.depth, ...(p.fc.bracket ? [ft - BRACKET_T] : [])];
+const BRACKET_T = 1.2, BRACKET_W = 19.4; // a PCI bracket's thickness (with play) and width
+function fanctlHoles(p, d, h, z, ft) {
+  const f = fanctlFit(p, h);
+  for (const x of f.xs) d.disc(x, f.cy, f.hole / 2, 0);
+  if (f.bracket && z > ft - BRACKET_T) d.off(rr(-f.len / 2 - 0.5, f.cy - BRACKET_W / 2, f.len / 2 + 0.5, f.cy + BRACKET_W / 2, 0.5));
+}
+function fanctlLedges(p, d, h) {
+  const f = fanctlFit(p, h);
+  // Under each short end: 4 mm of shelf, 5 mm thick, and a 2 mm upstand at the outside that keeps the board centred.
+  for (const s of [-1, 1]) {
+    d.on(rr(Math.min(s * (f.len / 2 - 4), s * (f.len / 2 + 0.6)), f.bottom - 5, Math.max(s * (f.len / 2 - 4), s * (f.len / 2 + 0.6)), f.bottom, 0.5));
+    d.on(rr(Math.min(s * (f.len / 2 + 0.6), s * (f.len / 2 + 2.6)), f.bottom - 5, Math.max(s * (f.len / 2 + 0.6), s * (f.len / 2 + 2.6)), f.bottom + 1, 0.5));
+  }
+}
 function controlHoles(p, d, h, deep) {
   const cy = h / 2;
   for (const { t, x } of ctrlXs(p)) {
@@ -2254,11 +2279,14 @@ export const RACKPANEL_DEFAULTS = {
   fanSize: 80, fanCount: 2, // fan
   glands: 3, glandSize: 25, // gland plate
   ctrlLayout: 'button, led, led, led, gap, encoder, encoder, oled', ctrlButton: 19, knobs: true, // control panel
+  // fan controller: a 4-knob, 8-channel board on a PCI bracket (12 × 6.5 cm). Measure yours: these are the usual sizes.
+  fcKnobs: 4, fcPitch: 25, fcHole: 7, fcAbove: 6.5, fcLen: 120, fcDepth: 60, fcBracket: false,
   badge: '',
 };
 export const RACK_PANEL_KINDS = {
   patch: 'Keystone patch panel', device: 'Device panel', fan: 'Fan panel', vented: 'Vented blank', blank: 'Solid blank',
   cable: 'Cable pass-through', gland: 'Cable gland plate', control: 'Control panel (buttons, LEDs, knobs, screen)',
+  fanctl: 'Fan controller (4-knob, 8-channel board)',
 };
 
 // The panel as it stands in a rack, seen from the front: printed face down (front at z = 0), so a half
@@ -2278,6 +2306,8 @@ export function generateRackPanel(options = {}) {
     patch: panel === 'patch' ? 1 : 0, fans: panel === 'fan' ? 1 : 0, cable: panel === 'cable' ? 1 : 0,
     control: panel === 'control', glands: o.glands, glandSize: o.glandSize,
   });
+  p.fc = { knobs: Math.round(num(o.fcKnobs, 1, 8, 4)), pitch: num(o.fcPitch, 12, 40, 25), hole: num(o.fcHole, 4, 14, 7), above: num(o.fcAbove, 2, 15, 6.5), len: num(o.fcLen, 60, 200, 120), depth: num(o.fcDepth, 10, 120, 60), bracket: o.fcBracket === true || o.fcBracket === 'true' };
+  if (panel === 'fanctl' && (p.fc.knobs - 1) * p.fc.pitch + p.fc.hole > p.fc.len) throw new Error(`${p.fc.knobs} knobs ${p.fc.pitch} mm apart don't fit on a board ${p.fc.len} mm long: check the spacing.`);
   p.glands = Math.round(num(o.glands, 1, 5, 3)); p.glandSize = [16, 20, 25].includes(Number(o.glandSize)) ? Number(o.glandSize) : 25;
   setEdges(p);
   const need = kind === 'device' && p.dev ? devUnits(p) : kind === 'fan' ? fanUnits(p.fanSize) : kind === 'control' ? p.ctrlU : 1;
@@ -2292,6 +2322,7 @@ export function generateRackPanel(options = {}) {
   if (panel === 'device' && p.dev) notes.push(`${devXs(p).length} × ${p.dev.name}: a window for each one's front and a floor with walls behind that keeps it straight. Needs ${Math.ceil(p.dev.d + 20)} mm of rack depth.`);
   if (panel === 'fan') notes.push(`${fanXs(p).length} × ${p.fanSize} mm fans, guarded, with their four screw holes.`);
   if (panel === 'gland') notes.push(`${glandXs(p).length} × M${p.glandSize} cable glands: the thread goes through and the gland's locknut tightens from behind.`);
+  if (panel === 'fanctl') notes.push(`Fan controller: ${p.fc.knobs} knob holes ${p.fc.hole} mm across, ${p.fc.pitch} mm apart, and two ledges ${p.fc.depth} mm deep behind for a board ${p.fc.len} mm long. ${p.fc.bracket ? 'Its bracket sits in the pocket in the panel\'s back, the knob shafts through the bracket and the panel.' : 'Unscrew the bracket, pull the knob caps off, push the shafts through from behind and push the caps back on: they hold the board to the panel.'} Measure your board's knob spacing and the height of the shafts above it before printing; the defaults are the usual sizes, not a guarantee. The SATA power plug and the fan headers stay reachable at the back.`);
   if (panel === 'control') notes.push('The holes for your buttons, LEDs, knobs and screen. The wiring and the sketch are in the rack studio\'s control unit.');
   return { parts, notes, plan: { ...p, panel, u }, gear: { panel, u, fit: std ? 'standard' : 'vertex' } };
 }

@@ -920,7 +920,7 @@ export function vividPixels(img, pxPerMm = 4, cut = 50) {
   for (let i = 0; i < n; i++) { const r = d[i * 4], g = d[i * 4 + 1], b = d[i * 4 + 2]; chroma[i] = Math.max(r, g, b) - Math.min(r, g, b); }
   const mean = boxMean(chroma, img.width, img.height, Math.round(pxPerMm) | 1);
   const out = new Uint8Array(n);
-  for (let i = 0; i < n; i++) out[i] = mean[i] - base > cut ? 1 : 0;
+  for (let i = 0; i < n; i++) out[i] = mean[i] - base > cut && chroma[i] - base > cut * 0.5 ? 1 : 0; // the pixel itself coloured too: the window's mean alone spills a pixel past a bright edge
   return out;
 }
 
@@ -1031,7 +1031,7 @@ export function dropCastShadows(mask, image, k, minPx, finish = (m) => m) {
       if (hi - lo > 24) continue; // not flat: an edge or texture
       shade[i] = 2; nS++;
     }
-    if (nS < sizes[c] * 0.12 || sizes[c] - nS < sizes[c] * 0.15) continue;
+    if (nS < Math.min(sizes[c] * 0.12, 400 * k * k) || sizes[c] - nS < sizes[c] * 0.15) continue; // a big object's shadow can be a thin strip: 400 mm² is enough
     // Coarse grids over the shape's box (plus the search reach) for the sweep test.
     const bx0 = Math.floor(x0 / q) - R, by0 = Math.floor(y0 / q) - R, bw = Math.floor(x1 / q) - bx0 + R + 1, bh = Math.floor(y1 / q) - by0 + R + 1;
     const inC = new Uint8Array(bw * bh), inS = new Uint8Array(bw * bh), inO = new Uint8Array(bw * bh);
@@ -1045,6 +1045,12 @@ export function dropCastShadows(mask, image, k, minPx, finish = (m) => m) {
       if (shade[i] === 2) inS[j] = 1; else if (!shade[i]) inO[j] = 1;
     }
     for (let j = 0; j < inC.length; j++) if (inO[j]) inS[j] = 0; // mixed cells count as object
+    // The shape's own holes (a flat middle the earlier steps left out) are inside it, not paper: fill them,
+    // so a sweep across a big hollow-looking object isn't counted as spilling onto the sheet.
+    { const out2 = new Uint8Array(bw * bh), st = [];
+      for (let x = 0; x < bw; x++) st.push(x, (bh - 1) * bw + x); for (let y = 0; y < bh; y++) st.push(y * bw, y * bw + bw - 1);
+      while (st.length) { const j = st.pop(); if (out2[j] || inC[j]) continue; out2[j] = 1; const x = j % bw, y = (j / bw) | 0; if (x > 0) st.push(j - 1); if (x < bw - 1) st.push(j + 1); if (y > 0) st.push(j - bw); if (y < bh - 1) st.push(j + bw); }
+      for (let j = 0; j < inC.length; j++) if (!out2[j]) inC[j] = 1; }
     const O = [], Sn = inS.reduce((a, v) => a + v, 0);
     for (let j = 0; j < inO.length; j++) if (inO[j]) O.push(j);
     if (!Sn || !O.length) continue;
@@ -1063,7 +1069,8 @@ export function dropCastShadows(mask, image, k, minPx, finish = (m) => m) {
       for (const j of O) { const ox = j % bw, oy = (j / bw) | 0; for (let s = 1; s <= steps; s++) { const x = ox + Math.round((dx * s) / steps), y = oy + Math.round((dy * s) / steps); if (x >= 0 && y >= 0 && x < bw && y < bh) swept[y * bw + x] = 1; } }
       let cov = 0, spill = 0, area = 0;
       for (let j = 0; j < swept.length; j++) { if (!swept[j] || inO[j]) continue; area++; if (inS[j]) cov++; else if (!inC[j]) spill++; }
-      if (cov >= Sn * 0.85 && spill <= area * 0.2 && (!best || cov - spill > best.score)) best = { score: cov - spill, swept };
+      // Up to 30 % may land on bare paper: a big object's edge is never perfectly straight (a foam tray's was 23 %).
+      if (cov >= Sn * 0.85 && spill <= area * 0.3 && (!best || cov - spill > best.score)) best = { score: cov - spill, swept };
     }
     if (!best) continue;
     out = out || mask.clone();

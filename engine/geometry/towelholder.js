@@ -35,7 +35,7 @@ function rodPiece(len, D, end) {
     const hw = p - Math.abs(z - D / 2); // a diamond across the rod, its point up
     if (end === 'peg' && hw > 0.05) d.on(rr(len - 1, -hw, len + PEG, hw, 0));
     if (end === 'socket' && hw + 0.2 > 0.05) d.off(rr(len - PEG - 1, -hw - 0.2, len + 1, hw + 0.2, 0));
-  }, 0.08, 0.04);
+  }, 0.2, 0.06); // straight edges only, and each outline snaps onto them: a coarse grid loses nothing and builds twice as fast
 }
 
 export function generateTowelHolder(options = {}) {

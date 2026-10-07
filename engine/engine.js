@@ -61,7 +61,7 @@ export const ENGINE_MODULES = {
   deskhanger: { name: 'Under-desk headphone hooks', version: '1.0.0' },
   controllerrack: { name: 'Controller and headset racks', version: '1.0.0' },
   grommet: { name: 'Desk cable grommets', version: '1.0.0' },
-  serverrack: { name: 'Modular 10-inch server racks', version: '1.37.0' },
+  serverrack: { name: 'Modular 10-inch server racks', version: '1.38.0' },
   leadhanger: { name: 'Extension lead and hose hangers', version: '1.0.0' },
   bikehook: { name: 'Bike and helmet wall hooks', version: '1.0.0' },
   shoerack: { name: 'Shoe and boot wall racks', version: '1.0.0' },
@@ -95,10 +95,10 @@ export const ENGINE_MODULES = {
   doorstop: { name: 'Door wedges and stops', version: '1.0.0' },
   tubesqueezer: { name: 'Tube squeezers', version: '1.0.0' },
   clothespeg: { name: 'Clothes pegs', version: '1.0.0' },
-  towelholder: { name: 'Paper towel holders', version: '1.0.0' },
+  towelholder: { name: 'Paper towel holders', version: '1.0.1' },
   sinktidy: { name: 'Sink tidies', version: '1.0.0' },
   dryingrack: { name: 'Bottle drying racks', version: '1.0.0' },
-  rackpanel: { name: 'Rack panels', version: '1.0.1' },
+  rackpanel: { name: 'Rack panels', version: '1.1.0' },
   soapdish: { name: 'Soap dishes', version: '1.0.0' },
   eggtray: { name: 'Egg trays', version: '1.0.0' },
   knifeblock: { name: 'Knife blocks', version: '1.0.0' },
@@ -107,7 +107,7 @@ export const ENGINE_MODULES = {
 // Newest first.
 // The engine's release notes, newest first, are in engine-history.js (loaded only where they're shown).
 // The version here is the newest entry's; test/engine.test.js keeps the two in step.
-export const ENGINE = { name: 'VERTEX engine', version: '1.96.1' };
+export const ENGINE = { name: 'VERTEX engine', version: '1.97.1' };
 
 // "VERTEX engine 1.1.0", for file stamps and the site.
 export const engineLabel = () => `${ENGINE.name} ${ENGINE.version}`;

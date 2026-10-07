@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.19.1 · 7 October 2026
+
+### Improved
+- **Engine 1.97.1 from VERTEX:** the `rackpanel` kind gains a fan controller panel (`panel: "fanctl"`, with `fcKnobs`, `fcPitch`, `fcHole`, `fcAbove`, `fcLen`, `fcDepth`, `fcBracket`); `towelholder` builds about twice as fast, with the rod at its true size.
+- **Closer tracer outlines:** coloured tools are traced right to their edge, and a large dark item's long shadow down one side is left out.
+
 ## 1.19.0 · 7 October 2026
 
 ### Added
