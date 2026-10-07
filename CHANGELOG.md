@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.19.0 · 7 October 2026
+
+### Added
+- **Five more kinds:** `dryingrack` (bottle drying racks), `soapdish`, `eggtray`, `knifeblock` and `rackpanel` (single 10-inch rack panels). 82 kinds in all; `GET /api/engine/v1/kinds` lists their settings.
+
+### Improved
+- **The engine is brought up to date with VERTEX** (engine 1.96.1): smoother rounded and sloped edges on every kind, finer round corners, and lighter files for parts with tapered pockets.
+- **Closer tracer outlines:** less of a tool's shadow ends up in its outline, most of all for white, pale and chrome tools.
+
 ## 1.18.1 · 4 October 2026
 
 ### Improved

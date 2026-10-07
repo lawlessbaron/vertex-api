@@ -276,6 +276,12 @@ function isEarHashed(ear, z) {
   return true;
 }
 
+function ringSize(start) {
+  let n = 0, p = start;
+  do { n++; p = p.next; } while (p !== start);
+  return n;
+}
+
 function clipEars(start, tris, z = null) {
   const earTest = z ? (e) => isEarHashed(e, z) : isEar;
   let ear = start;
@@ -293,16 +299,20 @@ function clipEars(start, tris, z = null) {
     ear = next;
     if (ear === stop) {
       if (pass === 0) {
-        // Remove collinear / duplicate points and retry.
+        // Remove collinear / duplicate points and retry. A collinear point
+        // that the walls share (not a bridge's out-and-back spike) leaves a
+        // flat triangle behind, so its edges still pair up and the shell stays
+        // closed. Walk the ring once by count: the start node may go.
         let p = ear, changed = false;
-        do {
+        for (let left = ringSize(ear); left > 0; left--) {
           if (equals(p, p.next) || area2(p.prev, p, p.next) === 0) {
+            if (!equals(p, p.next) && !equals(p, p.prev) && p.prev.i !== p.next.i && !equals(p.prev, p.next)) tris.push(p.prev.i, p.i, p.next.i);
             remove(p);
             changed = true;
             p = p.next;
             if (p.next === p.prev) return;
           } else p = p.next;
-        } while (p !== ear);
+        }
         ear = p;
         stop = p;
         pass = changed ? 0 : 1;

@@ -298,3 +298,22 @@ export async function zipFiles(entries) {
   view.setUint32(off + 16, cdStart, true);
   return out;
 }
+
+/**
+ * A stored (uncompressed) ZIP, such as to3MF makes, deflated: the same files, often a fifth of the size.
+ * Used before a model is sent to a slicer, so big multi-part builds (a whole rack) fit the upload.
+ */
+export async function packZip(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), dec = new TextDecoder();
+  const entries = [];
+  let off = 0;
+  while (off + 30 <= bytes.length && view.getUint32(off, true) === 0x04034b50) {
+    const method = view.getUint16(off + 8, true), size = view.getUint32(off + 18, true);
+    const nameLen = view.getUint16(off + 26, true), extra = view.getUint16(off + 28, true);
+    if (method !== 0) return bytes; // already packed
+    const start = off + 30 + nameLen + extra;
+    entries.push([dec.decode(bytes.subarray(off + 30, off + 30 + nameLen)), bytes.subarray(start, start + size)]);
+    off = start + size;
+  }
+  return entries.length ? zipFiles(entries) : bytes;
+}

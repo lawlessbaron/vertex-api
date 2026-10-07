@@ -34,7 +34,7 @@ export class Grid {
 // row), so a detailed outline costs what its crossings cost.
 export function fillPolygon(grid, poly, value = 1) {
   const data = grid.data;
-  polygonSpans(grid, poly, (row, i0, i1) => { for (let i = i0; i <= i1; i++) data[row + i] = value; });
+  polygonSpans(grid, poly, (row, i0, i1) => data.fill(value, row + i0, row + i1 + 1)); // a whole run at once
 }
 
 /** The pixels fillPolygon would set, as ascending indices, without a grid of their own. */

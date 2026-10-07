@@ -326,7 +326,12 @@ export function generateEnclosure(options = {}) {
   const lipIn = [inner[0] + 1.6, inner[1] + 1.6, inner[2] - 1.6, inner[3] - 1.6];
   const avoid = [];
   const plateHoles = [];
-  const fan = FANS[o.fan];
+  // The fan over the processor: the size asked for if the lid has room for it (1 mm all round inside the lip),
+  // else the biggest that does, else none. A fan wider than the lid tore its plate open (a Nano with a 40 mm fan).
+  const room = Math.min(lipIn[2] - lipIn[0], lipIn[3] - lipIn[1]) - 2;
+  const fanSize = FANS[o.fan] ? Object.keys(FANS).map(Number).filter((k) => k <= Number(o.fan) && FANS[k].open <= room).pop() || 0 : 0;
+  const fanNote = FANS[o.fan] && fanSize !== Number(o.fan) ? (fanSize ? `A ${o.fan} mm fan is wider than this lid (${room.toFixed(0)} mm inside), so it takes a ${fanSize} mm fan.` : `No fan: this lid is ${room.toFixed(0)} mm across inside, too small even for a 25 mm fan.`) : null;
+  const fan = FANS[fanSize];
   if (fan) {
     const [fx, fy] = b.cpu;
     const cx = Math.min(Math.max(fx, lipIn[0] + fan.open / 2 + 1), lipIn[2] - fan.open / 2 - 1);
@@ -371,6 +376,6 @@ export function generateEnclosure(options = {}) {
     base, lid, inlay,
     lidAssembled: flipZ(lid, H + TOP), inlayAssembled: inlay ? flipZ(inlay, H + TOP) : null,
     board: b, openings, size,
-    screws: b.holes.length, hole: b.hole, mount: o.mount, fan: o.fan, vents: ventKind,
+    screws: b.holes.length, hole: b.hole, mount: o.mount, fan: fanSize, fanNote, vents: ventKind,
   };
 }

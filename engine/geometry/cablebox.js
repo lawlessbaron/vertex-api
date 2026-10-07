@@ -8,7 +8,7 @@ import { Mesh } from './mesh.js';
 import { extrudePolygon, orient } from './polygon.js';
 
 export const CABLEBOX_DEFAULTS = {
-  stripL: 300, // the power strip, end to end (mm)
+  stripL: 200, // the power strip, end to end (mm); 200 keeps the box (about 245 mm) on a 256 mm bed
   stripW: 55,
   plugH: 70, // the tallest plug or charger standing in it
   wall: 2.4,
@@ -31,7 +31,7 @@ export function cableBoxPlan(options = {}) {
   const o = { ...CABLEBOX_DEFAULTS, ...options };
   const t = num(o.wall, 1.6, 4, 2.4), f = num(o.floor, 1.6, 4, 2.4), c = num(o.clearance, 0.1, 0.8, 0.3);
   // Room round the strip for plugs that stick out sideways and the cables' bend.
-  const L = num(o.stripL, 120, 420, 300) + 2 * 20 + 2 * t, W = num(o.stripW, 30, 120, 55) + 2 * 25 + 2 * t, H = num(o.plugH, 30, 120, 70) + f + 8;
+  const L = num(o.stripL, 120, 420, 200) + 2 * 20 + 2 * t, W = num(o.stripW, 30, 120, 55) + 2 * 25 + 2 * t, H = num(o.plugH, 30, 120, 70) + f + 8;
   const slot = Math.min(num(o.slot, 12, 50, 26), W - 2 * t - 10), slotDepth = Math.min(H * 0.5, slot + 6);
   return { o, t, f, c, L, W, H, slot, slotDepth, lidT: 3, lip: 8 };
 }
@@ -83,7 +83,7 @@ export function generateCableBox(options = {}) {
   for (let i = 0; i < q.length; i += 3) { q[i + 1] = -q[i + 1]; q[i + 2] = H + lidT - q[i + 2]; } // half a turn about x, onto the walls
   preview.append(l2);
   const notes = [
-    `A box ${Math.round(L)} × ${Math.round(W)} × ${Math.round(H + lidT)} mm for a strip ${num(o.stripL, 120, 420, 300)} × ${num(o.stripW, 30, 120, 55)} mm and plugs up to ${num(o.plugH, 30, 120, 70)} mm tall, with ${o.backSlot ? 'three' : 'two'} ${Math.round(slot)} mm cable slots${o.vents !== false ? ` and ${vents.length} vent slots in the lid` : ''}.`,
+    `A box ${Math.round(L)} × ${Math.round(W)} × ${Math.round(H + lidT)} mm for a strip ${num(o.stripL, 120, 420, 200)} × ${num(o.stripW, 30, 120, 55)} mm and plugs up to ${num(o.plugH, 30, 120, 70)} mm tall, with ${o.backSlot ? 'three' : 'two'} ${Math.round(slot)} mm cable slots${o.vents !== false ? ` and ${vents.length} vent slots in the lid` : ''}.`,
     `Print the base upright and the lid top down; no supports.${L > 256 ? ' It’s longer than most beds (256 mm): print it diagonally, or on a big bed.' : ''}`,
   ];
   return { parts, notes, plan: p, preview };

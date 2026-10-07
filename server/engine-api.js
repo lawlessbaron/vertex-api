@@ -57,7 +57,7 @@ import { DESKDRAWER_DEFAULTS } from '../engine/geometry/deskdrawer.js';
 import { DESKHANGER_DEFAULTS } from '../engine/geometry/deskhanger.js';
 import { CONTROLLERRACK_DEFAULTS } from '../engine/geometry/controllerrack.js';
 import { GROMMET_DEFAULTS } from '../engine/geometry/grommet.js';
-import { SERVERRACK_DEFAULTS } from '../engine/geometry/serverrack.js';
+import { SERVERRACK_DEFAULTS, RACKPANEL_DEFAULTS } from '../engine/geometry/serverrack.js';
 import { LEADHANGER_DEFAULTS } from '../engine/geometry/leadhanger.js';
 import { BIKEHOOK_DEFAULTS } from '../engine/geometry/bikehook.js';
 import { SHOERACK_DEFAULTS } from '../engine/geometry/shoerack.js';
@@ -93,6 +93,10 @@ import { TUBESQUEEZER_DEFAULTS } from '../engine/geometry/tubesqueezer.js';
 import { CLOTHESPEG_DEFAULTS } from '../engine/geometry/clothespeg.js';
 import { TOWELHOLDER_DEFAULTS } from '../engine/geometry/towelholder.js';
 import { SINKTIDY_DEFAULTS } from '../engine/geometry/sinktidy.js';
+import { DRYINGRACK_DEFAULTS } from '../engine/geometry/dryingrack.js';
+import { SOAPDISH_DEFAULTS } from '../engine/geometry/soapdish.js';
+import { EGGTRAY_DEFAULTS } from '../engine/geometry/eggtray.js';
+import { KNIFEBLOCK_DEFAULTS } from '../engine/geometry/knifeblock.js';
 
 // The generators the site loads on demand; the API wants them all from the start.
 await Promise.all(LAZY_KINDS.map(loadKind));
@@ -176,6 +180,11 @@ export const API_KINDS = {
   clothespeg: { name: 'Clothes pegs', defaults: CLOTHESPEG_DEFAULTS, generator: '/clothes-pegs' },
   towelholder: { name: 'Paper towel holder', defaults: TOWELHOLDER_DEFAULTS, generator: '/kitchen?type=towelholder' },
   sinktidy: { name: 'Sink tidy', defaults: SINKTIDY_DEFAULTS, generator: '/kitchen?type=sinktidy' },
+  dryingrack: { name: 'Bottle drying rack', defaults: DRYINGRACK_DEFAULTS, generator: '/kitchen?type=dryingrack' },
+  soapdish: { name: 'Soap dish', defaults: SOAPDISH_DEFAULTS, generator: '/kitchen?type=soapdish' },
+  eggtray: { name: 'Egg tray', defaults: EGGTRAY_DEFAULTS, generator: '/kitchen?type=eggtray' },
+  knifeblock: { name: 'Knife block', defaults: KNIFEBLOCK_DEFAULTS, generator: '/kitchen?type=knifeblock' },
+  rackpanel: { name: '10-inch rack panel', defaults: RACKPANEL_DEFAULTS, generator: '/rack-panels' },
 };
 export const API_FORMATS = { stl: 'model/stl', '3mf': 'model/3mf', obj: 'model/obj' };
 export const API_LIMITS = { perMinute: 30, perDay: 1000, keys: 5 };

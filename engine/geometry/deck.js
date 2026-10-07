@@ -71,6 +71,17 @@ export const DECK_ITEMS = {
   extras: 'Trough lid, link bar and pivot washer',
 };
 export const DECK_TILES = { flat: 'Flat', crater: 'Crater (four bowls a cell)', hardpoint: 'Hardpoint (for a receiver)' };
+// The look of a tile's top: shallow (0.8 mm) patterns cut into the skin, never through it, and kept clear of pockets and holes.
+export const TILE_STYLES = { classic: 'Classic: smooth', tread: 'Tread plate: raised-look diamonds', hex: 'Honeycomb', panel: 'Panel lines: a frame round each cell', dots: 'Dimpled grid' };
+// The side and top edge of a tile. Each is a set of [from, to, inset] bands
+// on the outline above the trench skin, so the dovetails keep their fit.
+export const TILE_EDGES = { machined: 'Machined: stepped bevel and a shadow line', bevel: 'Stepped bevel', reveal: 'Shadow line round the sides', plain: 'Plain: a 0.6 mm edge break' };
+const EDGE_BANDS = {
+  plain: [[15 - 0.6, 15, 0.6]],
+  bevel: [[15 - 1.8, 15 - 1.2, 0.6], [15 - 1.2, 15 - 0.6, 1.2], [15 - 0.6, 15, 1.8]],
+  reveal: [[11, 12, 1], [15 - 0.6, 15, 0.6]],
+  machined: [[11, 12, 1], [15 - 1.8, 15 - 1.2, 0.6], [15 - 1.2, 15 - 0.6, 1.2], [15 - 0.6, 15, 1.8]],
+};
 export const SHOE_TOPS = {
   cradle: 'Round cradle (SpaceMouse and other pucks)',
   tray: 'Tray (soldering station, a box, a dock)',
@@ -85,6 +96,8 @@ export const DECK_DEFAULTS = {
   deckCols: 4, deckRows: 3,
   deckLayout: 'B2 hardpoint, C2 crater', // cells by letter (column) and number (row)
   tileType: 'flat',
+  tileStyle: 'classic', // classic | tread | hex | panel | dots: the pattern on the top
+  tileEdge: 'machined', // machined | bevel | reveal | plain: the side and top edge
   tileCols: 1, tileRows: 1, // a single tile: 1 × 1, 2 × 1 or 2 × 2 cells
   edges: 'all', // all | none: which edges get dovetails
   trench: 'both', // both | x | y | none
@@ -228,10 +241,12 @@ const cellCentres = (n, L) => Array.from({ length: n }, (_, i) => -L / 2 + DECK.
 // The tile body: pieces split by the trenches below the skin, the skin above,
 // cut by `cuts` ({ ring, from, to }) wherever they're active, and the trench
 // roofs' 45° wedges. → { mesh, pockets }
-function tileBody({ nx, ny, edges, clr, trench, cuts, ribs }) {
+function tileBody({ nx, ny, edges, clr, trench, cuts, ribs, tex = [], edge = 'plain' }) {
   const S = DECK.grid, H = DECK.height, lowTop = H - DECK.skin, X = S * nx, Y = S * ny, tw = DECK.trenchW / 2;
   const outline = tileOutline(S, edges, clr * 2, nx, ny);
-  const foot = insetPolygon(outline, DECK.foot), top = insetPolygon(outline, DECK.edge);
+  const foot = insetPolygon(outline, DECK.foot);
+  const bands = (EDGE_BANDS[edge] || EDGE_BANDS.plain).map(([a, b, d]) => ({ a, b, poly: insetPolygon(outline, d) }));
+  const shell = (m) => bands.find((q) => m > q.a && m < q.b)?.poly || outline;
   const cxs = cellCentres(nx, X), cys = cellCentres(ny, Y);
   const xT = trench === 'both' || trench === 'x', yT = trench === 'both' || trench === 'y';
   const split = (cs, L, on) => {
@@ -248,21 +263,21 @@ function tileBody({ nx, ny, edges, clr, trench, cuts, ribs }) {
     const piece = clipBox(outline, x0, y0, x1, y1), footPiece = clipBox(foot, x0, y0, x1, y1);
     if (piece.length >= 3) pieces.push({ piece, footPiece, box: [x0, y0, x1, y1] });
   }
-  const all = [...cuts];
+  const all = [...cuts, ...tex]; // the top pattern (tex) is only in the skin, so the pockets underneath ignore it
   let pockets = 0;
   if (ribs) for (const p of pieces) {
     const cells = ribPockets(p.piece, p.box, cuts, X, Y);
     pockets += cells.length;
     for (const ring of cells) all.push({ ring, from: -1, to: lowTop });
   }
-  const zs = new Set([0, DECK.foot, lowTop, H - DECK.edge, H]);
+  const zs = new Set([0, DECK.foot, lowTop, H, ...bands.flatMap((q) => [q.a, q.b])]);
   for (const c of all) for (const z of [c.from, c.to]) if (z > 0 && z < H) zs.add(Math.round(z * 1000) / 1000);
   const levels = [...zs].sort((a, b) => a - b);
   const mesh = new Mesh();
   for (let i = 0; i < levels.length - 1; i++) {
     const za = levels[i], zb = levels[i + 1], m = (za + zb) / 2;
     const live = all.filter((c) => c.from < m && c.to > m);
-    const polys = zb <= lowTop + 1e-9 ? pieces.map((p) => (m < DECK.foot ? p.footPiece : p.piece)) : [m > H - DECK.edge ? top : outline];
+    const polys = zb <= lowTop + 1e-9 ? pieces.map((p) => (m < DECK.foot ? p.footPiece : p.piece)) : [shell(m)];
     for (const poly of polys) {
       if (poly.length < 3) continue;
       const mine = live.filter((c) => inside(c.ring, poly));
@@ -373,6 +388,52 @@ function slabWithBowls(outer, holes, bowls, z0, z1) {
 }
 
 // One tile. o: { tileType, tileCols, tileRows, trench, passHole, ribs, bowlDepth, receiverSize, clearance }.
+// The top pattern for each cell, as shallow cuts: any shape that would meet another cut (a pocket, a
+// bowl, the cable hole) is left out, so the pattern runs round them.
+const TEX_DEPTH = 0.8;
+const clockwise = (r) => { let a = 0; for (let i = 0; i < r.length; i++) { const [x0, y0] = r[i], [x1, y1] = r[(i + 1) % r.length]; a += x0 * y1 - x1 * y0; } return a > 0 ? [...r].reverse() : r; };
+const boxOf = (r) => r.reduce((b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)], [Infinity, Infinity, -Infinity, -Infinity]);
+function textureCuts(style, cxs, cys, avoid) {
+  if (!TILE_STYLES[style] || style === 'classic') return [];
+  const S = DECK.grid, m = 9, top = DECK.height, out = [], keep = avoid.map((c) => boxOf(c.ring));
+  const add = (ring) => {
+    const b = boxOf(ring);
+    if (keep.some((k) => b[0] < k[2] + 2 && b[2] > k[0] - 2 && b[1] < k[3] + 2 && b[3] > k[1] - 2)) return;
+    out.push({ ring: clockwise(ring), from: top - TEX_DEPTH, to: top + 1 });
+  };
+  for (const cx of cxs) for (const cy of cys) {
+    const x0 = cx - S / 2 + m, x1 = cx + S / 2 - m, y0 = cy - S / 2 + m, y1 = cy + S / 2 - m;
+    if (style === 'tread') {
+      // Long diamonds, alternately one way and the other, like checker plate.
+      const p = 13, L = 5.5, w = 1.6;
+      for (let j = 0, y = y0 + p / 2; y <= y1 - p / 2 + 0.01; j++, y += p) for (let i = 0, x = x0 + p / 2; x <= x1 - p / 2 + 0.01; i++, x += p) {
+        const a = ((i + j) % 2 ? 1 : -1) * Math.PI / 4, ux = Math.cos(a), uy = Math.sin(a);
+        add([[x + ux * L, y + uy * L], [x - uy * w, y + ux * w], [x - ux * L, y - uy * L], [x + uy * w, y - ux * w]]);
+      }
+    } else if (style === 'hex') {
+      const R = 6, web = 2, wx = Math.sqrt(3) * R, px = wx + web, py = 1.5 * R + web * 0.87;
+      for (let j = 0, y = y0 + R; y + R <= y1; j++, y += py) for (let x = x0 + wx / 2 + (j % 2 ? px / 2 : 0); x + wx / 2 <= x1; x += px) {
+        add(Array.from({ length: 6 }, (_, k) => { const t = Math.PI / 6 + (k * Math.PI) / 3; return [x + R * Math.cos(t), y + R * Math.sin(t)]; }));
+      }
+    } else if (style === 'panel') {
+      // Two grooves round each cell, 1.6 mm wide: four strips each with mitred
+      // corners (so no shape has a hole), parted 0.25 mm at the mitres.
+      for (const k of [0, 7]) {
+        const a0 = x0 + k, a1 = x1 - k, b0 = y0 + k, b1 = y1 - k, g = 1.6;
+        for (const q of [
+          [[a0, b0], [a1, b0], [a1 - g, b0 + g], [a0 + g, b0 + g]],
+          [[a1, b0], [a1, b1], [a1 - g, b1 - g], [a1 - g, b0 + g]],
+          [[a1, b1], [a0, b1], [a0 + g, b1 - g], [a1 - g, b1 - g]],
+          [[a0, b1], [a0, b0], [a0 + g, b0 + g], [a0 + g, b1 - g]],
+        ]) add(insetPolygon(orient(q, true), 0.25));
+      }
+    } else if (style === 'dots') {
+      for (let y = y0 + 4; y <= y1 - 4 + 0.01; y += 10) for (let x = x0 + 4; x <= x1 - 4 + 0.01; x += 10) add(circle(x, y, 1.7, 16));
+    }
+  }
+  return out;
+}
+
 export function deckTile(o, edges = { right: true, back: true, left: true, front: true }) {
   const nx = Math.round(num(o.tileCols, 1, 2, 1)), ny = Math.round(num(o.tileRows, 1, 2, 1)), clr = num(o.clearance, 0, 0.6, 0.2);
   const type = DECK_TILES[o.tileType] ? o.tileType : 'flat';
@@ -393,7 +454,9 @@ export function deckTile(o, edges = { right: true, back: true, left: true, front
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) cuts.push({ ring: circle(sx * sp, sy * sp, DECK.insertD / 2, 24), from: floor - DECK.insertDepth, to: floor + 0.01 });
     notes.push(`Melt four M3 heat-set inserts into the pocket’s corners (±${sp} mm), then screw the size ${size} receiver in flush.`);
   }
-  const body = tileBody({ nx, ny, edges, clr, trench, cuts, ribs: o.ribs !== false && type !== 'crater' });
+  const tex = textureCuts(o.tileStyle, cxs, cys, cuts);
+  if (tex.length) notes.push(`${TILE_STYLES[o.tileStyle].split(':')[0]} top: ${tex.length} shapes ${TEX_DEPTH} mm deep, clear of every pocket and hole. Print the top layers slower for crisp edges.`);
+  const body = tileBody({ nx, ny, edges, clr, trench, cuts, tex, edge: o.tileEdge, ribs: o.ribs !== false && type !== 'crater' });
   if (body.pockets) notes.push(`The underside is ${body.pockets} pockets between 4 mm ribs, open below: lighter and quicker to print.`);
   if (cuts.some((c) => c.pass)) notes.push('The round hole over the trench crossing brings a cable up.');
   if (nx * ny > 1) notes.push(`${nx * S} × ${ny * S} mm: it needs a bed that big (plus the 8 mm tails).`);
@@ -443,7 +506,7 @@ export function electronicsTile(o = {}, edges = { right: true, back: true, left:
   for (const cx of cxs) cuts.push({ ring: rr(cx - 5, troughFront + W + 2, cx + 5, Y2 - W - 2, 1), from: DECK.trenchD - 0.1, to: H + 1 });
   const bowls = nx >= 2 ? [-55, -31, 35].map((bx) => [cxs[1] + bx, -52]) : [];
   for (const [bx, by] of bowls) cuts.push(bowlCut(bx, by, 20, 4.5));
-  const body = tileBody({ nx, ny: 1, edges, clr, trench: 'both', cuts, ribs: o.ribs !== false });
+  const body = tileBody({ nx, ny: 1, edges, clr, trench: 'both', cuts, edge: o.tileEdge, ribs: o.ribs !== false });
   const mesh = body.mesh, notes = [];
   // The station's cradle: a lip at the front and a rail each side.
   mesh.append(extrudePolygon(rr(ux - unitW / 2, lipY, ux + unitW / 2, lipY + W, 1), [], H, H + DECK.lipH)); // clear of the front sockets
@@ -810,6 +873,8 @@ export function generateDeck(options = {}) {
   // Lay the parts out side by side, flat on the plate.
   let y = 0;
   for (const p of parts) { const b = p.mesh.bounds(); p.mesh.translate(-(b.min[0] + b.max[0]) / 2, y - b.min[1], -b.min[2]); y += b.size[1] + 10; }
+  // Loose parts (extras) have no single body: their size is the laid-out set.
+  if (!stats.size) { const set = new Mesh(); for (const p of parts) set.append(p.mesh); stats.size = set.bounds().size; }
   // Centre the preview.
   const all = new Mesh();
   for (const p of assembly) all.append(p.mesh);
