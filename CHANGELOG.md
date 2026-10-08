@@ -4,6 +4,7 @@
 
 ### Fixed
 - **No refused calls when you're signed out:** the console, admin and Education pages check who you are first, so a signed-out visit shows the sign-in card without an error in the browser.
+- **Quieter start:** the server now starts directly rather than through the package manager, so a new release starts without a warning in the logs and an old copy shuts down cleanly.
 - **Tidier on phones:** the "Get a key" button stays on one line, the sign-in buttons stay inside their card, the status page's colour key keeps each colour beside its name, and the search box icon no longer sits on the text.
 
 ## 1.19.6 · 8 October 2026
