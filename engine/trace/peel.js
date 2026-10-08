@@ -9,7 +9,11 @@
 // lie along the object (touching it along at least 3 × its own depth: a grey
 // tip or handle sticks out instead), it mustn't darken away from the object,
 // and nothing goes if it would take 40 % of the outline. A thin band of plain
-// paper the outline took in at its edge goes too.
+// paper the outline took in at its edge goes too. A second test learns the
+// object's own colour from its inside: a strip plainly not that colour, dimmer
+// than the paper and near its tint (or bluer) is shadow too, even when it's darker
+// than the object or the photo has a cast; what only that test takes must lie
+// along the object by itself (a grey chrome tip on a green key sticks out).
 import { Grid, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, traceBinary } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
@@ -22,6 +26,10 @@ export const PEEL = {
   band: 2.5,         // mm of plain paper at the outline's edge that can go
   ring: [2, 6],      // mm out from the outline: where the paper round it is read
   side: 0.6, hug: 3, most: 0.4,
+  // The second test, learnt from the photo: plainly not the object's own colour (apart, in its spreads),
+  // dimmer than the paper but not black (deep), and near the paper's tint (near) or bluer (bluish).
+  // It catches what the fixed tint misses: a shadow darker than the object, a warm or strongly blue one.
+  apart: 4, deep: 0.12, near: 0.08, bluish: 0.18, sat: 0.55,
 };
 
 const lum = (d, j) => 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
@@ -115,11 +123,23 @@ function peelGrid(g, X0, Y0, img, k, o) {
   if (innerL.length < 20) return null;
   innerL.sort((a, b) => a - b);
   const objL = innerL[innerL.length >> 1];
+  // The object's own colour, from the same inside: its middle tint and brightness, and how much
+  // they spread (with floors, so a flat-coloured object doesn't make every speck look foreign).
+  const chr = (j) => { const t = Math.max(1, d[j] + d[j + 1] + d[j + 2]); return [d[j] / t, d[j + 1] / t]; };
+  const mid = (a) => { a.sort((u, v) => u - v); return a[a.length >> 1]; };
+  const ir = [], ig = [], il = [];
+  for (let i = 0; i < w * h; i++) if (m[i] && depth[i] >= 3 * k) { const j = at(i), [r1, g1] = chr(j); ir.push(r1); ig.push(g1); il.push(Math.log(Math.max(1, lum(d, j)))); }
+  const oR = mid([...ir]), oG = mid([...ig]), oL = mid([...il]);
+  const spread = (a, c, floor) => Math.max(floor, 1.4826 * mid(a.map((v) => Math.abs(v - c))));
+  const sC = Math.max(0.012, 1.4826 * mid(ir.map((v, n) => Math.hypot(v - oR, ig[n] - oG)))), sL = spread(il, oL, 0.08);
+  const foreign = (j) => { const [r1, g1] = chr(j); return Math.hypot(Math.hypot(r1 - oR, g1 - oG) / sC, (Math.log(Math.max(1, lum(d, j))) - oL) / sL) > o.apart; };
+  const learnt = (j) => { const c = colourOf(j); return c.L >= o.deep && c.L <= o.hi && c.chroma <= o.sat && (c.tint <= o.near || (c.bluer && c.tint <= o.bluish)) && foreign(j); };
   let innerShade = 0;
   for (let i = 0; i < w * h; i++) if (m[i] && depth[i] >= 3 * k) { const j = at(i); if (shadeOf(j) && lum(d, j) / pL >= objL * o.lighter) innerShade++; }
   if (innerShade > 0.5 * innerL.length) return null;
   const band = o.band * k;
-  const peelable = (i) => { const j = at(i); return (shadeOf(j) && colourOf(j).L >= objL * o.lighter) ? 1 : depth[i] <= band && paperOf(j) ? 2 : 0; };
+  // 1: shadow by the fixed test, 3: by the learnt one only, 2: plain paper at the edge.
+  const peelable = (i) => { const j = at(i); return shadeOf(j) && colourOf(j).L >= objL * o.lighter ? 1 : learnt(j) ? 3 : depth[i] <= band && paperOf(j) ? 2 : 0; };
   const nbrs = (i) => { const x = i % w, y = (i / w) | 0; return [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]; };
   // Seeds: edge pixels that are shadow (or a little paper). Shadow all round the edge is the object's own rim.
   let area = 0, rim = 0, rimShade = 0;
@@ -130,20 +150,44 @@ function peelGrid(g, X0, Y0, img, k, o) {
     if (!nbrs(i).some((j) => j < 0 || !m[j])) continue;
     rim++;
     const p = peelable(i);
-    if (p) { kind[i] = p; gone[i] = 1; st.push(i); if (p === 1) rimShade++; }
+    if (p) { kind[i] = p; gone[i] = 1; st.push(i); if (p !== 2) rimShade++; }
   }
   if (!st.length || rimShade > rim * o.side) return null;
   while (st.length) for (const j of nbrs(st.pop())) if (j >= 0 && m[j] && !gone[j]) { const p = peelable(j); if (p) { kind[j] = p; gone[j] = 1; st.push(j); } }
+  // What only the learnt test took must lie along the rest on its own: a grey chrome tip at the end
+  // of a green key, touching the key's shadow, sticks out from the key instead of lying along it.
+  {
+    const only = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) only[i] = kind[i] === 3 ? 1 : 0;
+    // What the fixed tests alone reach from the edge: a learnt piece may lie against the shadow in that (not
+    // the plain paper), or the object.
+    const base = new Uint8Array(w * h), bq = [];
+    for (let i = 0; i < w * h; i++) if (kind[i] && kind[i] !== 3 && nbrs(i).some((j) => j < 0 || !m[j])) { base[i] = 1; bq.push(i); }
+    while (bq.length) for (const j of nbrs(bq.pop())) if (j >= 0 && kind[j] && kind[j] !== 3 && !base[j]) { base[j] = 1; bq.push(j); }
+    const lc = components({ width: w, height: h, data: only }), touch = new Int32Array(lc.count + 1), far = new Int32Array(lc.count + 1), dd = new Int32Array(w * h).fill(-1), qq = [];
+    for (let i = 0; i < w * h; i++) if (only[i] && nbrs(i).some((j) => j >= 0 && m[j] && (!gone[j] || (base[j] && kind[j] === 1)))) { touch[lc.labels[i]]++; dd[i] = 1; qq.push(i); }
+    for (let n = 0; n < qq.length; n++) { const i = qq[n], l = lc.labels[i]; if (dd[i] > far[l]) far[l] = dd[i]; for (const j of nbrs(i)) if (j >= 0 && only[j] && dd[j] < 0) { dd[j] = dd[i] + 1; qq.push(j); } }
+    let dropped = false;
+    for (let i = 0; i < w * h; i++) if (only[i]) { const l = lc.labels[i]; if (touch[l] < o.hug * Math.max(1, far[l]) || dd[i] < 0) { kind[i] = 0; gone[i] = 0; dropped = true; } }
+    // Then only what's still reached from the edge goes (a chrome tip's bright face, inside its rim, stays).
+    if (dropped) {
+      const seen = new Uint8Array(w * h), sq = [];
+      for (let i = 0; i < w * h; i++) if (gone[i] && nbrs(i).some((j) => j < 0 || !m[j])) { seen[i] = 1; sq.push(i); }
+      while (sq.length) for (const j of nbrs(sq.pop())) if (j >= 0 && gone[j] && !seen[j]) { seen[j] = 1; sq.push(j); }
+      for (let i = 0; i < w * h; i++) if (gone[i] && !seen[i]) { gone[i] = 0; kind[i] = 0; }
+    }
+  }
   // Each piece: how long it lies along what stays, how deep it goes, and whether it darkens away.
   const cc = components({ width: w, height: h, data: gone }), dist = new Int32Array(w * h).fill(-1), q = [];
   const contact = new Int32Array(cc.count + 1), deep = new Int32Array(cc.count + 1), besideL = new Float64Array(cc.count + 1), beside = new Int32Array(cc.count + 1);
+  const bR = new Float64Array(cc.count + 1), bG = new Float64Array(cc.count + 1);
   for (let i = 0; i < w * h; i++) {
     if (!gone[i]) continue;
     const kept = nbrs(i).filter((j) => j >= 0 && m[j] && !gone[j]);
     if (!kept.length) continue;
     const l = cc.labels[i];
     contact[l]++; dist[i] = 1; q.push(i);
-    for (const j of kept) { besideL[l] += lum(d, at(j)) / pL; beside[l]++; }
+    for (const j of kept) { const [r1, g1] = chr(at(j)); besideL[l] += lum(d, at(j)) / pL; bR[l] += r1; bG[l] += g1; beside[l]++; }
   }
   for (let n = 0; n < q.length; n++) {
     const i = q[n], l = cc.labels[i];
@@ -151,15 +195,23 @@ function peelGrid(g, X0, Y0, img, k, o) {
     for (const j of nbrs(i)) if (j >= 0 && gone[j] && dist[j] < 0) { dist[j] = dist[i] + 1; q.push(j); }
   }
   const sd = new Float64Array(cc.count + 1), sl = new Float64Array(cc.count + 1), sdd = new Float64Array(cc.count + 1), sdl = new Float64Array(cc.count + 1), cnt = new Int32Array(cc.count + 1);
+  const pR = new Float64Array(cc.count + 1), pG = new Float64Array(cc.count + 1);
   for (let i = 0; i < w * h; i++) {
-    if (!gone[i] || dist[i] < 0 || kind[i] !== 1) continue;
+    if (!gone[i] || dist[i] < 0 || kind[i] === 2) continue;
     const l = cc.labels[i], v = lum(d, at(i)) / pL;
-    cnt[l]++; sd[l] += dist[i]; sl[l] += v; sdd[l] += dist[i] * dist[i]; sdl[l] += dist[i] * v;
+    const [r1, g1] = chr(at(i));
+    cnt[l]++; sd[l] += dist[i]; sl[l] += v; sdd[l] += dist[i] * dist[i]; sdl[l] += dist[i] * v; pR[l] += r1; pG[l] += g1;
   }
   const fades = (l) => { const n = cnt[l]; if (n < 3) return true; const vd = sdd[l] - (sd[l] * sd[l]) / n; return vd <= 1e-9 || (sdl[l] - (sd[l] * sl[l]) / n) / vd >= -0.01; };
-  // What it lies against must be darker than it: a shadow against the object that casts it. A grey
-  // line with light plastic inside it (the rim of a clear spool) is the object's own edge.
-  const against = (l) => { const b = besideL[l] / Math.max(1, beside[l]); return cnt[l] >= 3 ? b < sl[l] / cnt[l] : b < o.hi; };
+  // What it lies against must be darker than it (a shadow against the object that casts it), or plainly
+  // another colour (a deep blue-grey shadow beside a brown tray). A grey line with light plastic inside it
+  // (the rim of a clear spool, the same tint as the line) is the object's own edge.
+  const against = (l) => {
+    const b = besideL[l] / Math.max(1, beside[l]);
+    if (cnt[l] < 3) return b < o.hi;
+    const hue = Math.hypot(bR[l] / Math.max(1, beside[l]) - pR[l] / cnt[l], bG[l] / Math.max(1, beside[l]) - pG[l] / cnt[l]);
+    return b < sl[l] / cnt[l] || hue > Math.max(0.03, 3 * sC);
+  };
   let n = 0;
   for (let i = 0; i < w * h; i++) if (gone[i]) { const l = cc.labels[i]; if (contact[l] >= o.hug * deep[l] && fades(l) && against(l)) n++; else gone[i] = 0; }
   if (!n || n > area * o.most) return null;

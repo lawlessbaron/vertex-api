@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.19.4 · 8 October 2026
+
+### Improved
+- **Hard shadows in more light:** the tracer learns the tool's own colour from the photo, so a hard shadow is left out even when it's darker than the tool or the photo has a colour cast.
+
 ## 1.19.3 · 8 October 2026
 
 ### Improved
