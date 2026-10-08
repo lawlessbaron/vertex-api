@@ -5,6 +5,7 @@
 // gaps, and outlined once around the outside.
 import { Grid, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, polygonIndices, traceBinary } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
+import { peelShadows } from './peel.js';
 
 /**
  * What on the sheet is a thing, not paper or its shadow. A shadow is the
@@ -77,9 +78,16 @@ function groupLabel(parts) {
  *                minArea: drop specks under this (mm²); separate: when the
  *                AI's outlines cover this share of a piece without overlapping
  *                each other, they're separate tools lying close (kept apart)
+ *                peel: false keeps a hard shadow along a side (peel.js) in
  * @returns [{ polygon, label, parts }] in mm
  */
-export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, minArea = 30, smoothing = 0.3, separate = 0.8 } = {}) {
+export function wholeOutlines(shapes, sheet, options = {}) {
+  const out = joinOutlines(shapes, sheet, options);
+  // A hard shadow the AI (or the silhouette) took in along a side comes back off (peel.js).
+  return options.peel === false || !sheet.image?.data ? out : peelShadows(out, sheet);
+}
+
+function joinOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, minArea = 30, smoothing = 0.3, separate = 0.8 } = {}) {
   if (!shapes.length) return [];
   const W = sheet.image.width, H = sheet.image.height, k = sheet.pxPerMm, res = 1 / k;
   // Each outline as pixels, to see which hold which.
@@ -101,7 +109,7 @@ export function wholeOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, 
     let n = 0; for (const i of own[g]) if (covered.has(i)) n++;
     if (n >= 0.85 * own[g].length) drop.add(g);
   });
-  if (drop.size) return wholeOutlines(shapes.filter((_, i) => !drop.has(i)), sheet, { mask, gap, reach, minArea, smoothing, separate });
+  if (drop.size) return joinOutlines(shapes.filter((_, i) => !drop.has(i)), sheet, { mask, gap, reach, minArea, smoothing, separate });
   const g = new Grid(W, H, 0, 0, res);
   for (const s of shapes) fillPolygon(g, s.polygon, 1);
   // The silhouette adds what the AI missed (the holder), but only pieces that

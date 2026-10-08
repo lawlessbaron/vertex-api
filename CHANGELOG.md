@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.19.3 · 8 October 2026
+
+### Improved
+- **Hard shadows left out of tracer outlines:** a dark tool with a crisp blue-grey shadow down one side is outlined to its own edge, not to the edge of the shadow. This holds even when the first outline sits a little way out on the paper.
+
 ## 1.19.2 · 8 October 2026
 
 ### Improved

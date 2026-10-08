@@ -6,6 +6,7 @@ import { backgroundToPaper } from './background.js';
 import { separateNeighbours, splitByColour, splitByCrease } from './separate.js';
 import { boxMean, canny, gaussian, greyscale, paperLevel, preprocess, PREP_DEFAULTS } from './prep.js';
 import { watershed } from './watershed.js';
+import { peelMask } from './peel.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
 export const PAPER_SIZES = {
@@ -600,6 +601,7 @@ export const TRACE_DEFAULTS = {
   shadows: 0.75, // how hard to ignore shadows (0 = off, 1 = ignore them completely)
   smoothing: 0.35, // mm simplification tolerance
   rimPeel: true, // peel a cast shadow's thin strip off each shape's edge (peelShadowRim)
+  hardPeel: true, // peel a hard shadow along a side, blue-grey and wide (peel.js), off each shape's edge
   // The pre-processing (prep.js): what the three trace sliders set.
   shadowTolerance: 80,
   edgeSensitivity: 65,
@@ -1322,6 +1324,7 @@ function traceShapes(sheet, options = {}) {
     fillHoles(one);
     for (const part of touching(one, [bx0[k] - X0, by0[k] - Y0, bx1[k] - X0, by1[k] - Y0], o)) {
       if (o.rimPeel) peelShadowRim(part.mask, even || (even = paperRef(sheet.image)), X0, Y0);
+      if (o.hardPeel) peelMask(part.mask, X0, Y0, sheet.image, pxPerMm, { band: 0 });
       const grown = o.clearance > 0 ? offsetMask(part.mask, o.clearance * pxPerMm) : part.mask;
       const loops = traceBinary(grown, X0, Y0);
       if (!loops.length) continue;
