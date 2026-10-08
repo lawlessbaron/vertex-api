@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.19.5 · 8 October 2026
+
+### Added
+- **A changelog page:** every update to the API, the model engine and the photo tracer at /changelog, tagged by which it touches, with filters. Updates go out almost every day.
+
+### Improved
+- **Trays and foam inserts are found:** AI outlines now look for trays and foam inserts as well as tools and everyday things.
+- **Deep shadows beside dark items:** the tracer looks for a real strip of shadow rather than the soft blur round an item's edge, so a dark tray's deep shadow is left out and its edge kept.
+
 ## 1.19.4 · 8 October 2026
 
 ### Improved

@@ -49,7 +49,7 @@ const TYPES = {
   '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.woff2': 'font/woff2',
 };
 // Pages: clean paths on this site. The old /api-portal paths (from when it lived inside VERTEX) move here.
-export const PAGES = { '/': 'api-portal', '/docs': 'api-docs', '/console': 'dev-console', '/admin': 'api-admin', '/signin': 'api-signin', '/status': 'api-status', '/education': 'education' };
+export const PAGES = { '/': 'api-portal', '/docs': 'api-docs', '/console': 'dev-console', '/admin': 'api-admin', '/signin': 'api-signin', '/status': 'api-status', '/changelog': 'api-changelog', '/education': 'education' };
 // VERTEX pages the portal links to: sent on to VERTEX.
 const VERTEX_PAGES = new Set(['/signup', '/login', '/reset', '/account', '/licences', '/privacy', '/terms', '/contact', '/vertex', '/generators', '/create', '/forum']);
 const STATE_COOKIE = 'mm_api_state';
@@ -605,7 +605,7 @@ export function createApp(config) {
       if (await serveFile(req, res, url.pathname)) return;
       if (url.pathname === '/favicon.ico') return redirect(res, '/img/icon.svg', 301);
       if (url.pathname === '/robots.txt') return send(res, 200, `User-agent: *\nAllow: /\nDisallow: /console\nDisallow: /admin\nDisallow: /signin\nDisallow: /auth/\nDisallow: /api/\nSitemap: ${config.publicUrl}/sitemap.xml\n`, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
-      if (url.pathname === '/sitemap.xml') return send(res, 200, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${['/', '/docs', '/education', '/status'].map((p) => `  <url><loc>${config.publicUrl}${p}</loc></url>`).join('\n')}\n</urlset>\n`, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+      if (url.pathname === '/sitemap.xml') return send(res, 200, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${['/', '/docs', '/education', '/status', '/changelog'].map((p) => `  <url><loc>${config.publicUrl}${p}</loc></url>`).join('\n')}\n</urlset>\n`, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
       send(res, 404, page('not-found'), { 'Content-Type': 'text/html; charset=utf-8' });
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;

@@ -33,8 +33,8 @@ export function createChangelog({ path, now = () => Date.now() }) {
   function rss(origin) {
     const items = entries().slice(0, 30);
     return `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"><channel><title>Mint Motive API changelog</title><link>${esc(origin)}/docs#versions</link><description>New features and fixes on the Mint Motive API.</description>
-${items.map((e) => { const d = Date.parse(e.date); return `<item><title>${esc(`API ${e.version}`)}</title><link>${esc(origin)}/docs#versions</link><guid isPermaLink="false">mm-api-${esc(e.version)}</guid>${Number.isFinite(d) ? `<pubDate>${new Date(d).toUTCString()}</pubDate>` : ''}<description>${esc(e.items.map((i) => `${i.heading ? `${i.heading}: ` : ''}${plain(i.text)}`).join('\n'))}</description></item>`; }).join('\n')}
+<rss version="2.0"><channel><title>Mint Motive API changelog</title><link>${esc(origin)}/changelog</link><description>New features and fixes on the Mint Motive API, its model engine and its photo tracer.</description>
+${items.map((e) => { const d = Date.parse(e.date); return `<item><title>${esc(`API ${e.version}`)}</title><link>${esc(origin)}/changelog#v${esc(e.version)}</link><guid isPermaLink="false">mm-api-${esc(e.version)}</guid>${Number.isFinite(d) ? `<pubDate>${new Date(d).toUTCString()}</pubDate>` : ''}<description>${esc(e.items.map((i) => `${i.heading ? `${i.heading}: ` : ''}${plain(i.text)}`).join('\n'))}</description></item>`; }).join('\n')}
 </channel></rss>`;
   }
   return { entries, json, rss };

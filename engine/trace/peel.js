@@ -46,7 +46,7 @@ export function peelShadow(polygon, sheet, options = {}) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of polygon) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
   const win = around(img, k, o, Math.floor(x0 * k), Math.floor(y0 * k), Math.ceil(x1 * k), Math.ceil(y1 * k));
-  if (!win) return polygon;
+  if (!win) { if (o.report) o.report.stop = 'outline too small'; return polygon; }
   const g = new Grid(win.w, win.h, win.X0 * res, win.Y0 * res, res);
   fillPolygon(g, polygon, 1);
   const keep = peelGrid(g, win.X0, win.Y0, img, k, o);
@@ -93,6 +93,8 @@ function around(img, k, o, bx0, by0, bx1, by1) {
 // left (closed over 1 mm), or null when nothing should go.
 function peelGrid(g, X0, Y0, img, k, o) {
   const w = g.width, h = g.height, W = img.width, d = img.data, res = 1 / k;
+  // o.report (an object), when given, is filled with why nothing went and what was measured.
+  const R = o.report || {}, stop = (why) => { R.stop = why; return null; };
   const m = g.data, at = (i) => 4 * (((i / w) | 0) + Y0) * W + 4 * ((i % w) + X0);
   // Distances: from each outside pixel to the outline, and from each inside one to the outside.
   const out = distanceToForeground(g);
@@ -101,7 +103,7 @@ function peelGrid(g, X0, Y0, img, k, o) {
   // The paper round it: the lighter half of a ring 2–6 mm out (another tool or shadow there is darker).
   const ring = [];
   for (let i = 0; i < w * h; i++) if (!m[i] && out[i] >= o.ring[0] * k && out[i] <= o.ring[1] * k) ring.push(i);
-  if (ring.length < 20) return null;
+  if (ring.length < 20) return stop('no paper round it');
   ring.sort((a, b) => lum(d, at(b)) - lum(d, at(a)));
   let pr = 0, pg = 0, pb = 0;
   const top = ring.slice(0, Math.max(10, ring.length >> 1));
@@ -109,54 +111,81 @@ function peelGrid(g, X0, Y0, img, k, o) {
   pr /= top.length; pg /= top.length; pb /= top.length;
   const ps = Math.max(1, pr + pg + pb), pL = Math.max(1, 0.299 * pr + 0.587 * pg + 0.114 * pb);
   const cr = pr / ps, cg = pg / ps, cb = pb / ps;
-  const colourOf = (j) => {
-    const r = d[j], gg = d[j + 1], b = d[j + 2], s = Math.max(1, r + gg + b), mx = Math.max(r, gg, b);
+  // Each test reads pixel j of the image, or of another picture `a` (the 3 × 3 averaged window below).
+  const colourOf = (j, a = d) => {
+    const r = a[j], gg = a[j + 1], b = a[j + 2], s = Math.max(1, r + gg + b), mx = Math.max(r, gg, b);
     const tint = Math.abs(r / s - cr) + Math.abs(gg / s - cg);
-    return { L: lum(d, j) / pL, chroma: mx ? (mx - Math.min(r, gg, b)) / mx : 0, tint, bluer: b / s >= cb };
+    return { L: lum(a, j) / pL, chroma: mx ? (mx - Math.min(r, gg, b)) / mx : 0, tint, bluer: b / s >= cb };
   };
-  const shadeOf = (j) => { const c = colourOf(j); return c.L >= o.lo && c.L <= o.hi && c.chroma <= o.chroma && (c.tint < o.tint || (c.tint < o.blue && c.bluer)); };
+  const shadeOf = (j, a = d) => { const c = colourOf(j, a); return c.L >= o.lo && c.L <= o.hi && c.chroma <= o.chroma && (c.tint < o.tint || (c.tint < o.blue && c.bluer)); };
   const paperOf = (j) => { const c = colourOf(j); return c.L > o.hi && c.chroma <= o.chroma && c.tint < o.tint * 2; };
   // The object: its inside, 3 mm or more from the edge, and how bright it is. A shadow must be lighter
   // than that; and if most of the inside would pass for that shadow, it's a grey thing: leave it.
   const innerL = [];
   for (let i = 0; i < w * h; i++) if (m[i] && depth[i] >= 3 * k) innerL.push(lum(d, at(i)) / pL);
-  if (innerL.length < 20) return null;
+  if (innerL.length < 20) return stop('too thin to read its colour');
   innerL.sort((a, b) => a - b);
   const objL = innerL[innerL.length >> 1];
   // The object's own colour, from the same inside: its middle tint and brightness, and how much
   // they spread (with floors, so a flat-coloured object doesn't make every speck look foreign).
-  const chr = (j) => { const t = Math.max(1, d[j] + d[j + 1] + d[j + 2]); return [d[j] / t, d[j + 1] / t]; };
+  const chr = (j, a = d) => { const t = Math.max(1, a[j] + a[j + 1] + a[j + 2]); return [a[j] / t, a[j + 1] / t]; };
   const mid = (a) => { a.sort((u, v) => u - v); return a[a.length >> 1]; };
   const ir = [], ig = [], il = [];
   for (let i = 0; i < w * h; i++) if (m[i] && depth[i] >= 3 * k) { const j = at(i), [r1, g1] = chr(j); ir.push(r1); ig.push(g1); il.push(Math.log(Math.max(1, lum(d, j)))); }
   const oR = mid([...ir]), oG = mid([...ig]), oL = mid([...il]);
   const spread = (a, c, floor) => Math.max(floor, 1.4826 * mid(a.map((v) => Math.abs(v - c))));
   const sC = Math.max(0.012, 1.4826 * mid(ir.map((v, n) => Math.hypot(v - oR, ig[n] - oG)))), sL = spread(il, oL, 0.08);
-  const foreign = (j) => { const [r1, g1] = chr(j); return Math.hypot(Math.hypot(r1 - oR, g1 - oG) / sC, (Math.log(Math.max(1, lum(d, j))) - oL) / sL) > o.apart; };
-  const learnt = (j) => { const c = colourOf(j); return c.L >= o.deep && c.L <= o.hi && c.chroma <= o.sat && (c.tint <= o.near || (c.bluer && c.tint <= o.bluish)) && foreign(j); };
+  // By tint alone: a lit face of a grey object is brighter than its middle but the same tint; shadow on the
+  // paper is the paper's tint (or bluer), which a coloured or brown object is not.
+  const foreign = (j, a = d) => { const [r1, g1] = chr(j, a); return Math.hypot(r1 - oR, g1 - oG) / sC > o.apart; };
+  const learnt = (j, a = d) => { const c = colourOf(j, a); return c.L >= o.deep && c.L <= o.hi && c.chroma <= o.sat && (c.tint <= o.near || (c.bluer && c.tint <= o.bluish)) && foreign(j, a); };
   let innerShade = 0;
   for (let i = 0; i < w * h; i++) if (m[i] && depth[i] >= 3 * k) { const j = at(i); if (shadeOf(j) && lum(d, j) / pL >= objL * o.lighter) innerShade++; }
-  if (innerShade > 0.5 * innerL.length) return null;
+  Object.assign(R, { paper: [pr, pg, pb].map(Math.round), objectL: +objL.toFixed(3), objectTint: [+oR.toFixed(3), +oG.toFixed(3)], spread: [+sC.toFixed(4), +sL.toFixed(3)], innerShade: +(innerShade / innerL.length).toFixed(3) });
+  if (innerShade > 0.5 * innerL.length && !o.force) return stop('most of the object looks like shadow (a grey object)');
   const band = o.band * k;
   // 1: shadow by the fixed test, 3: by the learnt one only, 2: plain paper at the edge.
   const peelable = (i) => { const j = at(i); return shadeOf(j) && colourOf(j).L >= objL * o.lighter ? 1 : learnt(j) ? 3 : depth[i] <= band && paperOf(j) ? 2 : 0; };
   const nbrs = (i) => { const x = i % w, y = (i / w) | 0; return [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]; };
   // Seeds: edge pixels that are shadow (or a little paper). Shadow all round the edge is the object's own rim.
-  let area = 0, rim = 0, rimShade = 0;
-  const kind = new Uint8Array(w * h), gone = new Uint8Array(w * h), st = [];
+  let area = 0, rim = 0;
+  const kind = new Uint8Array(w * h), gone = new Uint8Array(w * h), st = [], edge = [];
   for (let i = 0; i < w * h; i++) {
     if (!m[i]) continue;
     area++;
     if (!nbrs(i).some((j) => j < 0 || !m[j])) continue;
-    rim++;
+    rim++; edge.push(i);
     const p = peelable(i);
-    if (p) { kind[i] = p; gone[i] = 1; st.push(i); if (p !== 2) rimShade++; }
+    if (p) { kind[i] = p; gone[i] = 1; st.push(i); }
   }
-  if (!st.length || rimShade > rim * o.side) return null;
+  R.rimSeeds = st.length;
+  if (!st.length) return stop('nothing along the edge looks like shadow');
   while (st.length) for (const j of nbrs(st.pop())) if (j >= 0 && m[j] && !gone[j]) { const p = peelable(j); if (p) { kind[j] = p; gone[j] = 1; st.push(j); } }
+  // Shade all round the edge is the object's own rim; a shadow lies along a side or two. Only a strip of shade
+  // at least 1.5 mm wide counts: the thin blur where a dark object meets white paper is all round every edge.
+  {
+    // Judged on 3 × 3 averages, so camera noise (on paper, or on a dark object) doesn't read as shade.
+    const sm = new Float32Array(w * h * 4), shade = new Grid(w, h);
+    for (let i = 0; i < w * h; i++) {
+      shade.data[i] = 1;
+      if (!gone[i] || kind[i] === 2) continue;
+      const x = i % w, y = (i / w) | 0; let n = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue; const j = at(yy * w + xx); sm[4 * i] += d[j]; sm[4 * i + 1] += d[j + 1]; sm[4 * i + 2] += d[j + 2]; n++; }
+      sm[4 * i] /= n; sm[4 * i + 1] /= n; sm[4 * i + 2] /= n;
+      if ((shadeOf(4 * i, sm) && colourOf(4 * i, sm).L >= objL * o.lighter) || learnt(4 * i, sm)) shade.data[i] = 0;
+    }
+    // shade.data: 0 on shade, 1 elsewhere; each shade pixel's distance to the nearest non-shade is half the strip's width there.
+    const across = distanceToForeground(shade), thick = new Grid(w, h);
+    for (let i = 0; i < w * h; i++) thick.data[i] = !shade.data[i] && across[i] >= 0.75 * k ? 1 : 0;
+    const near = distanceToForeground(thick);
+    let rimShade = 0;
+    for (const i of edge) if (near[i] <= (o.band + 1.5) * k) rimShade++;
+    Object.assign(R, { rim, rimShade });
+    if (rimShade > rim * o.side && !o.force) return stop(`shadow-like all round the edge (${Math.round(100 * rimShade / rim)} %), read as the object's own rim`);
+  }
   // What only the learnt test took must lie along the rest on its own: a grey chrome tip at the end
   // of a green key, touching the key's shadow, sticks out from the key instead of lying along it.
-  {
+  if (!o.force) {
     const only = new Uint8Array(w * h);
     for (let i = 0; i < w * h; i++) only[i] = kind[i] === 3 ? 1 : 0;
     // What the fixed tests alone reach from the edge: a learnt piece may lie against the shadow in that (not
@@ -213,13 +242,21 @@ function peelGrid(g, X0, Y0, img, k, o) {
     return b < sl[l] / cnt[l] || hue > Math.max(0.03, 3 * sC);
   };
   let n = 0;
-  for (let i = 0; i < w * h; i++) if (gone[i]) { const l = cc.labels[i]; if (contact[l] >= o.hug * deep[l] && fades(l) && against(l)) n++; else gone[i] = 0; }
-  if (!n || n > area * o.most) return null;
+  const why = { hug: 0, fades: 0, against: 0 };
+  for (let i = 0; i < w * h; i++) if (gone[i]) {
+    const l = cc.labels[i];
+    if (o.force ? contact[l] > 0 : contact[l] >= o.hug * deep[l] && fades(l) && against(l)) { n++; continue; }
+    gone[i] = 0;
+    if (contact[l] < o.hug * deep[l]) why.hug++; else if (!fades(l)) why.fades++; else why.against++;
+  }
+  Object.assign(R, { taken: n, area, refused: why });
+  if (!n) { const top = Object.entries(why).sort((a, b) => b[1] - a[1])[0]; return stop(top[1] ? { hug: 'the shadow-coloured strip doesn’t lie along the object', fades: 'it gets darker away from the object', against: 'it lies against something lighter than itself' }[top[0]] : 'nothing to take'); }
+  if (n > area * o.most) return stop(`it would take ${Math.round(100 * n / area)} % of the outline`);
   const keep = new Grid(w, h, 0, 0, res);
   for (let i = 0; i < w * h; i++) keep.data[i] = m[i] && !gone[i] ? 1 : 0;
   // The biggest piece that's left, whole.
   const left = components(keep);
-  if (!left.count) return null;
+  if (!left.count) return stop('nothing left');
   let best = 1;
   for (let c = 2; c <= left.count; c++) if (left.sizes[c] > left.sizes[best]) best = c;
   for (let i = 0; i < w * h; i++) keep.data[i] = left.labels[i] === best ? 1 : 0;
@@ -242,4 +279,6 @@ export function peelShadows(shapes, sheet, options = {}) {
 }
 
 /** Looser checks, for when someone asks for a shadow to be trimmed off an outline they picked. */
-export const PEEL_ASKED = { side: 0.85, lighter: 1.04, hug: 2, most: 0.5, band: 3 };
+export const PEEL_ASKED = { side: 0.85, hug: 2, most: 0.5, band: 3 };
+/** Asked again, when the looser checks found nothing: the learnt test with fewer guards (the outline was picked by hand). */
+export const PEEL_FORCED = { ...PEEL_ASKED, force: true, apart: 3, most: 0.45 };

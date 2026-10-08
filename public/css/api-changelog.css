@@ -1,0 +1,27 @@
+/* The changelog page (api-changelog.js). */
+.cl { padding-top: 40px; }
+.cl-hero { display: grid; gap: 8px; margin-bottom: 18px; max-width: 760px; }
+.cl-hero h1 { margin: 0; font: 700 clamp(30px, 4.2vw, 48px)/1.08 var(--font-ui); letter-spacing: -.03em; }
+.cl-lede { margin: 0; font-size: 16px; line-height: 1.55; color: var(--mute); }
+.cl-latest { margin: 4px 0 0; font-size: 13.5px; color: var(--mute); }
+.cl-latest b { color: var(--ink, inherit); }
+.cl-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.cl-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.cl-filters button { font: 600 13px/1 var(--font-ui); padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; }
+.cl-filters button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent, #5fe0b0) 18%, transparent); border-color: var(--accent, #5fe0b0); }
+.cl-rel { margin-bottom: 12px; }
+.cl-rel header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.cl-rel h2 { margin: 0; font: 700 20px/1.2 var(--font-ui); }
+.cl-rel time { font-size: 13px; color: var(--mute); }
+.cl-badge { font: 700 11px/1 var(--font-ui); text-transform: uppercase; letter-spacing: .06em; padding: 5px 8px; border-radius: 999px; background: var(--accent, #5fe0b0); color: #0b1410; }
+.cl-new { border-color: color-mix(in srgb, var(--accent, #5fe0b0) 45%, var(--line)); }
+.cl-rel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cl-rel li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; align-items: start; }
+.cl-rel li p { margin: 0; font-size: 14.5px; line-height: 1.55; }
+.cl-rel code { font-size: 12.5px; }
+.cl-tag { font: 600 11.5px/1 var(--font-ui); padding: 5px 8px; border-radius: 6px; text-align: center; border: 1px solid var(--line); white-space: nowrap; }
+.cl-tag.api { color: #8ab8ff; border-color: color-mix(in srgb, #8ab8ff 45%, transparent); }
+.cl-tag.engine { color: #f2cf6a; border-color: color-mix(in srgb, #f2cf6a 45%, transparent); }
+.cl-tag.tracer { color: #5fe0b0; border-color: color-mix(in srgb, #5fe0b0 45%, transparent); }
+.cl-how { margin-top: 18px; }
+@media (max-width: 560px) { .cl-rel li { grid-template-columns: 1fr; gap: 6px; } .cl-tag { justify-self: start; } }

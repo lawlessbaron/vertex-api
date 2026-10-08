@@ -178,10 +178,10 @@ function joined(parts, gap) {
 // Roboflow takes at most 16 names in one call.
 export const SAM3_NAMES = ['tool', 'screwdriver', 'wrench', 'pliers', 'hammer', 'tape measure', 'scissors', 'knife', 'chisel', 'allen key', 'socket', 'drill bit', 'caliper', 'crimpers', 'wire strippers', 'multimeter'];
 // A second call, at the same time, for everyday things that aren't tools: with
-// tool words only, a marker, a cable or a tin had no word and wasn't found.
-export const SAM3_EVERYDAY = ['marker', 'pen', 'pencil', 'cable', 'charger', 'battery', 'tin', 'jar', 'bottle', 'sponge', 'box', 'case', 'tape', 'brush', 'phone', 'container'];
+// tool words only, a marker, a cable or a tin had no word and wasn't found (nor a foam tool tray: 'tray', 'foam insert').
+export const SAM3_EVERYDAY = ['marker', 'pen', 'tray', 'cable', 'charger', 'battery', 'tin', 'foam insert', 'bottle', 'sponge', 'box', 'case', 'tape', 'brush', 'phone', 'container'];
 // Meta's SAM3 on your own server takes up to 32, so it gets the exact kinds too.
-export const SAM3_META_NAMES = [...SAM3_NAMES, 'combination pliers', 'needle-nose pliers', 'side cutters', 'adjustable wrench', 'utility knife', 'stanley knife', 'box cutter', 'file', 'soldering iron', 'hex key set', 'marker', 'pen', 'cable', 'battery', 'tin', 'container'];
+export const SAM3_META_NAMES = [...SAM3_NAMES, 'combination pliers', 'needle-nose pliers', 'side cutters', 'adjustable wrench', 'utility knife', 'foam insert', 'box cutter', 'tray', 'soldering iron', 'hex key set', 'marker', 'pen', 'cable', 'battery', 'tin', 'container'];
 export const sam3Spec = (names = SAM3_NAMES) => ({
   version: '1.0',
   inputs: [{ type: 'InferenceImage', name: 'image' }],
