@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.19.6 · 8 October 2026
+
+### Improved
+- **Traced lines fitted to the edge:** every outline the tracer returns is now fitted to the item's edge in the photo, to a fraction of a millimetre.
+- **Full-size photos:** the tracer works from the photo at up to 4096 px instead of a 1600 px copy, so the paper and the item are seen in finer detail. AI outlines are still found on a smaller copy and scaled back up.
+- **No dents on speckled items:** the shadow trim knows a shadow is smooth and a foam or cast surface is speckled, so a dark foam insert keeps its whole edge. On a real phone photo of a foam tray, outlines sit within about 0.05 mm of the edge, and no more than 0.4 mm anywhere.
+
 ## 1.19.5 · 8 October 2026
 
 ### Added

@@ -307,12 +307,12 @@ export function createToolLibrary({ db, can, audit, env = process.env, fetchImpl
   // A photo (JPEG, PNG or a phone's HEIC) as an upright JPEG plus its pixels (RGB), at most
   // 1600 px a side: the converter decodes it, so the server can find the paper itself.
   // JPEG and PNG are read here (on a worker thread); only HEIC needs the converter.
-  async function convertRaw(data) {
+  async function convertRaw(data, { traceSide } = {}) {
     const kind = photoKind(data);
     if (kind === 'jpeg' || kind === 'png') {
-      const out = await runTrace('readPhoto', { buf: data });
+      const out = await runTrace('readPhoto', { buf: data, traceSide });
       if (out.error) throw new HttpError(415, 'That photo couldn’t be read. Send a JPEG or PNG.');
-      return { jpeg: out.jpeg, image: { width: out.width, height: out.height, data: out.data } };
+      return { jpeg: out.jpeg, jpegWidth: out.jpegWidth, jpegHeight: out.jpegHeight, image: { width: out.width, height: out.height, data: out.data } };
     }
     if (!convertOn()) throw new HttpError(415, kind === 'heic' ? 'Send a JPEG or PNG (HEIC photos need the photo converter, which isn’t set up).' : 'Send a JPEG or PNG photo.');
     let r;

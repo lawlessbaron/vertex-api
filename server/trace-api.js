@@ -16,6 +16,7 @@
 // free photos a month and the account that pays. Only photos that traced are
 // counted; test keys never pay. Each finished month goes on that account's
 // next Stripe invoice as one item (or is marked for invoicing by hand).
+import { TRACE_SIDE } from './photo.js';
 import { randomBytes } from 'node:crypto';
 import { HttpError, RateLimiter, readJson } from './security.js';
 import { hashToken } from './auth.js';
@@ -65,7 +66,7 @@ export function measure(poly) {
  * AI outline the whole photo, move the outlines onto the paper in mm, and join each
  * whole thing into one outline. image: { width, height, data (RGBA) }; jpeg: base64.
  */
-export async function traceSheet({ image, jpeg, paper = 'a4', outline }) {
+export async function traceSheet({ image, jpeg, jpegWidth, jpegHeight, paper = 'a4', outline }) {
   // Finding the paper, and joining the outlines below, run on a worker thread.
   // The paper comes first: a photo without one never costs an AI call.
   const prep = await runTrace('prepSheet', { image, paper });
@@ -73,8 +74,10 @@ export async function traceSheet({ image, jpeg, paper = 'a4', outline }) {
   const found = await outline(`data:image/jpeg;base64,${jpeg}`);
   const { size, sheet, W, H, toMm } = prep;
   const raw = [];
+  // The AI saw the smaller JPEG; its points are moved onto the full-size pixels the paper was found on.
+  const sx = jpegWidth ? image.width / jpegWidth : 1, sy = jpegHeight ? image.height / jpegHeight : 1;
   for (const t of found) {
-    const pts = t.points.map(([x, y]) => applyH(toMm, x, y));
+    const pts = t.points.map(([x, y]) => applyH(toMm, x * sx, y * sy));
     const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
     if (cx < 0 || cy < 0 || cx > W || cy > H) continue; // off the paper
     const sh = shapeOf(pts.map(([x, y]) => [Math.min(W, Math.max(0, x)), Math.min(H, Math.max(0, y))]), t.label);
@@ -200,10 +203,10 @@ export function createTraceApi({ db, can, audit, toolLibrary, door = null, billi
     jobs.set(id, job);
     db.prepare('UPDATE trace_keys SET calls = calls + 1, last_used_at = ? WHERE id = ?').run(Date.now(), k.id);
     (async () => {
-      const { jpeg, image } = await toolLibrary.convertRaw(photo).catch((e) => { throw Object.assign(e, { say: e.status === 415 ? 'photo' : 'trace' }); });
+      const { jpeg, jpegWidth, jpegHeight, image } = await toolLibrary.convertRaw(photo, { traceSide: TRACE_SIDE }).catch((e) => { throw Object.assign(e, { say: e.status === 415 ? 'photo' : 'trace' }); });
       // Through the AI door: the built-in tracer first, the paid AI when needed and allowed.
       if (door) { const { route: _route, ...r } = await door.tracePhoto({ image, jpeg, paper, caller: `key:${k.id}` }); return r; }
-      return traceSheet({ image, jpeg, paper, outline: (img) => toolLibrary.outline(img) });
+      return traceSheet({ image, jpeg, jpegWidth, jpegHeight, paper, outline: (img) => toolLibrary.outline(img) });
     })().then((result) => {
       Object.assign(job, { status: 'done', result });
       // Counted once it worked: a failed photo costs the partner nothing.

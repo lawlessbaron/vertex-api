@@ -11,7 +11,10 @@ const require = createRequire(import.meta.url);
 const decodeJpeg = require('./vendor/jpeg-js/decoder.cjs');
 const encodeJpeg = require('./vendor/jpeg-js/encoder.cjs');
 
-export const PHOTO_SIDE = 1600;
+export const PHOTO_SIDE = 1600; // the JPEG the AI is sent
+// The pixels the paper is found and traced on: the full photo, up to 4096 px. From a 1600 px copy
+// the paper gets under 2 px/mm and lines can't be closer than a millimetre; from the full photo, half one.
+export const TRACE_SIDE = 4096;
 const MAX_MP = 64;
 
 /** 'jpeg' | 'png' | 'heic' | 'webp' | null, from the first bytes. */
@@ -149,7 +152,7 @@ export function upright(img, orientation) {
  * A JPEG or PNG photo → { width, height, data (RGBA), jpeg (base64) }, upright and
  * at most `side` pixels on the long edge. Throws { unreadable: true } for anything else.
  */
-export function readPhoto(buf, { side = PHOTO_SIDE, quality = 88 } = {}) {
+export function readPhoto(buf, { side = PHOTO_SIDE, traceSide = side, quality = 88 } = {}) {
   buf = Buffer.from(buf.buffer ? buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) : buf);
   const kind = photoKind(buf);
   let img, turn = 1;
@@ -163,7 +166,10 @@ export function readPhoto(buf, { side = PHOTO_SIDE, quality = 88 } = {}) {
   } catch (e) {
     throw Object.assign(new Error(`can't read this photo (${e.message})`), { unreadable: true, kind });
   }
-  img = upright(shrink(img, side), turn);
-  const jpeg = encodeJpeg({ width: img.width, height: img.height, data: Buffer.from(img.data.buffer, img.data.byteOffset, img.data.byteLength) }, quality).data;
-  return { width: img.width, height: img.height, data: img.data, jpeg: Buffer.from(jpeg).toString('base64') };
+  img = upright(shrink(img, Math.max(side, traceSide)), turn);
+  // The JPEG (for the AI) at `side`; the pixels (for the paper and the trace) at `traceSide`.
+  const small = Math.max(img.width, img.height) > side ? shrink(img, side) : img;
+  const big = Math.max(img.width, img.height) > traceSide ? shrink(img, traceSide) : img;
+  const jpeg = encodeJpeg({ width: small.width, height: small.height, data: Buffer.from(small.data.buffer, small.data.byteOffset, small.data.byteLength) }, quality).data;
+  return { width: big.width, height: big.height, data: big.data, jpeg: Buffer.from(jpeg).toString('base64'), jpegWidth: small.width, jpegHeight: small.height };
 }

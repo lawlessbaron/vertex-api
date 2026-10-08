@@ -6,6 +6,7 @@
 import { Grid, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, polygonIndices, traceBinary } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 import { peelShadows } from './peel.js';
+import { snapAll } from './snap.js';
 
 /**
  * What on the sheet is a thing, not paper or its shadow. A shadow is the
@@ -83,8 +84,11 @@ function groupLabel(parts) {
  */
 export function wholeOutlines(shapes, sheet, options = {}) {
   const out = joinOutlines(shapes, sheet, options);
-  // A hard shadow the AI (or the silhouette) took in along a side comes back off (peel.js).
-  return options.peel === false || !sheet.image?.data ? out : peelShadows(out, sheet);
+  // A hard shadow the AI (or the silhouette) took in along a side comes back off (peel.js), and each
+  // outline is fitted to the edge in the photo (snap.js).
+  if (!sheet.image?.data) return out;
+  const peeled = options.peel === false ? out : peelShadows(out, sheet);
+  return options.snap === false ? peeled : snapAll(peeled, sheet).map((s, i) => ({ ...s, shadowMm2: peeled[i].shadowMm2 }));
 }
 
 function joinOutlines(shapes, sheet, { mask = null, gap = 2, reach = 8, minArea = 30, smoothing = 0.3, separate = 0.8 } = {}) {

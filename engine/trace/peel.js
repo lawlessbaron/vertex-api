@@ -13,7 +13,9 @@
 // object's own colour from its inside: a strip plainly not that colour, dimmer
 // than the paper and near its tint (or bluer) is shadow too, even when it's darker
 // than the object or the photo has a cast; what only that test takes must lie
-// along the object by itself (a grey chrome tip on a green key sticks out).
+// along the object by itself (a grey chrome tip on a green key sticks out). A shadow is also smooth
+// (as smooth as the paper it falls on): a speckled object such as foam, whose lighter specks and lit
+// side wall pass for shade by colour, isn't eaten into.
 import { Grid, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, traceBinary } from '../geometry/raster.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
@@ -30,6 +32,7 @@ export const PEEL = {
   // dimmer than the paper but not black (deep), and near the paper's tint (near) or bluer (bluish).
   // It catches what the fixed tint misses: a shadow darker than the object, a warm or strongly blue one.
   apart: 4, deep: 0.12, near: 0.08, bluish: 0.18, sat: 0.55,
+  rough: 3,          // a shadow's texture: at most this many times the paper's (or half the object's)
 };
 
 const lum = (d, j) => 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
@@ -121,8 +124,8 @@ function peelGrid(g, X0, Y0, img, k, o) {
   const paperOf = (j) => { const c = colourOf(j); return c.L > o.hi && c.chroma <= o.chroma && c.tint < o.tint * 2; };
   // The object: its inside, 3 mm or more from the edge, and how bright it is. A shadow must be lighter
   // than that; and if most of the inside would pass for that shadow, it's a grey thing: leave it.
-  const innerL = [];
-  for (let i = 0; i < w * h; i++) if (m[i] && depth[i] >= 3 * k) innerL.push(lum(d, at(i)) / pL);
+  const innerL = [], inner = [];
+  for (let i = 0; i < w * h; i++) if (m[i] && depth[i] >= 3 * k) { innerL.push(lum(d, at(i)) / pL); inner.push(i); }
   if (innerL.length < 20) return stop('too thin to read its colour');
   innerL.sort((a, b) => a - b);
   const objL = innerL[innerL.length >> 1];
@@ -145,7 +148,36 @@ function peelGrid(g, X0, Y0, img, k, o) {
   if (innerShade > 0.5 * innerL.length && !o.force) return stop('most of the object looks like shadow (a grey object)');
   const band = o.band * k;
   // 1: shadow by the fixed test, 3: by the learnt one only, 2: plain paper at the edge.
-  const peelable = (i) => { const j = at(i); return shadeOf(j) && colourOf(j).L >= objL * o.lighter ? 1 : learnt(j) ? 3 : depth[i] <= band && paperOf(j) ? 2 : 0; };
+  // Texture: how much each pixel's 3 × 3 neighbourhood wanders from a smooth curve (a shadow's soft edge is
+  // one, so it reads as smooth). A shadow on paper is as smooth as the paper; a speckled object (foam, cast
+  // metal) is not, so its lighter specks, which can pass for shade by colour, don't let the peel in.
+  const tex = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const x = i % w, y = (i / w) | 0;
+    if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) continue;
+    // What's left after a smooth (quadratic) fit: the 3 × 3 patch's parts along x·(y²−⅔), y·(x²−⅔) and (x²−⅔)(y²−⅔).
+    let a = 0, b = 0, c = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const v = lum(d, at(i + dy * w + dx)) / pL, qx = dx * dx - 2 / 3, qy = dy * dy - 2 / 3;
+      a += v * dx * qy; b += v * dy * qx; c += v * qx * qy;
+    }
+    tex[i] = Math.sqrt(((a * a + b * b) * 0.75 + c * c * 2.25) / 3);
+  }
+  // Averaged over 5 × 5, so a noisy pixel inside a shadow doesn't stop it, while a speckled surface stays rough.
+  {
+    const t2 = new Float32Array(w * h), rr = 2;
+    for (let i = 0; i < w * h; i++) {
+      const x = i % w, y = (i / w) | 0; let s0 = 0, n = 0;
+      for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) { const xx = x + dx, yy = y + dy; if (xx < 1 || yy < 1 || xx >= w - 1 || yy >= h - 1) continue; s0 += tex[yy * w + xx]; n++; }
+      t2[i] = n ? s0 / n : 0;
+    }
+    tex.set(t2);
+  }
+  const ringTex = mid(top.map((i) => tex[i])), objTex = mid(inner.map((i) => tex[i]));
+  const rough = Math.max(o.rough * ringTex, 0.5 * objTex);
+  const smooth = (i) => objTex < 2 * o.rough * ringTex || tex[i] <= rough;
+  Object.assign(R, { texture: [+ringTex.toFixed(4), +objTex.toFixed(4)] });
+  const peelable = (i) => { const j = at(i); return smooth(i) && shadeOf(j) && colourOf(j).L >= objL * o.lighter ? 1 : smooth(i) && learnt(j) ? 3 : depth[i] <= band && paperOf(j) ? 2 : 0; };
   const nbrs = (i) => { const x = i % w, y = (i / w) | 0; return [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]; };
   // Seeds: edge pixels that are shadow (or a little paper). Shadow all round the edge is the object's own rim.
   let area = 0, rim = 0;

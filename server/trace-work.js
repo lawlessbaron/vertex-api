@@ -31,8 +31,8 @@ export function addMissedOn({ joined, sheet }) {
 }
 
 // A JPEG or PNG read here: upright, 1600 px on the long edge, pixels and a JPEG.
-export function readPhoto({ buf, side }) {
-  try { return readPhotoHere(buf, side ? { side } : {}); } catch (e) { return { error: e.message }; }
+export function readPhoto({ buf, side, traceSide }) {
+  try { return readPhotoHere(buf, { ...(side ? { side } : {}), ...(traceSide ? { traceSide } : {}) }); } catch (e) { return { error: e.message }; }
 }
 
 export const OPS = { prepSheet, finishSheet, addMissedOn, readPhoto, ping: () => true };

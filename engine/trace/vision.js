@@ -1,12 +1,13 @@
 // Photo → tool outlines. Works on plain {width, height, data: RGBA} images so it
 // runs in the browser (ImageData) and in tests.
-import { Grid, boxBlur, components, distanceToForeground, fillHoles, offsetMask, traceBinary } from '../geometry/raster.js';
+import { Grid, boxBlur, components, distanceToForeground, fillHoles, fillPolygon, offsetMask, traceBinary } from '../geometry/raster.js';
 import { partByNecks } from './split.js';
 import { backgroundToPaper } from './background.js';
 import { separateNeighbours, splitByColour, splitByCrease } from './separate.js';
 import { boxMean, canny, gaussian, greyscale, paperLevel, preprocess, PREP_DEFAULTS } from './prep.js';
 import { watershed } from './watershed.js';
 import { peelMask } from './peel.js';
+import { snapOutline } from './snap.js';
 import { signedArea, simplifyClosed } from '../geometry/polygon.js';
 
 export const PAPER_SIZES = {
@@ -1325,13 +1326,19 @@ function traceShapes(sheet, options = {}) {
     for (const part of touching(one, [bx0[k] - X0, by0[k] - Y0, bx1[k] - X0, by1[k] - Y0], o)) {
       if (o.rimPeel) peelShadowRim(part.mask, even || (even = paperRef(sheet.image)), X0, Y0);
       if (o.hardPeel) peelMask(part.mask, X0, Y0, sheet.image, pxPerMm, { band: 0 });
-      const grown = o.clearance > 0 ? offsetMask(part.mask, o.clearance * pxPerMm) : part.mask;
-      const loops = traceBinary(grown, X0, Y0);
-      if (!loops.length) continue;
-      // Keep the outer outline (largest area).
-      let outline = loops[0];
-      for (const l of loops) if (Math.abs(signedArea(l)) > Math.abs(signedArea(outline))) outline = l;
-      outline = simplifyClosed(outline, o.smoothing);
+      // The outer outline (the largest loop), fitted to the edge in the photo (snap.js), then grown by the clearance.
+      const outer = (m, ox, oy) => { const loops = traceBinary(m, ox, oy); let best = loops[0]; for (const l of loops) if (Math.abs(signedArea(l)) > Math.abs(signedArea(best))) best = l; return best; };
+      let outline = outer(part.mask, X0, Y0);
+      if (!outline) continue;
+      if (o.snap !== false) outline = snapOutline(simplifyClosed(outline, o.smoothing), sheet);
+      if (o.clearance > 0) {
+        // The fitted outline drawn back into a grid that sits where the part's does, grown, and traced again.
+        const m = part.mask, g = new Grid(m.width, m.height, m.x0 + X0 * m.res, m.y0 + Y0 * m.res, m.res);
+        fillPolygon(g, outline, 1);
+        outline = outer(offsetMask(g, o.clearance * pxPerMm), 0, 0) || outline;
+      }
+      // A fitted outline was already thinned to within 0.05 mm of the edge; only a grown one (traced off a grid) needs the full smoothing.
+      if (o.snap === false || o.clearance > 0) outline = simplifyClosed(outline, o.smoothing);
       shapes.push({
         id: shapes.length + 1,
         polygon: outline,
