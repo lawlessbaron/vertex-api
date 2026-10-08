@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.19.2 · 8 October 2026
+
+### Improved
+- **Engine 1.97.2 from VERTEX:** flat faces with many holes (vented panels, panel fronts) no longer have triangles facing the wrong way, so `serverrack` and `rackpanel` files come out clean.
+- **Closer tracer outlines:** small parts and tools with a soft shadow are traced to the part itself, not half a millimetre into the shadow; grey and white parts of a tool stay in.
+
 ## 1.19.1 · 7 October 2026
 
 ### Improved

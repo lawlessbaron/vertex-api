@@ -317,6 +317,11 @@ function clipEars(start, tris, z = null) {
         stop = p;
         pass = changed ? 0 : 1;
       } else if (pass === 1) {
+        // Stuck: cut the ring in two along a diagonal that stays inside, and do each half
+        // (the same number of triangles, all facing up).
+        if (splitEarcut(ear, tris)) return;
+        pass = 2;
+      } else if (pass === 2) {
         // Last resort: split off a triangle that at least is not reflex.
         let p = ear;
         do {
@@ -331,6 +336,60 @@ function clipEars(start, tris, z = null) {
       }
     }
   }
+}
+
+// Earcut's cure for a ring ear clipping can't finish: split it along an inside diagonal (github.com/mapbox/earcut, ISC).
+function splitEarcut(start, tris) {
+  let a = start;
+  do {
+    let b = a.next.next;
+    while (b !== a.prev) {
+      if (a.i !== b.i && isValidDiagonal(a, b)) {
+        const half = splitRing(a, b);
+        clipEars(a, tris, ringSize(a) > 80 ? indexZ(a) : null);
+        clipEars(half, tris, ringSize(half) > 80 ? indexZ(half) : null);
+        return true;
+      }
+      b = b.next;
+    }
+    a = a.next;
+  } while (a !== start);
+  return false;
+}
+
+// Links a straight to b, and a copy of each back the other way: two rings. Returns the second.
+function splitRing(a, b) {
+  const a2 = node(a.i, a.x, a.y), b2 = node(b.i, b.x, b.y), an = a.next, bp = b.prev;
+  a.next = b; b.prev = a;
+  a2.next = an; an.prev = a2;
+  b2.next = a2; a2.prev = b2;
+  bp.next = b2; b2.prev = bp;
+  return b2;
+}
+
+function isValidDiagonal(a, b) {
+  return a.next.i !== b.i && a.prev.i !== b.i && !intersectsRing(a, b) &&
+    ((locallyInside(a, b) && locallyInside(b, a) && middleInside(a, b) && (area2(a.prev, a, b.prev) || area2(a, b.prev, b))) ||
+      (equals(a, b) && area2(a.prev, a, a.next) > 0 && area2(b.prev, b, b.next) > 0));
+}
+
+function intersectsRing(a, b) {
+  let p = a;
+  do {
+    if (p.i !== a.i && p.next.i !== a.i && p.i !== b.i && p.next.i !== b.i && intersects(p, p.next, a, b)) return true;
+    p = p.next;
+  } while (p !== a);
+  return false;
+}
+
+function middleInside(a, b) {
+  let p = a, inside = false;
+  const px = (a.x + b.x) / 2, py = (a.y + b.y) / 2;
+  do {
+    if ((p.y > py) !== (p.next.y > py) && p.next.y !== p.y && px < ((p.next.x - p.x) * (py - p.y)) / (p.next.y - p.y) + p.x) inside = !inside;
+    p = p.next;
+  } while (p !== a);
+  return inside;
 }
 
 // Watertight prism from a polygon with holes, between z0 and z1.

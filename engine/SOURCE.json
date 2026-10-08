@@ -1,7 +1,7 @@
 {
   "from": "lawlessbaron/gridfinity-generator",
-  "commit": "556dc14",
-  "engine": "1.97.1",
+  "commit": "a801e8e",
+  "engine": "1.97.2",
   "files": 124,
-  "syncedAt": "2026-10-07T23:23:35.338Z"
+  "syncedAt": "2026-10-08T03:10:25.353Z"
 }

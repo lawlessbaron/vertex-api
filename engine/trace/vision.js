@@ -599,6 +599,7 @@ export const TRACE_DEFAULTS = {
   minArea: 150, // mm²; smaller blobs are dust or shadows
   shadows: 0.75, // how hard to ignore shadows (0 = off, 1 = ignore them completely)
   smoothing: 0.35, // mm simplification tolerance
+  rimPeel: true, // peel a cast shadow's thin strip off each shape's edge (peelShadowRim)
   // The pre-processing (prep.js): what the three trace sliders set.
   shadowTolerance: 80,
   edgeSensitivity: 65,
@@ -1231,6 +1232,72 @@ function standsOut(sheet, shape, clearance) {
   return Math.abs(mean(inn) - mr) >= Math.max(22, 2.5 * sd);
 }
 
+// The light-evened image and its paper colour, for the shadow tests.
+function paperRef(image) {
+  const even = evenLight(image), paper = paperColour(even), sum = Math.max(1, paper[0] + paper[1] + paper[2]);
+  return { d: even.data, W: even.width, L: Math.max(1, lum(paper, 0)), pc: paper.map((v) => v / sum) };
+}
+
+// A cast shadow's strip, peeled off a shape from the outside in: pixels at its edge that are the
+// paper's colour but dimmer, and the ones like them they lead to. The cast-shadow sweep misses a
+// strip this thin (beside a small part, or a soft shadow along a tool), so the outline sat up to
+// half a millimetre towards the shadow. Each guard keeps the part's own grey from going with it:
+// shading all round the edge is the part's own rim (a shadow lies along one side), a peeled piece
+// must hug the part (touching it along at least 3 × its own depth: a grey stub or tip sticks out
+// instead), and nothing is peeled if it would take 40 % of the shape (a grey part).
+const RIM = { lo: 0.45, hi: 0.95, hue: 14, side: 0.6, hug: 3, most: 0.4, fade: 0 };
+function peelShadowRim(mask, ref, X0, Y0) {
+  const { width: w, height: h, data: m } = mask, { d, W, L, pc } = ref;
+  const shadowy = (i) => {
+    const x = i % w, y = (i / w) | 0, j = 4 * ((y + Y0) * W + x + X0), r = lum(d, j) / L, sum = Math.max(1, d[j] + d[j + 1] + d[j + 2]);
+    const hue = (Math.abs(d[j] / sum - pc[0]) + Math.abs(d[j + 1] / sum - pc[1]) + Math.abs(d[j + 2] / sum - pc[2])) * 255;
+    return r >= RIM.lo && r <= RIM.hi && hue <= RIM.hue;
+  };
+  const nbrs = (i) => { const x = i % w, y = (i / w) | 0; return [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]; };
+  let area = 0, rim = 0;
+  const gone = new Uint8Array(w * h), st = [];
+  for (let i = 0; i < w * h; i++) {
+    if (!m[i]) continue;
+    area++;
+    if (!nbrs(i).some((j) => j < 0 || !m[j])) continue;
+    rim++;
+    if (shadowy(i)) { gone[i] = 1; st.push(i); }
+  }
+  if (!st.length || st.length > rim * RIM.side) return;
+  while (st.length) for (const j of nbrs(st.pop())) if (j >= 0 && m[j] && !gone[j] && shadowy(j)) { gone[j] = 1; st.push(j); }
+  // Each piece's contact with what stays, and its depth away from it.
+  const cc = components({ width: w, height: h, data: gone }), dist = new Int32Array(w * h).fill(-1), q = [];
+  const contact = new Int32Array(cc.count + 1), deep = new Int32Array(cc.count + 1);
+  for (let i = 0; i < w * h; i++) {
+    if (!gone[i] || !nbrs(i).some((j) => j >= 0 && m[j] && !gone[j])) continue;
+    contact[cc.labels[i]]++; dist[i] = 1; q.push(i);
+  }
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k], l = cc.labels[i];
+    if (dist[i] > deep[l]) deep[l] = dist[i];
+    for (const j of nbrs(i)) if (j >= 0 && gone[j] && dist[j] < 0) { dist[j] = dist[i] + 1; q.push(j); }
+  }
+  // A cast shadow lightens away from the part (its soft edge fades into the paper), or is even; a
+  // part's own shading lightens towards its middle. Pieces that darken away from the part stay.
+  const sd = new Float64Array(cc.count + 1), sl = new Float64Array(cc.count + 1), sdd = new Float64Array(cc.count + 1), sdl = new Float64Array(cc.count + 1), cnt = new Int32Array(cc.count + 1);
+  for (let i = 0; i < w * h; i++) {
+    if (!gone[i] || dist[i] < 0) continue;
+    const l = cc.labels[i], x = i % w, y = (i / w) | 0, v = lum(d, 4 * ((y + Y0) * W + x + X0)) / L;
+    cnt[l]++; sd[l] += dist[i]; sl[l] += v; sdd[l] += dist[i] * dist[i]; sdl[l] += dist[i] * v;
+  }
+  const fades = (l) => { const n = cnt[l], vd = sdd[l] - (sd[l] * sd[l]) / n; return vd <= 1e-9 || (sdl[l] - (sd[l] * sl[l]) / n) / vd >= -RIM.fade; };
+  let n = 0;
+  for (let i = 0; i < w * h; i++) if (gone[i]) { const l = cc.labels[i]; if (contact[l] >= RIM.hug * deep[l] && fades(l)) n++; else gone[i] = 0; }
+  if (!n || n > area * RIM.most) return;
+  for (let i = 0; i < w * h; i++) if (gone[i]) m[i] = 0;
+  // Keep the biggest piece, whole.
+  const left = components(mask);
+  let best = 1;
+  for (let c = 2; c <= left.count; c++) if (left.sizes[c] > left.sizes[best]) best = c;
+  for (let i = 0; i < w * h; i++) m[i] = left.labels[i] === best ? 1 : 0;
+  fillHoles(mask);
+}
+
 function traceShapes(sheet, options = {}) {
   const o = { ...TRACE_DEFAULTS, ...options };
   const W = sheet.image.width, H = sheet.image.height, pxPerMm = sheet.pxPerMm, res = 1 / pxPerMm;
@@ -1246,6 +1313,7 @@ function traceShapes(sheet, options = {}) {
   }
   const pad = Math.ceil(Math.max(0, o.clearance) * pxPerMm) + 3;
   const shapes = [];
+  let even = null;
   for (let k = 1; k <= count; k++) {
     if (sizes[k] * res * res < o.minArea) continue;
     const X0 = Math.max(0, bx0[k] - pad), Y0 = Math.max(0, by0[k] - pad), w = Math.min(W - 1, bx1[k] + pad) - X0 + 1, h = Math.min(H - 1, by1[k] + pad) - Y0 + 1;
@@ -1253,6 +1321,7 @@ function traceShapes(sheet, options = {}) {
     for (let y = by0[k]; y <= by1[k]; y++) for (let x = bx0[k]; x <= bx1[k]; x++) if (labels[y * W + x] === k) one.data[(y - Y0) * w + x - X0] = 1;
     fillHoles(one);
     for (const part of touching(one, [bx0[k] - X0, by0[k] - Y0, bx1[k] - X0, by1[k] - Y0], o)) {
+      if (o.rimPeel) peelShadowRim(part.mask, even || (even = paperRef(sheet.image)), X0, Y0);
       const grown = o.clearance > 0 ? offsetMask(part.mask, o.clearance * pxPerMm) : part.mask;
       const loops = traceBinary(grown, X0, Y0);
       if (!loops.length) continue;
