@@ -295,8 +295,13 @@ function show(name = tab) {
   document.title = `${t} · Console · Mint Motive API`;
   try { TABS[tab](); } catch (e) { pane().innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; }
 }
+// Asked once: a signed-out visitor sees the sign-in card without a refused call behind it.
+const signedIn = fetch('/api/me', { credentials: 'same-origin' }).then((r) => r.json()).then((d) => !!d?.user).catch(() => true);
 async function load(keepTab = true) {
-  try { data = await call(`/api/developer/console?days=${days}${asQ}`); } catch (e) {
+  try {
+    if (!(await signedIn)) throw Object.assign(new Error('Sign in'), { status: 401 });
+    data = await call(`/api/developer/console?days=${days}${asQ}`);
+  } catch (e) {
     document.body.classList.add('gated');
     $('[data-signin]').hidden = false;
     if (e.status !== 401) $('[data-signin] h1').textContent = e.message;

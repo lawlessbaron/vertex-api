@@ -25,7 +25,11 @@ function showStatus(a) {
 
 async function init() {
   let r;
-  try { r = await call('/api/developer/education'); } catch (e) {
+  try {
+    // A signed-out visitor sees the sign-in card without a refused call behind it.
+    if (!(await call('/api/me').catch(() => ({ user: true }))).user) throw Object.assign(new Error('Sign in'), { status: 401 });
+    r = await call('/api/developer/education');
+  } catch (e) {
     if (e.status === 401) { $('[data-signin]').hidden = false; return; }
     throw e;
   }

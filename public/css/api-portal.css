@@ -67,7 +67,8 @@
 .ax-btn-primary::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--mint) 60%, transparent); opacity: 0; transition: opacity .2s; will-change: opacity; }
 .ax-btn-primary:hover::after { opacity: 1; }
 .ax-btn-ghost { background: transparent; }
-.ax-btn-sm { min-height: 36px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
+.ax-btn-sm { min-height: 36px; padding: 0 14px; font-size: 14px; border-radius: 10px; white-space: nowrap; }
+@media (max-width: 420px) { .ax-top-row .ax-btn-sm [aria-hidden] { display: none; } }
 
 /* Hero: the headline left, the live console right */
 .ax-hero { position: relative; padding: 92px 0 84px; overflow: hidden; border-bottom: 1px solid var(--line); }

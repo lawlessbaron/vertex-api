@@ -646,13 +646,18 @@ async function liveState() {
 
 (async () => {
   shell();
-  try { await call('/api/admin/api/alerts?open=1&limit=1'); } catch (e) {
+  // Who's here first (always answers), so a signed-out visitor never sets off a refused call.
+  me = (await call('/api/me').catch(() => ({}))).user;
+  try {
+    if (!me) throw Object.assign(new Error('Sign in to open API admin.'), { status: 401 });
+    if (!me.admin) throw Object.assign(new Error('Admins only.'), { status: 403 });
+    await call('/api/admin/api/alerts?open=1&limit=1');
+  } catch (e) {
     document.body.classList.add('gated');
     $('[data-signin]').hidden = false;
     if (e.status === 403) { $('[data-signin] h1').textContent = 'Admins only'; $('[data-signin] p').textContent = e.message; $('[data-signin] .btn.primary').hidden = true; }
     return;
   }
-  me = (await call('/api/me').catch(() => ({}))).user;
   if (me) $('[data-me]').innerHTML = `${avatar(me.handle)}<div class="who"><b>${esc(me.name || me.handle)}</b><span>@${esc(me.handle)} · ${esc(me.role)}</span></div>`;
   const open = commandPalette([
     ...Object.entries(TITLES).map(([k, [t, sub]]) => ({ group: 'Go to', label: t, hint: sub, icon: { overview: 'overview', alerts: 'alert', calls: 'calls', latency: 'speed', trace: 'trace', developers: 'users', keys: 'key', plans: 'card', education: 'school', addresses: 'globe', webhooks: 'hook', status: 'pulse', marketing: 'megaphone', settings: 'cog' }[k], run: () => { location.hash = k; } })),
